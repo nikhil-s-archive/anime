@@ -224,6 +224,7 @@ export default function App() {
 
   const [activeEpisode, setActiveEpisode] = useState(null);   // { episode, url }
   const [streamUrl, setStreamUrl] = useState(null);           // proxied HLS URL
+  const [subtitles, setSubtitles] = useState([]);             // available subtitle tracks
   const [loadingStream, setLoadingStream] = useState(false);
 
   // ── Error state ─────────────────────────────────────────────────────────────
@@ -306,10 +307,12 @@ export default function App() {
       }
       const proxied = api.proxyHls(extracted.streamUrl);
       setStreamUrl(proxied);
+      setSubtitles(extracted.subtitles || []);
     } catch (e) {
       showError(`Failed to load stream: ${e.message}`);
       setView("episodes");
       setActiveEpisode(null);
+      setSubtitles([]);
     } finally {
       setLoadingStream(false);
     }
@@ -319,11 +322,14 @@ export default function App() {
   const goBack = useCallback(() => {
     if (view === "playing") {
       setView("episodes");
+      setStreamUrl(null);
+      setSubtitles([]);
     } else {
       setView("browse");
       setSelectedAnime(null);
       setEpisodeData(null);
       setStreamUrl(null);
+      setSubtitles([]);
       setActiveEpisode(null);
     }
   }, [view]);
@@ -331,6 +337,7 @@ export default function App() {
   const closePlayer = useCallback(() => {
     setView("episodes");
     setStreamUrl(null);
+    setSubtitles([]);
   }, []);
 
   // ── Title for the browser tab ────────────────────────────────────────────────
@@ -482,6 +489,7 @@ export default function App() {
                 ) : streamUrl ? (
                   <Player
                     streamUrl={streamUrl}
+                    subtitles={subtitles}
                     title={
                       activeEpisode
                         ? `${selectedAnime.title} · EP ${activeEpisode.episode}`

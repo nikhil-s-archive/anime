@@ -472,17 +472,31 @@ async function extractGetSources(embedUrl, audioLabel, logs = []) {
     m3u8 = await signCdnUrl(m3u8);
     logs.push(`extractGetSources success: ${m3u8.slice(0, 40)}...`);
 
-    return [
-      {
-        url: m3u8,
-        quality: audioLabel || "Auto",
-        headers: { "User-Agent": UA, Referer: apiHost + "/" },
-        server: apiHost,
-      },
-    ];
+    const subtitles = (srcData.tracks || [])
+      .filter((t) => t.file && t.kind !== "thumbnails")
+      .map((t) => ({
+        url: t.file,
+        label: t.label || "Subtitle",
+        lang: (t.file.match(/_([a-z]{3})\.vtt/i) || [])[1] || (t.label || "").toLowerCase().slice(0, 2) || "en",
+        default: !!t.default,
+      }));
+
+    logs.push(`extractGetSources subtitles count: ${subtitles.length}`);
+
+    return {
+      streams: [
+        {
+          url: m3u8,
+          quality: audioLabel || "Auto",
+          headers: { "User-Agent": UA, Referer: apiHost + "/" },
+          server: apiHost,
+        },
+      ],
+      subtitles,
+    };
   } catch (e) {
     logs.push(`extractGetSources error: ${e.message}`);
-    return [];
+    return null;
   }
 }
 
@@ -496,7 +510,7 @@ async function extractVidtube(embedUrl, audioLabel, logs = []) {
     const idM = html.match(/getSourcesNew\?id=(\d+)/) || html.match(/<title>File (\d+)/i);
     if (!idM) {
       logs.push("vidtube fileId not found");
-      return [];
+      return null;
     }
     const fileId = idM[1];
     const typeM = embedUrl.match(/\/(sub|dub)(?:[?#]|$)/);
@@ -517,27 +531,40 @@ async function extractVidtube(embedUrl, audioLabel, logs = []) {
     if (!m3u8 && srcData.enc) m3u8 = await decodeMegaplayEnc(srcData.enc, logs);
     if (!m3u8) {
       logs.push("vidtube decrypted m3u8 empty");
-      return [];
+      return null;
     }
 
     m3u8 = await signCdnUrl(m3u8);
-    return [
-      {
-        url: m3u8,
-        quality: audioLabel || "Auto",
-        headers: { "User-Agent": UA, Referer: "https://vidtube.site/" },
-        server: "vidtube.site",
-      },
-    ];
+
+    const subtitles = (srcData.tracks || [])
+      .filter((t) => t.file && t.kind !== "thumbnails")
+      .map((t) => ({
+        url: t.file,
+        label: t.label || "Subtitle",
+        lang: (t.file.match(/_([a-z]{3})\.vtt/i) || [])[1] || (t.label || "").toLowerCase().slice(0, 2) || "en",
+        default: !!t.default,
+      }));
+
+    return {
+      streams: [
+        {
+          url: m3u8,
+          quality: audioLabel || "Auto",
+          headers: { "User-Agent": UA, Referer: "https://vidtube.site/" },
+          server: "vidtube.site",
+        },
+      ],
+      subtitles,
+    };
   } catch (e) {
     logs.push(`extractVidtube error: ${e.message}`);
-    return [];
+    return null;
   }
 }
 
 async function resolveStreams(linkId, audioLabel, logs = []) {
   const embedUrl = await resolveLinkId(linkId, logs);
-  if (!embedUrl) return [];
+  if (!embedUrl) return null;
   logs.push(`embedUrl for ${audioLabel}: ${embedUrl}`);
 
   if (/\/stream\/s-\d+\/\d+\/(sub|dub)/.test(embedUrl)) {
@@ -547,16 +574,19 @@ async function resolveStreams(linkId, audioLabel, logs = []) {
     return extractVidtube(embedUrl, audioLabel, logs);
   }
   if (embedUrl.includes(".m3u8") || embedUrl.includes(".mp4")) {
-    return [
-      {
-        url: embedUrl,
-        quality: audioLabel || "Auto",
-        headers: { "User-Agent": UA, Referer: BASE_URL + "/" },
-      },
-    ];
+    return {
+      streams: [
+        {
+          url: embedUrl,
+          quality: audioLabel || "Auto",
+          headers: { "User-Agent": UA, Referer: BASE_URL + "/" },
+        },
+      ],
+      subtitles: [],
+    };
   }
   logs.push(`embedUrl unrecognized pattern: ${embedUrl}`);
-  return [];
+  return null;
 }
 
 async function fetchFreshEpMeta(slug, epNum, logs = []) {
@@ -649,9 +679,15 @@ async function resolveEpisodeStream(paramUrl, logs = []) {
     const audioLabel = isSub ? "Sub" : "Dub";
     const label = `${server.name} [${audioLabel}]`;
     try {
-      const streams = await resolveStreams(server.linkId, label, logs);
-      if (streams && streams.length > 0) {
-        return { streams, server: server.name, epNum, slug };
+      const resolved = await resolveStreams(server.linkId, label, logs);
+      if (resolved && resolved.streams?.length > 0) {
+        return {
+          streams: resolved.streams,
+          subtitles: resolved.subtitles || [],
+          server: server.name,
+          epNum,
+          slug,
+        };
       }
     } catch (e) {
       logs.push(`server ${server.name} error: ${e.message}`);
@@ -671,6 +707,7 @@ function getUpstreamReferer(urlStr, explicitReferer) {
   if (
     u.includes("nexabloom") ||
     u.includes("midnightvoyage") ||
+    u.includes("mysubsplay") ||
     u.includes("imgnex") ||
     u.includes("snapcdn") ||
     u.includes("megaplay")
@@ -743,6 +780,31 @@ async function proxyTs(segmentUrl, reqReferer) {
   });
 }
 
+async function proxySub(subUrl, reqReferer) {
+  const referer = getUpstreamReferer(subUrl, reqReferer);
+  const res = await timedFetch(
+    subUrl,
+    { headers: { "User-Agent": UA, Referer: referer } },
+    15000
+  );
+  if (!res.ok) {
+    return new Response(`Upstream Subtitle error: ${res.status}`, {
+      status: res.status,
+      headers: CORS_HEADERS,
+    });
+  }
+
+  const vttText = await res.text();
+  return new Response(vttText, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/vtt; charset=utf-8",
+      "Cache-Control": "public, max-age=86400",
+      ...CORS_HEADERS,
+    },
+  });
+}
+
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 export default {
@@ -793,11 +855,17 @@ export default {
         const referer = primary.headers?.Referer || "https://megaplay.buzz/";
         const proxyUrl = `${origin}/proxy/hls?url=${encodeURIComponent(primary.url)}&referer=${encodeURIComponent(referer)}`;
 
+        const subtitles = (result.subtitles || []).map((s) => ({
+          ...s,
+          proxyUrl: `${origin}/proxy/sub?url=${encodeURIComponent(s.url)}&referer=${encodeURIComponent(referer)}`,
+        }));
+
         return jsonResponse({
           streamUrl: proxyUrl,
           rawStreamUrl: primary.url,
           quality: primary.quality,
           server: result.server,
+          subtitles,
           streams: result.streams.map((s) => ({
             ...s,
             proxyUrl: `${origin}/proxy/hls?url=${encodeURIComponent(s.url)}&referer=${encodeURIComponent(s.headers?.Referer || referer)}`,
@@ -833,6 +901,15 @@ export default {
         if (!["http:", "https:"].includes(p.protocol)) return errorResponse("Invalid protocol", 400);
         const ref = searchParams.get("referer") || "";
         return await proxyTs(su, ref);
+      }
+
+      if (pathname === "/proxy/sub") {
+        const subUrl = searchParams.get("url");
+        if (!subUrl) return errorResponse("Missing ?url=", 400);
+        const p = new URL(subUrl);
+        if (!["http:", "https:"].includes(p.protocol)) return errorResponse("Invalid protocol", 400);
+        const ref = searchParams.get("referer") || "";
+        return await proxySub(subUrl, ref);
       }
 
       return errorResponse(`Unknown route: ${pathname}`, 404);

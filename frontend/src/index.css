@@ -259,3 +259,15 @@ input[type="range"].seek-bar:hover::-webkit-slider-thumb {
   background: rgba(13, 58, 92, 0.85);
   backdrop-filter: blur(8px);
 }
+
+/* ── Video Subtitles Styling (::cue) ────────────────────────────────────────── */
+::cue {
+  background-color: rgba(13, 58, 92, 0.85);
+  color: #FAF7F0;
+  font-family: inherit;
+  font-size: 1.15rem;
+  line-height: 1.4;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+  border-radius: 4px;
+  padding: 3px 8px;
+}

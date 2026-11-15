@@ -69,9 +69,7 @@ function fmtTime(secs) {
   return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
-export default function Player({ streamUrl, title, onClose, onError }) {
+export default function Player({ streamUrl, subtitles = [], title, onClose, onError }) {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
   const controlsTimerRef = useRef(null);
@@ -92,6 +90,41 @@ export default function Player({ streamUrl, title, onClose, onError }) {
 
   const [controlsVisible, setControlsVisible] = useState(true);
   const [seeking, setSeeking] = useState(false);
+  const [activeSubtitle, setActiveSubtitle] = useState(-1);
+
+  // Auto-select English or default subtitle
+  useEffect(() => {
+    if (!subtitles || subtitles.length === 0) {
+      setActiveSubtitle(-1);
+      return;
+    }
+    let defaultIdx = subtitles.findIndex((s) => s.default);
+    if (defaultIdx === -1) {
+      defaultIdx = subtitles.findIndex((s) =>
+        s.label?.toLowerCase().includes("english")
+      );
+    }
+    if (defaultIdx === -1) defaultIdx = 0;
+    setActiveSubtitle(defaultIdx);
+  }, [subtitles]);
+
+  // Synchronize subtitle track mode on video element
+  useEffect(() => {
+    if (!videoRef.current) return;
+    const textTracks = videoRef.current.textTracks;
+    for (let i = 0; i < textTracks.length; i++) {
+      textTracks[i].mode = i === activeSubtitle ? "showing" : "disabled";
+    }
+  }, [activeSubtitle]);
+
+  const handleSubtitleChange = useCallback((index) => {
+    setActiveSubtitle(index);
+    if (!videoRef.current) return;
+    const textTracks = videoRef.current.textTracks;
+    for (let i = 0; i < textTracks.length; i++) {
+      textTracks[i].mode = i === index ? "showing" : "disabled";
+    }
+  }, []);
 
   // Convenience updater
   const patchState = useCallback((patch) => {
@@ -337,9 +370,21 @@ export default function Player({ streamUrl, title, onClose, onError }) {
         ref={videoRef}
         className="w-full max-h-[70vh] bg-black"
         playsInline
+        crossOrigin="anonymous"
         onClick={togglePlay}
         onDoubleClick={handleFullscreen}
-      />
+      >
+        {subtitles.map((sub, i) => (
+          <track
+            key={sub.proxyUrl || i}
+            kind="subtitles"
+            src={sub.proxyUrl}
+            srcLang={sub.lang || "en"}
+            label={sub.label}
+            default={activeSubtitle === i}
+          />
+        ))}
+      </video>
 
       {/* ── Loading overlay ── */}
       {loading && !hlsError && (
@@ -459,6 +504,30 @@ export default function Player({ streamUrl, title, onClose, onError }) {
 
           {/* Spacer */}
           <div className="flex-1" />
+
+          {/* Subtitle (CC) selector */}
+          {subtitles.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border border-gold/40 text-gold bg-gold/10">
+                CC
+              </span>
+              <select
+                value={activeSubtitle}
+                onChange={(e) => handleSubtitleChange(parseInt(e.target.value))}
+                className="bg-navy-900/80 text-ivory text-xs rounded-lg px-2 py-1
+                           border border-white/10 outline-none cursor-pointer
+                           hover:border-gold/40 transition-colors max-w-[130px] truncate"
+                title="Subtitles"
+              >
+                <option value={-1}>Off</option>
+                {subtitles.map((sub, idx) => (
+                  <option key={sub.proxyUrl || idx} value={idx}>
+                    {sub.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Quality selector */}
           {levels.length > 1 && (
