@@ -14,7 +14,6 @@
  */
 
 import * as cheerio from "cheerio";
-import crypto from "node:crypto";
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -101,32 +100,42 @@ function resolveUrl(href, base) {
   return new URL(href, base).href;
 }
 
-// ─── Decryption & HMAC Signing ────────────────────────────────────────────────
+// ─── Decryption & HMAC Signing (Standard Web Crypto API) ──────────────────────
 
-function decodeMegaplayEnc(enc) {
+async function decodeMegaplayEnc(enc, logs = []) {
   try {
     let b64 = enc.replace(/-/g, "+").replace(/_/g, "/");
     while (b64.length % 4 !== 0) b64 += "=";
-    const buf = Buffer.from(b64, "base64");
+    const binStr = atob(b64);
+    const cipherBytes = new Uint8Array(binStr.length);
+    for (let i = 0; i < binStr.length; i++) cipherBytes[i] = binStr.charCodeAt(i);
 
-    let key = Buffer.from(MEGAPLAY_ENC_KEY, "utf8");
-    if (key.length < 32) {
-      const p = Buffer.alloc(32);
-      key.copy(p);
-      key = p;
-    }
-    let iv = Buffer.from(MEGAPLAY_ENC_IV, "utf8");
-    if (iv.length < 16) {
-      const p = Buffer.alloc(16);
-      iv.copy(p);
-      iv = p;
+    const keyBytes = new Uint8Array(32);
+    for (let i = 0; i < MEGAPLAY_ENC_KEY.length && i < 32; i++) {
+      keyBytes[i] = MEGAPLAY_ENC_KEY.charCodeAt(i);
     }
 
-    const decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
-    decipher.setAutoPadding(true);
-    let dec = decipher.update(buf);
-    dec = Buffer.concat([dec, decipher.final()]);
-    const parsed = JSON.parse(dec.toString("utf8"));
+    const ivBytes = new Uint8Array(16);
+    for (let i = 0; i < MEGAPLAY_ENC_IV.length && i < 16; i++) {
+      ivBytes[i] = MEGAPLAY_ENC_IV.charCodeAt(i);
+    }
+
+    const cryptoKey = await crypto.subtle.importKey(
+      "raw",
+      keyBytes,
+      { name: "AES-CBC" },
+      false,
+      ["decrypt"]
+    );
+
+    const decryptedBuf = await crypto.subtle.decrypt(
+      { name: "AES-CBC", iv: ivBytes },
+      cryptoKey,
+      cipherBytes
+    );
+
+    const decStr = new TextDecoder().decode(decryptedBuf);
+    const parsed = JSON.parse(decStr);
 
     if (typeof parsed === "string") return parsed;
     if (parsed?.file) return parsed.file;
@@ -137,24 +146,38 @@ function decodeMegaplayEnc(enc) {
       if (Array.isArray(parsed.sources) && parsed.sources.length) return parsed.sources[0].file || "";
     }
   } catch (e) {
+    logs.push(`decodeMegaplayEnc error: ${e.message}`);
     console.error("[decodeMegaplayEnc] error:", e.message);
   }
   return "";
 }
 
-function signCdnUrl(url) {
+async function signCdnUrl(url) {
   if (!url || /[?&]token=/.test(url)) return url;
   const m = String(url).match(/\/([a-f0-9]{32})\/([a-f0-9]{32})\//i);
   if (!m) return url;
   const path = m[1].toLowerCase() + "/" + m[2].toLowerCase();
   const expiry = Math.floor(Date.now() / 1000) + MEGAPLAY_TOKEN_TTL;
   const msg = `${expiry}|${path}`;
-  const hmac = crypto.createHmac("sha256", MEGAPLAY_CDN_SECRET).update(msg).digest();
 
-  const b64url = (buf) =>
-    buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const textEnc = new TextEncoder();
+  const hmacKey = await crypto.subtle.importKey(
+    "raw",
+    textEnc.encode(MEGAPLAY_CDN_SECRET),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
 
-  const token = `${b64url(Buffer.from(msg, "utf8"))}.${b64url(hmac)}`;
+  const sigBuf = await crypto.subtle.sign("HMAC", hmacKey, textEnc.encode(msg));
+  const b64url = (bytes) => {
+    let binary = "";
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  };
+
+  const token = `${b64url(textEnc.encode(msg))}.${b64url(new Uint8Array(sigBuf))}`;
   return url + (url.includes("?") ? "&" : "?") + "token=" + token;
 }
 
@@ -439,14 +462,14 @@ async function extractGetSources(embedUrl, audioLabel, logs = []) {
     }
     if (!m3u8 && srcData.enc) {
       logs.push(`decrypting enc (len ${srcData.enc.length})`);
-      m3u8 = decodeMegaplayEnc(srcData.enc);
+      m3u8 = await decodeMegaplayEnc(srcData.enc, logs);
     }
     if (!m3u8) {
       logs.push("extractGetSources: decrypted m3u8 is empty");
       return [];
     }
 
-    m3u8 = signCdnUrl(m3u8);
+    m3u8 = await signCdnUrl(m3u8);
     logs.push(`extractGetSources success: ${m3u8.slice(0, 40)}...`);
 
     return [
@@ -491,13 +514,13 @@ async function extractVidtube(embedUrl, audioLabel, logs = []) {
       else if (Array.isArray(srcData.sources) && srcData.sources.length)
         m3u8 = srcData.sources[0].file || srcData.sources[0].url || "";
     }
-    if (!m3u8 && srcData.enc) m3u8 = decodeMegaplayEnc(srcData.enc);
+    if (!m3u8 && srcData.enc) m3u8 = await decodeMegaplayEnc(srcData.enc, logs);
     if (!m3u8) {
       logs.push("vidtube decrypted m3u8 empty");
       return [];
     }
 
-    m3u8 = signCdnUrl(m3u8);
+    m3u8 = await signCdnUrl(m3u8);
     return [
       {
         url: m3u8,
