@@ -69,11 +69,24 @@ function fmtTime(secs) {
   return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
 }
 
-export default function Player({ streamUrl, subtitles = [], title, onClose, onError }) {
+export default function Player({
+  streamUrl,
+  subtitles = [],
+  title,
+  initialTime = 0,
+  onTimeUpdate,
+  onClose,
+  onError,
+}) {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
   const controlsTimerRef = useRef(null);
   const wrapperRef = useRef(null);
+  const initialTimeRef = useRef(initialTime);
+
+  useEffect(() => {
+    initialTimeRef.current = initialTime;
+  }, [initialTime]);
 
   const [playerState, setPlayerState] = useState({
     playing: false,
@@ -176,6 +189,9 @@ export default function Player({ streamUrl, subtitles = [], title, onClose, onEr
           })),
           activeLevel: -1,
         });
+        if (initialTimeRef.current > 0) {
+          video.currentTime = initialTimeRef.current;
+        }
         video.play().catch(() => {});
       });
 
@@ -210,6 +226,9 @@ export default function Player({ streamUrl, subtitles = [], title, onClose, onEr
       video.src = streamUrl;
       video.addEventListener("loadedmetadata", () => {
         patchState({ loading: false });
+        if (initialTimeRef.current > 0) {
+          video.currentTime = initialTimeRef.current;
+        }
         video.play().catch(() => {});
       }, { once: true });
     } else {
@@ -237,7 +256,10 @@ export default function Player({ streamUrl, subtitles = [], title, onClose, onEr
       durationchange:() => patchState({ duration: video.duration }),
       volumechange:  () => patchState({ volume: video.volume, muted: video.muted }),
       timeupdate: () => {
-        if (!seeking) patchState({ currentTime: video.currentTime });
+        if (!seeking) {
+          patchState({ currentTime: video.currentTime });
+          onTimeUpdate?.(video.currentTime);
+        }
         // Update buffered amount
         if (video.buffered.length > 0) {
           patchState({ buffered: video.buffered.end(video.buffered.length - 1) });

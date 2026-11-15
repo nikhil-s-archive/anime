@@ -634,7 +634,7 @@ async function fetchFreshEpMeta(slug, epNum, logs = []) {
   }
 }
 
-async function resolveEpisodeStream(paramUrl, logs = []) {
+async function resolveEpisodeStream(paramUrl, preferredType = "sub", preferredServer = "", targetLinkId = "", logs = []) {
   let slug = "";
   let epNum = "1";
   let ids = "";
@@ -650,7 +650,35 @@ async function resolveEpisodeStream(paramUrl, logs = []) {
     if (epMatch) epNum = epMatch[1];
   }
 
-  logs.push(`resolveEpisodeStream: slug=${slug}, epNum=${epNum}, initialIds=${!!ids}`);
+  if (targetLinkId) {
+    logs.push(`direct linkId resolution: ${targetLinkId}`);
+    const audioLabel = preferredType === "dub" ? "Dub" : "Sub";
+    const label = `${preferredServer || "Server"} [${audioLabel}]`;
+    try {
+      const resolved = await resolveStreams(targetLinkId, label, logs);
+      if (resolved && resolved.streams?.length > 0) {
+        let availableServers = { sub: [], dub: [] };
+        if (ids) {
+          try {
+            availableServers = await fetchServerList(ids, logs);
+          } catch (_) {}
+        }
+        return {
+          streams: resolved.streams,
+          subtitles: resolved.subtitles || [],
+          server: preferredServer || "Server",
+          type: preferredType,
+          availableServers,
+          epNum,
+          slug,
+        };
+      }
+    } catch (e) {
+      logs.push(`direct linkId resolution error: ${e.message}, falling back to candidate list`);
+    }
+  }
+
+  logs.push(`resolveEpisodeStream: slug=${slug}, epNum=${epNum}, prefType=${preferredType}, prefServer=${preferredServer}`);
 
   if (!slug) throw new Error("Could not determine anime slug from URL");
 
@@ -668,7 +696,20 @@ async function resolveEpisodeStream(paramUrl, logs = []) {
   if (!ids) throw new Error(`Could not find server IDs for ${slug} Ep ${epNum}`);
 
   const { sub, dub } = await fetchServerList(ids, logs);
-  const candidates = [...sub.slice(0, 3), ...dub.slice(0, 2)];
+
+  // Build candidate order based on preferredType ('sub' or 'dub') and preferredServer
+  const isDubPref = preferredType.toLowerCase() === "dub";
+  let primaryList = isDubPref ? (dub.length > 0 ? dub : sub) : (sub.length > 0 ? sub : dub);
+  let secondaryList = isDubPref ? sub : dub;
+
+  if (preferredServer) {
+    primaryList = [
+      ...primaryList.filter((s) => s.name.toLowerCase() === preferredServer.toLowerCase()),
+      ...primaryList.filter((s) => s.name.toLowerCase() !== preferredServer.toLowerCase()),
+    ];
+  }
+
+  const candidates = [...primaryList, ...secondaryList];
 
   if (candidates.length === 0) {
     throw new Error(`No servers listed in server list for ${slug}. Logs: ${logs.join(" -> ")}`);
@@ -685,6 +726,8 @@ async function resolveEpisodeStream(paramUrl, logs = []) {
           streams: resolved.streams,
           subtitles: resolved.subtitles || [],
           server: server.name,
+          type: isSub ? "sub" : "dub",
+          availableServers: { sub, dub },
           epNum,
           slug,
         };
@@ -849,8 +892,12 @@ export default {
         const targetUrl = searchParams.get("url") || searchParams.get("embedUrl");
         if (!targetUrl) return errorResponse("Missing ?url=", 400);
 
+        const preferredType = searchParams.get("type") || "sub";
+        const preferredServer = searchParams.get("server") || "";
+        const targetLinkId = searchParams.get("linkId") || "";
+
         const logs = [];
-        const result = await resolveEpisodeStream(targetUrl, logs);
+        const result = await resolveEpisodeStream(targetUrl, preferredType, preferredServer, targetLinkId, logs);
         const primary = result.streams[0];
         const referer = primary.headers?.Referer || "https://megaplay.buzz/";
         const proxyUrl = `${origin}/proxy/hls?url=${encodeURIComponent(primary.url)}&referer=${encodeURIComponent(referer)}`;
@@ -865,6 +912,8 @@ export default {
           rawStreamUrl: primary.url,
           quality: primary.quality,
           server: result.server,
+          type: result.type,
+          availableServers: result.availableServers || { sub: [], dub: [] },
           subtitles,
           streams: result.streams.map((s) => ({
             ...s,
@@ -873,12 +922,26 @@ export default {
         });
       }
 
+      if (pathname === "/api/servers") {
+        const ids = searchParams.get("ids");
+        const urlParam = searchParams.get("url");
+        let serverIds = ids;
+        if (!serverIds && urlParam && urlParam.includes("||")) {
+          serverIds = urlParam.split("||")[4] || "";
+        }
+        if (!serverIds) return errorResponse("Missing ?ids= or ?url=", 400);
+        return jsonResponse(await fetchServerList(serverIds));
+      }
+
       if (pathname === "/api/debug") {
         const targetUrl = searchParams.get("url") || searchParams.get("embedUrl");
         if (!targetUrl) return errorResponse("Missing ?url=", 400);
+        const preferredType = searchParams.get("type") || "sub";
+        const preferredServer = searchParams.get("server") || "";
+        const targetLinkId = searchParams.get("linkId") || "";
         const logs = [];
         try {
-          const result = await resolveEpisodeStream(targetUrl, logs);
+          const result = await resolveEpisodeStream(targetUrl, preferredType, preferredServer, targetLinkId, logs);
           return jsonResponse({ success: true, logs, result });
         } catch (e) {
           return jsonResponse({ success: false, logs, error: e.message }, 500);

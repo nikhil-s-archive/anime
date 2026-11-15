@@ -33,7 +33,14 @@ const api = {
   search: (q, page = 1) =>
     apiFetch(`/api/search?q=${encodeURIComponent(q)}&page=${page}`),
   episodes: (url) => apiFetch(`/api/episodes?url=${encodeURIComponent(url)}`),
-  extract: (url) => apiFetch(`/api/extract?url=${encodeURIComponent(url)}`),
+  extract: (url, opts = {}) => {
+    const params = new URLSearchParams();
+    if (url) params.set("url", url);
+    if (opts.type) params.set("type", opts.type);
+    if (opts.server) params.set("server", opts.server);
+    if (opts.linkId) params.set("linkId", opts.linkId);
+    return apiFetch(`/api/extract?${params.toString()}`);
+  },
   /** Build the proxied HLS manifest URL */
   proxyHls: (streamUrl) => {
     if (!streamUrl) return "";
@@ -142,11 +149,18 @@ function EpisodeRow({ ep, isActive, onClick }) {
       >
         {ep.episode}
       </div>
-      <span className={`text-sm font-medium ${isActive ? "text-ivory" : "text-ivory-muted"}`}>
-        Episode {ep.episode}
-      </span>
+      <div className="flex flex-col min-w-0 flex-1">
+        <span className={`text-sm font-medium truncate ${isActive ? "text-ivory" : "text-ivory-muted"}`}>
+          {ep.label || `Episode ${ep.episode}`}
+        </span>
+        {ep.badge && (
+          <span className="text-[10px] font-mono text-gold/70 mt-0.5">
+            {ep.badge}
+          </span>
+        )}
+      </div>
       {isActive && (
-        <span className="ml-auto text-gold text-xs font-semibold">▶ Now Playing</span>
+        <span className="ml-auto text-gold text-xs font-semibold flex-shrink-0">▶ Now Playing</span>
       )}
     </button>
   );
@@ -227,6 +241,12 @@ export default function App() {
   const [subtitles, setSubtitles] = useState([]);             // available subtitle tracks
   const [loadingStream, setLoadingStream] = useState(false);
 
+  // Audio type & server selection state
+  const [currentType, setCurrentType] = useState("sub");       // "sub" | "dub"
+  const [currentServer, setCurrentServer] = useState("");     // active server name
+  const [availableServers, setAvailableServers] = useState({ sub: [], dub: [] });
+  const [playbackTime, setPlaybackTime] = useState(0);
+
   // ── Error state ─────────────────────────────────────────────────────────────
   const [error, setError] = useState(null);
 
@@ -279,6 +299,10 @@ export default function App() {
     setEpisodeData(null);
     setActiveEpisode(null);
     setStreamUrl(null);
+    setSubtitles([]);
+    setPlaybackTime(0);
+    setAvailableServers({ sub: [], dub: [] });
+    setCurrentServer("");
     setLoadingEpisodes(true);
 
     try {
@@ -293,30 +317,69 @@ export default function App() {
   }, [selectedAnime, view, showError]);
 
   // ── Select episode → extract & proxy stream ─────────────────────────────────
-  const handleEpisodeClick = useCallback(async (ep) => {
-    if (activeEpisode?.url === ep.url) return;
-    setActiveEpisode(ep);
-    setStreamUrl(null);
-    setLoadingStream(true);
-    setView("playing");
-
-    try {
-      const extracted = await api.extract(ep.url);
-      if (!extracted || !extracted.streamUrl) {
-        throw new Error("No stream found for this episode");
+  const handleEpisodeClick = useCallback(
+    async (ep, type = currentType, server = "", linkId = "", keepTime = false) => {
+      const isDifferentEpisode = activeEpisode?.url !== ep.url;
+      if (!keepTime && isDifferentEpisode) {
+        setPlaybackTime(0);
       }
-      const proxied = api.proxyHls(extracted.streamUrl);
-      setStreamUrl(proxied);
-      setSubtitles(extracted.subtitles || []);
-    } catch (e) {
-      showError(`Failed to load stream: ${e.message}`);
-      setView("episodes");
-      setActiveEpisode(null);
-      setSubtitles([]);
-    } finally {
-      setLoadingStream(false);
-    }
-  }, [activeEpisode, showError]);
+      setActiveEpisode(ep);
+      setLoadingStream(true);
+      setView("playing");
+
+      try {
+        const extracted = await api.extract(ep.url, { type, server, linkId });
+        if (!extracted || !extracted.streamUrl) {
+          throw new Error("No stream found for this episode");
+        }
+        const proxied = api.proxyHls(extracted.streamUrl);
+        setStreamUrl(proxied);
+        setSubtitles(extracted.subtitles || []);
+        setCurrentType(extracted.type || type);
+        setCurrentServer(extracted.server || server || "");
+        if (
+          extracted.availableServers &&
+          (extracted.availableServers.sub?.length ||
+            extracted.availableServers.dub?.length)
+        ) {
+          setAvailableServers(extracted.availableServers);
+        }
+      } catch (e) {
+        showError(`Failed to load stream: ${e.message}`);
+        if (isDifferentEpisode) {
+          setView("episodes");
+          setActiveEpisode(null);
+          setSubtitles([]);
+          setStreamUrl(null);
+        }
+      } finally {
+        setLoadingStream(false);
+      }
+    },
+    [activeEpisode, currentType, showError]
+  );
+
+  const handleSwitchType = useCallback(
+    (newType) => {
+      if (newType === currentType || !activeEpisode || loadingStream) return;
+      setCurrentType(newType);
+      handleEpisodeClick(activeEpisode, newType, "", "", true);
+    },
+    [currentType, activeEpisode, loadingStream, handleEpisodeClick]
+  );
+
+  const handleSwitchServer = useCallback(
+    (serverObj) => {
+      if (
+        serverObj.name.toLowerCase() === currentServer.toLowerCase() ||
+        !activeEpisode ||
+        loadingStream
+      )
+        return;
+      handleEpisodeClick(activeEpisode, currentType, serverObj.name, serverObj.linkId, true);
+    },
+    [currentServer, activeEpisode, loadingStream, currentType, handleEpisodeClick]
+  );
 
   // ── Navigation helpers ───────────────────────────────────────────────────────
   const goBack = useCallback(() => {
@@ -324,6 +387,7 @@ export default function App() {
       setView("episodes");
       setStreamUrl(null);
       setSubtitles([]);
+      setPlaybackTime(0);
     } else {
       setView("browse");
       setSelectedAnime(null);
@@ -331,6 +395,9 @@ export default function App() {
       setStreamUrl(null);
       setSubtitles([]);
       setActiveEpisode(null);
+      setPlaybackTime(0);
+      setAvailableServers({ sub: [], dub: [] });
+      setCurrentServer("");
     }
   }, [view]);
 
@@ -338,6 +405,7 @@ export default function App() {
     setView("episodes");
     setStreamUrl(null);
     setSubtitles([]);
+    setPlaybackTime(0);
   }, []);
 
   // ── Title for the browser tab ────────────────────────────────────────────────
@@ -479,7 +547,7 @@ export default function App() {
             {/* ── Player (shown when streaming) ── */}
             {view === "playing" && (
               <div className="mb-6">
-                {loadingStream ? (
+                {loadingStream && !streamUrl ? (
                   <div className="player-wrapper flex items-center justify-center min-h-[320px]">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-12 h-12 rounded-full border-4 border-gold/20 border-t-gold animate-spin" />
@@ -487,17 +555,97 @@ export default function App() {
                     </div>
                   </div>
                 ) : streamUrl ? (
-                  <Player
-                    streamUrl={streamUrl}
-                    subtitles={subtitles}
-                    title={
-                      activeEpisode
-                        ? `${selectedAnime.title} · EP ${activeEpisode.episode}`
-                        : selectedAnime.title
-                    }
-                    onClose={closePlayer}
-                    onError={showError}
-                  />
+                  <div className="space-y-3">
+                    <div className="relative">
+                      <Player
+                        streamUrl={streamUrl}
+                        subtitles={subtitles}
+                        initialTime={playbackTime}
+                        onTimeUpdate={(t) => setPlaybackTime(t)}
+                        title={
+                          activeEpisode
+                            ? `${selectedAnime.title} · EP ${activeEpisode.episode}`
+                            : selectedAnime.title
+                        }
+                        onClose={closePlayer}
+                        onError={showError}
+                      />
+                      {loadingStream && (
+                        <div className="absolute inset-0 bg-navy/60 backdrop-blur-sm flex items-center justify-center z-30 rounded-2xl">
+                          <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-navy-800/90 border border-gold/30">
+                            <div className="w-5 h-5 rounded-full border-2 border-gold/30 border-t-gold animate-spin" />
+                            <span className="text-xs font-semibold text-ivory">Switching stream…</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ── Sub/Dub & Server Controls ── */}
+                    {(availableServers.sub?.length > 0 || availableServers.dub?.length > 0) && (
+                      <div className="glass px-4 py-3 flex flex-wrap items-center justify-between gap-3 animate-fade-in">
+                        {/* Audio Type Toggle (SUB / DUB) */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-ivory-muted/70">
+                            Audio:
+                          </span>
+                          <div className="flex items-center bg-navy-900/80 p-0.5 rounded-lg border border-white/10">
+                            <button
+                              onClick={() => handleSwitchType("sub")}
+                              disabled={loadingStream || availableServers.sub?.length === 0}
+                              className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
+                                currentType === "sub"
+                                  ? "bg-gold text-navy shadow-sm"
+                                  : availableServers.sub?.length === 0
+                                  ? "opacity-30 cursor-not-allowed text-ivory-muted"
+                                  : "text-ivory-muted hover:text-ivory"
+                              }`}
+                            >
+                              SUB {availableServers.sub?.length > 0 ? `(${availableServers.sub.length})` : ""}
+                            </button>
+                            <button
+                              onClick={() => handleSwitchType("dub")}
+                              disabled={loadingStream || availableServers.dub?.length === 0}
+                              className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
+                                currentType === "dub"
+                                  ? "bg-gold text-navy shadow-sm"
+                                  : availableServers.dub?.length === 0
+                                  ? "opacity-30 cursor-not-allowed text-ivory-muted"
+                                  : "text-ivory-muted hover:text-ivory"
+                              }`}
+                            >
+                              DUB {availableServers.dub?.length > 0 ? `(${availableServers.dub.length})` : ""}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Server Switcher */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-ivory-muted/70">
+                            Server:
+                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {((currentType === "dub" ? availableServers.dub : availableServers.sub) || []).map((srv) => {
+                              const isSelected = currentServer.toLowerCase() === srv.name.toLowerCase();
+                              return (
+                                <button
+                                  key={srv.linkId || srv.name}
+                                  onClick={() => handleSwitchServer(srv)}
+                                  disabled={loadingStream || isSelected}
+                                  className={`px-2.5 py-1 text-xs rounded-lg border transition-all ${
+                                    isSelected
+                                      ? "bg-azure text-ivory border-gold/50 shadow-sm font-semibold"
+                                      : "bg-navy-800/60 text-ivory-muted border-white/10 hover:border-white/20 hover:text-ivory"
+                                  }`}
+                                >
+                                  {isSelected ? "● " : ""}{srv.name}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 ) : null}
               </div>
             )}
