@@ -35,8 +35,14 @@ const api = {
   episodes: (url) => apiFetch(`/api/episodes?url=${encodeURIComponent(url)}`),
   extract: (url) => apiFetch(`/api/extract?url=${encodeURIComponent(url)}`),
   /** Build the proxied HLS manifest URL */
-  proxyHls: (streamUrl) =>
-    `${API_BASE}/proxy/hls?url=${encodeURIComponent(streamUrl)}`,
+  proxyHls: (streamUrl) => {
+    if (!streamUrl) return "";
+    if (streamUrl.includes("/proxy/hls?url=")) {
+      if (streamUrl.startsWith("http")) return streamUrl;
+      return `${API_BASE}${streamUrl}`;
+    }
+    return `${API_BASE}/proxy/hls?url=${encodeURIComponent(streamUrl)}`;
+  },
 };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -294,12 +300,10 @@ export default function App() {
     setView("playing");
 
     try {
-      // 1. The episode page URL → extract embed URL from the page
-      const episodePageHtml = await fetch(`${API_BASE}/proxy/hls?url=${encodeURIComponent(ep.url)}`);
-      // Note: We actually need to scrape the episode page for the embed URL.
-      // The Worker's /api/extract endpoint handles this:
       const extracted = await api.extract(ep.url);
-      // 2. Proxy the HLS manifest through our Worker
+      if (!extracted || !extracted.streamUrl) {
+        throw new Error("No stream found for this episode");
+      }
       const proxied = api.proxyHls(extracted.streamUrl);
       setStreamUrl(proxied);
     } catch (e) {
