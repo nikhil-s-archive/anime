@@ -333,12 +333,16 @@ async function scrapeEpisodes(animeUrl) {
 
 // ─── Stream Extractors ────────────────────────────────────────────────────────
 
-async function fetchServerList(ids) {
-  if (!ids) return { sub: [], dub: [] };
+async function fetchServerList(ids, logs = []) {
+  if (!ids) {
+    logs.push("fetchServerList: no ids provided");
+    return { sub: [], dub: [] };
+  }
   try {
     const res = await timedFetch(`${BASE_URL}/ajax/server/list?servers=${encodeURIComponent(ids)}`, {
       headers: AJAX_HEADERS,
     });
+    logs.push(`fetchServerList HTTP ${res.status}`);
     if (!res.ok) return { sub: [], dub: [] };
     let data = await res.json();
     let html = data?.result || "";
@@ -368,29 +372,41 @@ async function fetchServerList(ids) {
       });
     }
 
+    logs.push(`fetchServerList found sub=${sub.length}, dub=${dub.length}`);
     return { sub, dub };
   } catch (e) {
-    console.error("[fetchServerList]", e.message);
+    logs.push(`fetchServerList error: ${e.message}`);
     return { sub: [], dub: [] };
   }
 }
 
-async function resolveLinkId(linkId) {
+async function resolveLinkId(linkId, logs = []) {
   try {
-    const data = await fetchJson(`${BASE_URL}/ajax/server?get=${encodeURIComponent(linkId)}`);
-    if (!data?.result) return "";
+    const res = await timedFetch(`${BASE_URL}/ajax/server?get=${encodeURIComponent(linkId)}`, {
+      headers: AJAX_HEADERS,
+    });
+    logs.push(`resolveLinkId HTTP ${res.status}`);
+    if (!res.ok) return "";
+    const data = await res.json();
+    if (!data?.result) {
+      logs.push("resolveLinkId no data.result");
+      return "";
+    }
     if (typeof data.result === "string") return data.result;
     return data.result.url || data.result.link || "";
   } catch (e) {
-    console.error("[resolveLinkId]", e.message);
+    logs.push(`resolveLinkId error: ${e.message}`);
     return "";
   }
 }
 
-async function extractGetSources(embedUrl, audioLabel) {
+async function extractGetSources(embedUrl, audioLabel, logs = []) {
   try {
     const hostM = embedUrl.match(/^(https?:\/\/[^/]+)/);
-    if (!hostM) return [];
+    if (!hostM) {
+      logs.push(`extractGetSources: no host in ${embedUrl}`);
+      return [];
+    }
     const apiHost = hostM[1];
 
     let getSrcId = "";
@@ -398,12 +414,17 @@ async function extractGetSources(embedUrl, audioLabel) {
       const pageRes = await timedFetch(embedUrl, {
         headers: { "User-Agent": UA, Referer: BASE_URL + "/" },
       });
+      logs.push(`embedPage ${apiHost} HTTP ${pageRes.status}`);
       const pageBody = await pageRes.text();
       const m = pageBody.match(/data-id="(\d+)"/) || pageBody.match(/<title>File (\d+)/i);
       if (m) getSrcId = m[1];
-    } catch (_) {}
+      else logs.push(`data-id not in embed HTML (len ${pageBody.length})`);
+    } catch (e) {
+      logs.push(`embedPage error: ${e.message}`);
+    }
     if (!getSrcId) return [];
 
+    logs.push(`calling getSources?id=${getSrcId}`);
     const srcData = await fetchJson(`${apiHost}/stream/getSources?id=${getSrcId}`, {
       Referer: apiHost + "/",
       "X-Requested-With": "XMLHttpRequest",
@@ -416,10 +437,17 @@ async function extractGetSources(embedUrl, audioLabel) {
       else if (Array.isArray(srcData.sources) && srcData.sources.length)
         m3u8 = srcData.sources[0].file || srcData.sources[0].url || "";
     }
-    if (!m3u8 && srcData.enc) m3u8 = decodeMegaplayEnc(srcData.enc);
-    if (!m3u8) return [];
+    if (!m3u8 && srcData.enc) {
+      logs.push(`decrypting enc (len ${srcData.enc.length})`);
+      m3u8 = decodeMegaplayEnc(srcData.enc);
+    }
+    if (!m3u8) {
+      logs.push("extractGetSources: decrypted m3u8 is empty");
+      return [];
+    }
 
     m3u8 = signCdnUrl(m3u8);
+    logs.push(`extractGetSources success: ${m3u8.slice(0, 40)}...`);
 
     return [
       {
@@ -430,19 +458,23 @@ async function extractGetSources(embedUrl, audioLabel) {
       },
     ];
   } catch (e) {
-    console.error("[extractGetSources]", e.message);
+    logs.push(`extractGetSources error: ${e.message}`);
     return [];
   }
 }
 
-async function extractVidtube(embedUrl, audioLabel) {
+async function extractVidtube(embedUrl, audioLabel, logs = []) {
   try {
     const pageRes = await timedFetch(embedUrl, {
       headers: { "User-Agent": UA, Referer: BASE_URL + "/" },
     });
+    logs.push(`vidtube page HTTP ${pageRes.status}`);
     const html = await pageRes.text();
     const idM = html.match(/getSourcesNew\?id=(\d+)/) || html.match(/<title>File (\d+)/i);
-    if (!idM) return [];
+    if (!idM) {
+      logs.push("vidtube fileId not found");
+      return [];
+    }
     const fileId = idM[1];
     const typeM = embedUrl.match(/\/(sub|dub)(?:[?#]|$)/);
     const type = typeM ? typeM[1] : "sub";
@@ -460,7 +492,10 @@ async function extractVidtube(embedUrl, audioLabel) {
         m3u8 = srcData.sources[0].file || srcData.sources[0].url || "";
     }
     if (!m3u8 && srcData.enc) m3u8 = decodeMegaplayEnc(srcData.enc);
-    if (!m3u8) return [];
+    if (!m3u8) {
+      logs.push("vidtube decrypted m3u8 empty");
+      return [];
+    }
 
     m3u8 = signCdnUrl(m3u8);
     return [
@@ -472,20 +507,21 @@ async function extractVidtube(embedUrl, audioLabel) {
       },
     ];
   } catch (e) {
-    console.error("[extractVidtube]", e.message);
+    logs.push(`extractVidtube error: ${e.message}`);
     return [];
   }
 }
 
-async function resolveStreams(linkId, audioLabel) {
-  const embedUrl = await resolveLinkId(linkId);
+async function resolveStreams(linkId, audioLabel, logs = []) {
+  const embedUrl = await resolveLinkId(linkId, logs);
   if (!embedUrl) return [];
+  logs.push(`embedUrl for ${audioLabel}: ${embedUrl}`);
 
   if (/\/stream\/s-\d+\/\d+\/(sub|dub)/.test(embedUrl)) {
-    return extractGetSources(embedUrl, audioLabel);
+    return extractGetSources(embedUrl, audioLabel, logs);
   }
   if (embedUrl.includes("vidtube.site/stream/")) {
-    return extractVidtube(embedUrl, audioLabel);
+    return extractVidtube(embedUrl, audioLabel, logs);
   }
   if (embedUrl.includes(".m3u8") || embedUrl.includes(".mp4")) {
     return [
@@ -496,43 +532,56 @@ async function resolveStreams(linkId, audioLabel) {
       },
     ];
   }
+  logs.push(`embedUrl unrecognized pattern: ${embedUrl}`);
   return [];
 }
 
-async function fetchFreshEpMeta(slug, epNum) {
-  const html = await fetchText(`${BASE_URL}/watch/${slug}`);
-  const $ = cheerio.load(html);
-  let animeId = $("#watch-main").attr("data-id") || "";
-  if (!animeId) {
-    const m = html.match(/data-id="(\d+)"/);
-    if (m) animeId = m[1];
-  }
-  if (!animeId) return null;
-
-  const epRes = await timedFetch(`${BASE_URL}/ajax/episode/list/${animeId}?vrf=`, {
-    headers: { ...AJAX_HEADERS, Referer: `${BASE_URL}/watch/${slug}` },
-  });
-  if (!epRes.ok) return null;
-  const epData = await epRes.json();
-  if (!epData?.result) return null;
-
-  const $ep = cheerio.load(epData.result);
-  let meta = null;
-  $ep("a[data-num]").each((_, el) => {
-    if (meta) return;
-    const $a = $ep(el);
-    if ($a.attr("data-num") === epNum) {
-      meta = {
-        malId: $a.attr("data-mal") || "",
-        timestamp: $a.attr("data-timestamp") || "",
-        ids: $a.attr("data-ids") || "",
-      };
+async function fetchFreshEpMeta(slug, epNum, logs = []) {
+  try {
+    const html = await fetchText(`${BASE_URL}/watch/${slug}`);
+    const $ = cheerio.load(html);
+    let animeId = $("#watch-main").attr("data-id") || "";
+    if (!animeId) {
+      const m = html.match(/data-id="(\d+)"/);
+      if (m) animeId = m[1];
     }
-  });
-  return meta;
+    if (!animeId) {
+      logs.push(`fetchFreshEpMeta: animeId not found in /watch/${slug}`);
+      return null;
+    }
+
+    const epRes = await timedFetch(`${BASE_URL}/ajax/episode/list/${animeId}?vrf=`, {
+      headers: { ...AJAX_HEADERS, Referer: `${BASE_URL}/watch/${slug}` },
+    });
+    if (!epRes.ok) {
+      logs.push(`fetchFreshEpMeta: episode list HTTP ${epRes.status}`);
+      return null;
+    }
+    const epData = await epRes.json();
+    if (!epData?.result) return null;
+
+    const $ep = cheerio.load(epData.result);
+    let meta = null;
+    $ep("a[data-num]").each((_, el) => {
+      if (meta) return;
+      const $a = $ep(el);
+      if ($a.attr("data-num") === epNum) {
+        meta = {
+          malId: $a.attr("data-mal") || "",
+          timestamp: $a.attr("data-timestamp") || "",
+          ids: $a.attr("data-ids") || "",
+        };
+      }
+    });
+    logs.push(`fetchFreshEpMeta: got fresh ids for ep ${epNum}: ${!!meta?.ids}`);
+    return meta;
+  } catch (e) {
+    logs.push(`fetchFreshEpMeta error: ${e.message}`);
+    return null;
+  }
 }
 
-async function resolveEpisodeStream(paramUrl) {
+async function resolveEpisodeStream(paramUrl, logs = []) {
   let slug = "";
   let epNum = "1";
   let ids = "";
@@ -548,34 +597,45 @@ async function resolveEpisodeStream(paramUrl) {
     if (epMatch) epNum = epMatch[1];
   }
 
+  logs.push(`resolveEpisodeStream: slug=${slug}, epNum=${epNum}, initialIds=${!!ids}`);
+
   if (!slug) throw new Error("Could not determine anime slug from URL");
 
   // Refresh IDs to ensure they are not expired
   try {
-    const freshMeta = await fetchFreshEpMeta(slug, epNum);
+    const freshMeta = await fetchFreshEpMeta(slug, epNum, logs);
     if (freshMeta?.ids) ids = freshMeta.ids;
   } catch (_) {}
 
+  // If ids has spaces from URL decoding, restore '+'
+  if (ids && ids.includes(" ")) {
+    ids = ids.replace(/ /g, "+");
+  }
+
   if (!ids) throw new Error(`Could not find server IDs for ${slug} Ep ${epNum}`);
 
-  const { sub, dub } = await fetchServerList(ids);
+  const { sub, dub } = await fetchServerList(ids, logs);
   const candidates = [...sub.slice(0, 3), ...dub.slice(0, 2)];
+
+  if (candidates.length === 0) {
+    throw new Error(`No servers listed in server list for ${slug}. Logs: ${logs.join(" -> ")}`);
+  }
 
   for (const server of candidates) {
     const isSub = sub.includes(server);
     const audioLabel = isSub ? "Sub" : "Dub";
     const label = `${server.name} [${audioLabel}]`;
     try {
-      const streams = await resolveStreams(server.linkId, label);
+      const streams = await resolveStreams(server.linkId, label, logs);
       if (streams && streams.length > 0) {
         return { streams, server: server.name, epNum, slug };
       }
     } catch (e) {
-      console.warn(`[resolveEpisodeStream] server ${server.name} error:`, e.message);
+      logs.push(`server ${server.name} error: ${e.message}`);
     }
   }
 
-  throw new Error("No working video stream found on any server");
+  throw new Error(`No working stream found. Trace: ${logs.join(" -> ")}`);
 }
 
 // ─── HLS Reverse Proxy ────────────────────────────────────────────────────────
@@ -704,7 +764,8 @@ export default {
         const targetUrl = searchParams.get("url") || searchParams.get("embedUrl");
         if (!targetUrl) return errorResponse("Missing ?url=", 400);
 
-        const result = await resolveEpisodeStream(targetUrl);
+        const logs = [];
+        const result = await resolveEpisodeStream(targetUrl, logs);
         const primary = result.streams[0];
         const referer = primary.headers?.Referer || "https://megaplay.buzz/";
         const proxyUrl = `${origin}/proxy/hls?url=${encodeURIComponent(primary.url)}&referer=${encodeURIComponent(referer)}`;
@@ -719,6 +780,18 @@ export default {
             proxyUrl: `${origin}/proxy/hls?url=${encodeURIComponent(s.url)}&referer=${encodeURIComponent(s.headers?.Referer || referer)}`,
           })),
         });
+      }
+
+      if (pathname === "/api/debug") {
+        const targetUrl = searchParams.get("url") || searchParams.get("embedUrl");
+        if (!targetUrl) return errorResponse("Missing ?url=", 400);
+        const logs = [];
+        try {
+          const result = await resolveEpisodeStream(targetUrl, logs);
+          return jsonResponse({ success: true, logs, result });
+        } catch (e) {
+          return jsonResponse({ success: false, logs, error: e.message }, 500);
+        }
       }
 
       if (pathname === "/proxy/hls") {
