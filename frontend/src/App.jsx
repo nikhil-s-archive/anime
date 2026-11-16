@@ -1330,6 +1330,7 @@ export default function App() {
 
   const [activeEpisode, setActiveEpisode] = useState(null); // { episode, url }
   const [streamUrl, setStreamUrl] = useState(null); // proxied HLS URL
+  const [rawStreamUrl, setRawStreamUrl] = useState(null); // direct/raw upstream stream URL
   const [subtitles, setSubtitles] = useState([]); // available subtitle tracks
   const [loadingStream, setLoadingStream] = useState(false);
 
@@ -1755,6 +1756,7 @@ export default function App() {
         }
         const proxied = api.proxyHls(extracted.streamUrl);
         setStreamUrl(proxied);
+        setRawStreamUrl(extracted.rawStreamUrl || extracted.streamUrl || null);
         setSubtitles(extracted.subtitles || []);
         setCurrentType(extracted.type || type);
         setCurrentServer(extracted.server || server || "");
@@ -2096,6 +2098,7 @@ export default function App() {
   const closePlayer = useCallback(() => {
     setView("episodes");
     setStreamUrl(null);
+    setRawStreamUrl(null);
     setSubtitles([]);
     setPlaybackTime(0);
   }, []);
@@ -2123,6 +2126,7 @@ export default function App() {
       setSelectedAnime(null);
       setEpisodeData(null);
       setStreamUrl(null);
+      setRawStreamUrl(null);
       setSubtitles([]);
       setActiveEpisode(null);
       setPlaybackTime(0);
@@ -2445,6 +2449,7 @@ export default function App() {
                     <div className="relative">
                       <Player
                         streamUrl={streamUrl}
+                        rawStreamUrl={rawStreamUrl}
                         subtitles={subtitles}
                         initialTime={playbackTime}
                         onTimeUpdate={handleTimeUpdate}

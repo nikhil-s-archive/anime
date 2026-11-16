@@ -632,11 +632,16 @@
   pointer-events: auto;
 }
 
+.download-player-btn,
 .close-player-btn {
   width: 36px;
   height: 36px;
   padding: 6px;
   border-radius: 9999px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
 
 /* Center Controls Overlay */
@@ -931,12 +936,14 @@
   position: absolute;
   bottom: 74px;
   right: 20px;
-  background: rgba(18, 18, 24, 0.8);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: rgba(18, 18, 24, 0.88);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
   border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 16px;
-  width: 290px;
+  border-radius: 20px;
+  width: 310px;
+  max-height: 80vh;
+  overflow-y: auto;
   color: white;
   z-index: 50;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.2);
@@ -1082,11 +1089,13 @@
   .player-title-bar {
     padding: 8px 12px;
   }
+  .download-player-btn,
   .close-player-btn {
     width: 28px;
     height: 28px;
     padding: 5px;
   }
+  .download-player-btn svg,
   .close-player-btn svg {
     width: 13px !important;
     height: 13px !important;
@@ -1152,9 +1161,10 @@
     height: 13px !important;
   }
   .settings-panel {
-    width: 240px;
+    width: 270px;
     bottom: 52px;
     right: 8px;
+    max-height: 70vh;
   }
 }
 
@@ -1167,12 +1177,59 @@
 ::cue {
   background-color: rgba(10, 11, 12, 0.85);
   color: #f5f5f7;
-  font-family: inherit;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-size: 1.15rem;
   line-height: 1.4;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
-  border-radius: 4px;
+  border-radius: 6px;
   padding: 3px 8px;
+  transition: all 0.15s ease;
+}
+
+/* Subtitle Sizes */
+.sub-size-small video::cue {
+  font-size: 0.85rem !important;
+}
+.sub-size-normal video::cue {
+  font-size: 1.15rem !important;
+}
+.sub-size-large video::cue {
+  font-size: 1.45rem !important;
+}
+.sub-size-huge video::cue {
+  font-size: 1.85rem !important;
+}
+
+/* Subtitle Styles */
+.sub-style-classic video::cue {
+  color: #ffffff !important;
+  background-color: rgba(10, 11, 12, 0.85) !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9) !important;
+}
+.sub-style-yellow video::cue {
+  color: #fde047 !important;
+  background-color: rgba(10, 11, 12, 0.85) !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9) !important;
+}
+.sub-style-outline video::cue {
+  color: #ffffff !important;
+  background-color: transparent !important;
+  text-shadow:
+    -1.5px -1.5px 0 #000,
+     1.5px -1.5px 0 #000,
+    -1.5px  1.5px 0 #000,
+     1.5px  1.5px 0 #000,
+     0px 3px 6px rgba(0, 0, 0, 0.9) !important;
+}
+.sub-style-cyan video::cue {
+  color: #67e8f9 !important;
+  background-color: rgba(10, 11, 12, 0.85) !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9) !important;
+}
+.sub-style-contrast video::cue {
+  color: #ffffff !important;
+  background-color: #000000 !important;
+  text-shadow: none !important;
 }
 
 @media (max-width: 640px) {

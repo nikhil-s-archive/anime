@@ -162,11 +162,67 @@ const PiPIcon = () => (
   </svg>
 );
 
-const CloseIcon = () => (
-  <svg viewBox="0 0 24 24" fill="white" className="w-3.5 h-3.5 md:w-5 md:h-5">
-    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+const DownloadIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="w-3.5 h-3.5 md:w-5 md:h-5 text-white"
+  >
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
   </svg>
 );
+
+const SUBTITLE_SIZES = [
+  { label: "Small (75%)", value: "small", cssSize: "0.85rem" },
+  { label: "Normal (100%)", value: "normal", cssSize: "1.15rem" },
+  { label: "Large (125%)", value: "large", cssSize: "1.45rem" },
+  { label: "Huge (150%)", value: "huge", cssSize: "1.85rem" },
+];
+
+const SUBTITLE_STYLES = [
+  {
+    label: "Classic White",
+    value: "classic",
+    color: "#ffffff",
+    bg: "rgba(10, 11, 12, 0.85)",
+    shadow: "0 2px 4px rgba(0, 0, 0, 0.9)",
+  },
+  {
+    label: "Anime Yellow",
+    value: "yellow",
+    color: "#fde047",
+    bg: "rgba(10, 11, 12, 0.85)",
+    shadow: "0 2px 4px rgba(0, 0, 0, 0.9)",
+  },
+  {
+    label: "Text Outline",
+    value: "outline",
+    color: "#ffffff",
+    bg: "transparent",
+    shadow:
+      "-1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000, 0 3px 6px rgba(0,0,0,0.9)",
+  },
+  {
+    label: "Cyan Accent",
+    value: "cyan",
+    color: "#67e8f9",
+    bg: "rgba(10, 11, 12, 0.85)",
+    shadow: "0 2px 4px rgba(0, 0, 0, 0.9)",
+  },
+  {
+    label: "High Contrast",
+    value: "contrast",
+    color: "#ffffff",
+    bg: "#000000",
+    shadow: "none",
+  },
+];
 
 const WarningIcon = () => (
   <svg
@@ -250,11 +306,14 @@ function fmtTime(secs) {
 
 export default function Player({
   streamUrl,
+  rawStreamUrl,
+  downloadUrl,
   subtitles = [],
   title,
   initialTime = 0,
   onTimeUpdate,
   onClose,
+  onDownload,
   onError,
 }) {
   const videoRef = useRef(null);
@@ -294,6 +353,100 @@ export default function Player({
   const [subtitleSources, setSubtitleSources] = useState([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [downloadToast, setDownloadToast] = useState(false);
+
+  // Subtitle custom style & size states (persisted in localStorage)
+  const [subtitleSize, setSubtitleSize] = useState(() => {
+    try {
+      return localStorage.getItem("animex_sub_size") || "normal";
+    } catch (_) {
+      return "normal";
+    }
+  });
+
+  const [subtitleStyle, setSubtitleStyle] = useState(() => {
+    try {
+      return localStorage.getItem("animex_sub_style") || "classic";
+    } catch (_) {
+      return "classic";
+    }
+  });
+
+  const handleSubtitleSizeChange = useCallback((newSize) => {
+    setSubtitleSize(newSize);
+    try {
+      localStorage.setItem("animex_sub_size", newSize);
+    } catch (_) {}
+  }, []);
+
+  const handleSubtitleStyleChange = useCallback((newStyle) => {
+    setSubtitleStyle(newStyle);
+    try {
+      localStorage.setItem("animex_sub_style", newStyle);
+    } catch (_) {}
+  }, []);
+
+  // Update dynamic CSS rules for ::cue
+  useEffect(() => {
+    const sizeObj =
+      SUBTITLE_SIZES.find((s) => s.value === subtitleSize) ||
+      SUBTITLE_SIZES[1];
+    const styleObj =
+      SUBTITLE_STYLES.find((s) => s.value === subtitleStyle) ||
+      SUBTITLE_STYLES[0];
+
+    let styleTag = document.getElementById("animex-sub-styles");
+    if (!styleTag) {
+      styleTag = document.createElement("style");
+      styleTag.id = "animex-sub-styles";
+      document.head.appendChild(styleTag);
+    }
+
+    styleTag.textContent = `
+      video::cue {
+        font-size: ${sizeObj.cssSize} !important;
+        color: ${styleObj.color} !important;
+        background-color: ${styleObj.bg} !important;
+        text-shadow: ${styleObj.shadow} !important;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+        line-height: 1.4 !important;
+        border-radius: 6px !important;
+        padding: 3px 8px !important;
+      }
+    `;
+  }, [subtitleSize, subtitleStyle]);
+
+  // Handle Episode Download
+  const handleDownload = useCallback(() => {
+    if (onDownload) {
+      onDownload();
+      return;
+    }
+    const target = downloadUrl || rawStreamUrl || streamUrl;
+    if (!target) return;
+
+    try {
+      navigator.clipboard?.writeText(target);
+    } catch (_) {}
+
+    const safeTitle = (title || "anime-episode")
+      .replace(/[/\\?%*:|"<>]/g, "-")
+      .trim();
+    const isMp4 = target.toLowerCase().includes(".mp4");
+    const filename = `${safeTitle}.${isMp4 ? "mp4" : "m3u8"}`;
+
+    const link = document.createElement("a");
+    link.href = target;
+    link.download = filename;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    setDownloadToast(true);
+    setTimeout(() => setDownloadToast(false), 3500);
+  }, [downloadUrl, rawStreamUrl, streamUrl, title, onDownload]);
 
   const patchState = useCallback((patch) => {
     setPlayerState((prev) => ({ ...prev, ...patch }));
@@ -824,7 +977,7 @@ export default function Player({
       ref={wrapperRef}
       className={`player-wrapper animate-fade-in ${
         isFullscreen ? "is-fullscreen fs" : ""
-      } ${controlsVisible ? "show-controls" : ""}`}
+      } ${controlsVisible ? "show-controls" : ""} sub-size-${subtitleSize} sub-style-${subtitleStyle}`}
       onMouseMove={showControls}
       onMouseLeave={() => playing && !settingsOpen && setControlsVisible(false)}
       onTouchStart={showControls}
@@ -847,16 +1000,22 @@ export default function Player({
         <span className="text-white font-semibold text-sm line-clamp-1 max-w-[80%] drop-shadow-md">
           {title}
         </span>
-        {onClose && (
-          <LiquidGlass
-            className="close-player-btn"
-            onClick={onClose}
-            title="Close (Esc)"
-          >
-            <CloseIcon />
-          </LiquidGlass>
-        )}
+        <LiquidGlass
+          className="download-player-btn"
+          onClick={handleDownload}
+          title="Download Episode"
+        >
+          <DownloadIcon />
+        </LiquidGlass>
       </div>
+
+      {/* Download notification toast */}
+      {downloadToast && (
+        <div className="absolute top-14 right-4 z-40 animate-slide-up flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-black/85 border border-white/20 text-white text-xs backdrop-blur-2xl shadow-2xl">
+          <DownloadIcon />
+          <span>Starting download · Stream link copied</span>
+        </div>
+      )}
 
       {/* Video Canvas Stage */}
       <div className="player-video-stage">
@@ -1057,6 +1216,58 @@ export default function Player({
               />
             </div>
           )}
+
+          {/* Subtitle Size */}
+          <div className="setting-item">
+            <span>Subtitle Size</span>
+            <GlassSelect
+              value={subtitleSize}
+              options={SUBTITLE_SIZES.map((s) => ({
+                label: s.label,
+                value: s.value,
+              }))}
+              onChange={handleSubtitleSizeChange}
+            />
+          </div>
+
+          {/* Subtitle Style */}
+          <div className="setting-item">
+            <span>Subtitle Style</span>
+            <GlassSelect
+              value={subtitleStyle}
+              options={SUBTITLE_STYLES.map((s) => ({
+                label: s.label,
+                value: s.value,
+              }))}
+              onChange={handleSubtitleStyleChange}
+            />
+          </div>
+
+          {/* Subtitle Live Preview Box */}
+          <div className="mx-4 my-2.5 p-2.5 rounded-2xl bg-black/50 border border-white/10 text-center">
+            <span className="text-[10px] font-mono text-white/50 block mb-1 uppercase tracking-wider">
+              Subtitle Preview
+            </span>
+            <span
+              className="inline-block px-2.5 py-0.5 rounded transition-all duration-150"
+              style={{
+                fontSize:
+                  SUBTITLE_SIZES.find((s) => s.value === subtitleSize)
+                    ?.cssSize || "1.15rem",
+                color:
+                  SUBTITLE_STYLES.find((s) => s.value === subtitleStyle)
+                    ?.color || "#ffffff",
+                backgroundColor:
+                  SUBTITLE_STYLES.find((s) => s.value === subtitleStyle)?.bg ||
+                  "rgba(10, 11, 12, 0.85)",
+                textShadow:
+                  SUBTITLE_STYLES.find((s) => s.value === subtitleStyle)
+                    ?.shadow || "none",
+              }}
+            >
+              Anime Subtitle
+            </span>
+          </div>
         </div>
       </div>
 
