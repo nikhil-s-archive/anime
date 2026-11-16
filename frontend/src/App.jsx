@@ -2124,6 +2124,14 @@ export default function App() {
   ]);
 
   // ── Navigation helpers ───────────────────────────────────────────────────────
+  const closePlayer = useCallback(() => {
+    setView("episodes");
+    setEpisodesSheetOpen(false);
+    setStreamUrl(null);
+    setSubtitles([]);
+    setPlaybackTime(0);
+  }, []);
+
   const goBack = useCallback(() => {
     if (view === "playing") {
       if (selectedAnime) {
@@ -2159,14 +2167,6 @@ export default function App() {
     debouncedQuery,
     closePlayer,
   ]);
-
-  const closePlayer = useCallback(() => {
-    setView("episodes");
-    setEpisodesSheetOpen(false);
-    setStreamUrl(null);
-    setSubtitles([]);
-    setPlaybackTime(0);
-  }, []);
 
   // ── Title for the browser tab ────────────────────────────────────────────────
   useEffect(() => {
