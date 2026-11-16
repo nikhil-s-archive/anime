@@ -45,6 +45,16 @@ export default {
       backdropBlur: {
         xs: "2px",
       },
+      opacity: {
+        8: "0.08",
+        12: "0.12",
+        14: "0.14",
+        15: "0.15",
+        16: "0.16",
+        18: "0.18",
+        22: "0.22",
+        35: "0.35",
+      },
       boxShadow: {
         glass: "0 8px 32px rgba(0, 0, 0, 0.3)",
         "glass-hover": "0 12px 40px rgba(0, 0, 0, 0.45)",

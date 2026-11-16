@@ -564,7 +564,7 @@ function ChevronIcon({ className = "h-4 w-4" }) {
 function SkeletonCard() {
   return (
     <div
-      className="rounded-xl overflow-hidden"
+      className="rounded-[24px] overflow-hidden"
       style={{ aspectRatio: "2/3" }}
     >
       <div className="skeleton w-full h-full" />
@@ -805,7 +805,7 @@ function AnimeCard({ item, isActive, onClick }) {
 
       {/* Active indicator */}
       {isActive && (
-        <div className="absolute inset-0 ring-2 ring-gold rounded-xl pointer-events-none" />
+        <div className="absolute inset-0 ring-2 ring-white rounded-[24px] pointer-events-none" />
       )}
     </article>
   );
@@ -816,40 +816,40 @@ function EpisodeRow({ ep, isActive, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left px-4 py-3 rounded-xl flex items-center gap-3
-                  transition-all duration-150 group
+      className={`w-full text-left px-4 py-3.5 rounded-2xl flex items-center gap-3.5
+                  transition-all duration-200 group
                   ${
                     isActive
-                      ? "bg-gold/20 border border-gold/40"
-                      : "hover:bg-white/5 border border-transparent"
+                      ? "bg-white/16 border border-white/30 shadow-lg backdrop-blur-xl"
+                      : "hover:bg-white/8 border border-transparent"
                   }`}
     >
       <div
-        className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0
+        className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 transition-transform group-hover:scale-105
                     ${
                       isActive
-                        ? "bg-gold text-navy"
-                        : "bg-navy-800/60 text-gold group-hover:bg-azure/40"
+                        ? "bg-white text-black shadow-md"
+                        : "bg-white/10 text-ivory group-hover:bg-white/20"
                     }`}
       >
         {ep.episode}
       </div>
       <div className="flex flex-col min-w-0 flex-1">
         <span
-          className={`text-sm font-medium truncate ${
-            isActive ? "text-ivory" : "text-ivory-muted"
+          className={`text-sm font-semibold truncate ${
+            isActive ? "text-white" : "text-ivory"
           }`}
         >
           {ep.label || `Episode ${ep.episode}`}
         </span>
         {ep.badge && (
-          <span className="text-[10px] font-mono text-gold/70 mt-0.5">
+          <span className="text-[10px] font-mono text-ivory-muted/70 mt-0.5">
             {ep.badge}
           </span>
         )}
       </div>
       {isActive && (
-        <span className="ml-auto text-gold text-xs font-semibold flex-shrink-0">
+        <span className="ml-auto text-white text-xs font-semibold flex-shrink-0 bg-white/20 px-2.5 py-1 rounded-full backdrop-blur-md">
           ▶ Now Playing
         </span>
       )}
@@ -893,14 +893,14 @@ function ErrorToast({ message, onDismiss }) {
   return (
     <div
       className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-slide-up
-                 glass px-5 py-3 flex items-center gap-3 max-w-sm w-full"
+                 glass rounded-full px-5 py-3 flex items-center gap-3 max-w-sm w-full border border-white/15 bg-black/80 backdrop-blur-2xl shadow-2xl"
       role="alert"
     >
       <WarningIcon className="h-5 w-5 flex-shrink-0 text-red-400" />
-      <p className="text-ivory-muted text-sm flex-1">{message}</p>
+      <p className="text-white/90 text-sm flex-1">{message}</p>
       <button
         onClick={onDismiss}
-        className="text-ivory-muted hover:text-ivory transition-colors text-lg leading-none"
+        className="text-ivory-muted hover:text-white transition-colors text-lg leading-none"
       >
         ×
       </button>
@@ -953,13 +953,13 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl border border-gold/30 bg-navy-800/80 hover:bg-azure/50 hover:border-gold/60 transition-all duration-200 shadow-sm group"
+        className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border border-white/15 bg-white/10 hover:bg-white/20 backdrop-blur-xl transition-all duration-200 shadow-sm group"
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         title={`Selected Platform: ${selectedPlatform?.name || "Select Platform"}`}
       >
         {/* Platform Logo */}
-        <div className="w-6 h-6 rounded-md overflow-hidden bg-navy-900 flex items-center justify-center border border-white/10 flex-shrink-0 p-0.5">
+        <div className="w-6 h-6 rounded-lg overflow-hidden bg-black/60 flex items-center justify-center border border-white/10 flex-shrink-0 p-0.5">
           {!logoError && selectedPlatform?.iconUrl ? (
             <img
               src={selectedPlatform.iconUrl}
@@ -974,17 +974,17 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
 
         {/* Platform Name on Top Right */}
         <div className="flex flex-col text-left leading-none">
-          <span className="text-[9px] uppercase tracking-wider text-gold/80 font-mono font-bold">
+          <span className="text-[9px] uppercase tracking-wider text-ivory-muted/70 font-mono font-bold">
             Source
           </span>
-          <span className="text-sm font-bold text-ivory tracking-tight truncate max-w-[100px] sm:max-w-[140px] group-hover:text-gold transition-colors">
+          <span className="text-sm font-bold text-white tracking-tight truncate max-w-[100px] sm:max-w-[140px] group-hover:text-white transition-colors">
             {selectedPlatform?.name || "AniKoto"}
           </span>
         </div>
 
         {/* Dropdown Chevron */}
         <span
-          className={`text-[10px] text-gold/80 transition-transform duration-200 ${
+          className={`text-[10px] text-ivory-muted/80 transition-transform duration-200 ${
             isOpen ? "rotate-180" : ""
           }`}
         >
@@ -994,17 +994,17 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
 
       {/* ── Dropdown Menu ── */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-72 rounded-2xl glass p-2.5 z-50 shadow-2xl border border-gold/40 animate-slide-up backdrop-blur-2xl">
+        <div className="absolute right-0 mt-2 w-72 rounded-[24px] glass p-3 z-50 shadow-2xl border border-white/15 animate-slide-up backdrop-blur-3xl">
           {/* Header & Search */}
           <div className="p-1 mb-2">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-ivory">Select Platform</span>
-              <span className="text-[10px] font-mono text-gold bg-gold/15 px-2 py-0.5 rounded-full border border-gold/25">
+              <span className="text-xs font-bold text-white">Select Platform</span>
+              <span className="text-[10px] font-mono text-white/80 bg-white/10 px-2 py-0.5 rounded-full border border-white/15">
                 {platforms.length} platforms
               </span>
             </div>
             <div className="relative">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ivory-muted/60 pointer-events-none">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ivory-muted/60 pointer-events-none">
                 <SearchIcon className="h-3.5 w-3.5" />
               </span>
               <input
@@ -1012,7 +1012,7 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
                 placeholder="Search platforms..."
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                className="w-full bg-navy-900/90 border border-white/10 rounded-lg pl-7 pr-2.5 py-1.5 text-xs text-ivory placeholder-ivory-muted/60 outline-none focus:border-gold/50"
+                className="w-full bg-black/50 border border-white/12 rounded-full pl-8 pr-3 py-1.5 text-xs text-white placeholder-ivory-muted/60 outline-none focus:border-white/30 backdrop-blur-md"
                 autoFocus
               />
             </div>
@@ -1031,13 +1031,13 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
                     setIsOpen(false);
                     setFilter("");
                   }}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left text-xs transition-all ${
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-2xl text-left text-xs transition-all ${
                     isSelected
-                      ? "bg-gold/20 text-ivory border border-gold/40 shadow-sm"
-                      : "text-ivory-muted hover:text-ivory hover:bg-white/5 border border-transparent"
+                      ? "bg-white/20 text-white border border-white/25 shadow-sm font-semibold"
+                      : "text-ivory-muted hover:text-white hover:bg-white/10 border border-transparent"
                   }`}
                 >
-                  <div className="w-5 h-5 rounded bg-navy-900/80 p-0.5 border border-white/10 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                  <div className="w-5 h-5 rounded-lg bg-black/60 p-0.5 border border-white/10 flex-shrink-0 flex items-center justify-center overflow-hidden">
                     <img
                       src={p.iconUrl}
                       alt={p.name}
@@ -1050,7 +1050,7 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
                   <div className="flex-1 min-w-0">
                     <p
                       className={`font-semibold truncate ${
-                        isSelected ? "text-gold" : "text-ivory"
+                        isSelected ? "text-white" : "text-white/90"
                       }`}
                     >
                       {p.name}
@@ -1060,7 +1060,7 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
                     </p>
                   </div>
                   {isSelected && (
-                    <span className="text-gold font-bold text-xs">✓</span>
+                    <span className="text-white font-bold text-xs">✓</span>
                   )}
                 </button>
               );
@@ -1103,14 +1103,14 @@ function WatchHistorySection({ history, onSelect, onRemove, onClear }) {
         {history.slice(0, 6).map((item) => (
           <div
             key={`${item.platformSlug}-${item.animeSlug}-${item.episodeNum}`}
-            className="history-card group relative cursor-pointer"
+            className="history-card group relative cursor-pointer rounded-[24px] overflow-hidden"
             onClick={() => onSelect(item)}
             role="button"
             tabIndex={0}
             onKeyDown={(e) => e.key === "Enter" && onSelect(item)}
           >
             {/* Thumbnail */}
-            <div className="relative aspect-[2/3] w-full overflow-hidden bg-navy-900 rounded-t-xl">
+            <div className="relative aspect-[2/3] w-full overflow-hidden bg-black/60 rounded-t-[24px]">
               {item.thumbnail ? (
                 <img
                   src={item.thumbnail}
@@ -1133,13 +1133,13 @@ function WatchHistorySection({ history, onSelect, onRemove, onClear }) {
               </span>
 
               {/* Platform Pill */}
-              <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold bg-black/60 text-ivory-muted backdrop-blur-sm">
+              <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-mono font-semibold bg-black/60 text-white/90 border border-white/10 backdrop-blur-md">
                 {item.platformName}
               </span>
 
               {/* Play Button Icon on Hover */}
               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/35 backdrop-blur-[2px]">
-                <div className="w-10 h-10 rounded-full bg-gold/90 text-navy flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
+                <div className="w-11 h-11 rounded-full bg-white text-black flex items-center justify-center shadow-2xl transform group-hover:scale-110 transition-transform">
                   <span className="ml-0.5 text-sm font-bold">▶</span>
                 </div>
               </div>
@@ -1147,7 +1147,7 @@ function WatchHistorySection({ history, onSelect, onRemove, onClear }) {
               {/* Remove Button */}
               <button
                 type="button"
-                className="absolute bottom-2 right-2 w-6 h-6 rounded-full bg-black/70 hover:bg-red-500/90 text-white flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-all z-10"
+                className="absolute bottom-2 right-2 w-7 h-7 rounded-full bg-black/80 hover:bg-red-500 text-white flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-all z-10 border border-white/15 shadow-md"
                 onClick={(e) => {
                   e.stopPropagation();
                   onRemove(item);
@@ -1159,11 +1159,11 @@ function WatchHistorySection({ history, onSelect, onRemove, onClear }) {
             </div>
 
             {/* Title & Info */}
-            <div className="p-2.5 bg-navy-800/80 rounded-b-xl border-t border-white/5">
-              <p className="text-xs font-semibold text-ivory line-clamp-1 group-hover:text-gold transition-colors">
+            <div className="p-3 bg-white/5 rounded-b-[24px] border-t border-white/5 backdrop-blur-md">
+              <p className="text-xs font-semibold text-white line-clamp-1 group-hover:text-white/80 transition-colors">
                 {item.animeTitle}
               </p>
-              <p className="text-[10px] text-ivory-muted/70 font-mono mt-0.5 truncate">
+              <p className="text-[10px] text-ivory-muted font-mono mt-0.5 truncate">
                 {item.episodeLabel || `Episode ${item.episodeNum}`}
               </p>
             </div>
@@ -1185,11 +1185,11 @@ function AnimeSuggestionsSection({
       <div className="suggestions-heading">
         <div>
           <p className="eyebrow">DISCOVER & EXPLORE</p>
-          <h2 className="text-xl sm:text-2xl font-bold text-ivory tracking-tight">
+          <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
             Anime Suggestions
           </h2>
         </div>
-        <span className="text-xs font-mono text-gold/80 bg-gold/10 px-2.5 py-1 rounded-full border border-gold/20">
+        <span className="text-xs font-mono text-white/80 bg-white/10 px-3 py-1 rounded-full border border-white/15 backdrop-blur-md">
           Source: {selectedPlatform.name}
         </span>
       </div>
@@ -1201,7 +1201,7 @@ function AnimeSuggestionsSection({
             key={g.label}
             type="button"
             onClick={() => onSelectGenre(g.label)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap bg-navy-800/80 hover:bg-azure/50 border border-white/10 hover:border-gold/40 text-ivory-muted hover:text-ivory transition-all duration-200 shadow-sm flex-shrink-0"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap bg-white/8 hover:bg-white/16 border border-white/12 hover:border-white/25 text-white/90 hover:text-white transition-all duration-200 shadow-sm flex-shrink-0 backdrop-blur-md active:scale-95"
           >
             <span>{g.icon}</span>
             <span>{g.label}</span>
@@ -1242,14 +1242,14 @@ function AnimeSuggestionsSection({
             )}
 
             <div className="absolute bottom-0 left-0 right-0 p-3">
-              <p className="text-ivory text-sm font-semibold line-clamp-2 leading-tight group-hover:text-gold transition-colors">
+              <p className="text-white text-sm font-semibold line-clamp-2 leading-tight group-hover:text-white/80 transition-colors">
                 {item.title}
               </p>
               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                 {item.genres?.slice(0, 2).map((genre) => (
                   <span
                     key={genre}
-                    className="text-[9px] font-mono text-ivory-muted/80 bg-white/10 px-1.5 py-0.5 rounded"
+                    className="text-[9px] font-mono text-ivory-muted/90 bg-white/10 px-2 py-0.5 rounded-full border border-white/5 backdrop-blur-sm"
                   >
                     {genre}
                   </span>
@@ -2196,7 +2196,7 @@ export default function App() {
             }}
             className="flex items-center gap-2.5 flex-shrink-0 group"
           >
-            <div className="w-8 h-8 rounded-lg overflow-hidden bg-navy-800 border border-gold/30 flex items-center justify-center p-0.5 group-hover:scale-105 transition-transform">
+            <div className="w-9 h-9 rounded-2xl overflow-hidden bg-white/10 border border-white/15 flex items-center justify-center p-1 group-hover:scale-105 transition-transform backdrop-blur-md shadow-sm">
               {selectedPlatform?.iconUrl ? (
                 <img
                   src={selectedPlatform.iconUrl}
@@ -2211,7 +2211,7 @@ export default function App() {
               )}
             </div>
             <div className="flex flex-col text-left">
-              <span className="text-gradient-gold font-extrabold text-lg tracking-tight leading-none">
+              <span className="text-white font-extrabold text-lg tracking-tight leading-none">
                 AnimeX
               </span>
               <span className="text-[10px] text-ivory-muted/70 font-mono leading-none mt-0.5">
@@ -2418,7 +2418,7 @@ export default function App() {
                 {loadingStream && !streamUrl ? (
                   <div className="player-wrapper flex items-center justify-center min-h-[320px]">
                     <div className="flex flex-col items-center gap-3">
-                      <div className="w-12 h-12 rounded-full border-4 border-gold/20 border-t-gold animate-spin" />
+                      <div className="w-12 h-12 rounded-full border-3 border-white/15 border-t-white animate-spin" />
                       <p className="text-ivory-muted text-sm">
                         Extracting stream from {selectedPlatform.name}…
                       </p>
@@ -2441,10 +2441,10 @@ export default function App() {
                         onError={showError}
                       />
                       {loadingStream && (
-                        <div className="absolute inset-0 bg-navy/60 backdrop-blur-sm flex items-center justify-center z-30 rounded-2xl">
-                          <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-navy-800/90 border border-gold/30">
-                            <div className="w-5 h-5 rounded-full border-2 border-gold/30 border-t-gold animate-spin" />
-                            <span className="text-xs font-semibold text-ivory">
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-30 rounded-[28px]">
+                          <div className="flex items-center gap-3 px-5 py-2.5 rounded-full bg-black/80 border border-white/15 backdrop-blur-2xl shadow-2xl">
+                            <div className="w-4 h-4 rounded-full border-2 border-white/25 border-t-white animate-spin" />
+                            <span className="text-xs font-semibold text-white">
                               Switching stream…
                             </span>
                           </div>
@@ -2455,25 +2455,25 @@ export default function App() {
                     {/* ── Sub/Dub & Server Controls ── */}
                     {(availableServers.sub?.length > 0 ||
                       availableServers.dub?.length > 0) && (
-                      <div className="glass px-4 py-3 flex flex-wrap items-center justify-between gap-3 animate-fade-in">
+                      <div className="glass rounded-[24px] px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 animate-fade-in border border-white/12">
                         {/* Audio Type Toggle (SUB / DUB) */}
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2.5">
                           <span className="text-[11px] font-bold uppercase tracking-wider text-ivory-muted/70">
                             Audio:
                           </span>
-                          <div className="flex items-center bg-navy-900/80 p-0.5 rounded-lg border border-white/10">
+                          <div className="flex items-center bg-black/60 p-1 rounded-full border border-white/12 backdrop-blur-xl">
                             <button
                               onClick={() => handleSwitchType("sub")}
                               disabled={
                                 loadingStream ||
                                 availableServers.sub?.length === 0
                               }
-                              className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
+                              className={`px-3.5 py-1.5 text-xs font-bold rounded-full transition-all ${
                                 currentType === "sub"
-                                  ? "bg-gold text-navy shadow-sm"
+                                  ? "bg-white text-black shadow-md"
                                   : availableServers.sub?.length === 0
                                   ? "opacity-30 cursor-not-allowed text-ivory-muted"
-                                  : "text-ivory-muted hover:text-ivory"
+                                  : "text-ivory-muted hover:text-white"
                               }`}
                             >
                               SUB{" "}
@@ -2487,12 +2487,12 @@ export default function App() {
                                 loadingStream ||
                                 availableServers.dub?.length === 0
                               }
-                              className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
+                              className={`px-3.5 py-1.5 text-xs font-bold rounded-full transition-all ${
                                 currentType === "dub"
-                                  ? "bg-gold text-navy shadow-sm"
+                                  ? "bg-white text-black shadow-md"
                                   : availableServers.dub?.length === 0
                                   ? "opacity-30 cursor-not-allowed text-ivory-muted"
-                                  : "text-ivory-muted hover:text-ivory"
+                                  : "text-ivory-muted hover:text-white"
                               }`}
                             >
                               DUB{" "}
@@ -2522,10 +2522,10 @@ export default function App() {
                                   key={srv.linkId || srv.name}
                                   onClick={() => handleSwitchServer(srv)}
                                   disabled={loadingStream || isSelected}
-                                  className={`px-2.5 py-1 text-xs rounded-lg border transition-all ${
+                                  className={`px-3 py-1.5 text-xs rounded-full border transition-all ${
                                     isSelected
-                                      ? "bg-azure text-ivory border-gold/50 shadow-sm font-semibold"
-                                      : "bg-navy-800/60 text-ivory-muted border-white/10 hover:border-white/20 hover:text-ivory"
+                                      ? "bg-white text-black border-white shadow-md font-semibold"
+                                      : "bg-white/8 text-ivory-muted border-white/10 hover:border-white/20 hover:text-white hover:bg-white/12"
                                   }`}
                                 >
                                   {isSelected ? "● " : ""}
@@ -2543,18 +2543,18 @@ export default function App() {
             )}
 
             {/* ── Anime info header ── */}
-            <div className="anime-info-header glass p-5 mb-6 flex gap-5 items-start">
+            <div className="anime-info-header glass rounded-[28px] p-6 mb-6 flex gap-5 items-start border border-white/12">
               {/* Thumbnail */}
               {selectedAnime.thumbnail && (
                 <img
                   src={selectedAnime.thumbnail}
                   alt={selectedAnime.title}
-                  className="w-20 h-28 object-cover rounded-xl flex-shrink-0 ring-1 ring-gold/20"
+                  className="w-24 h-34 object-cover rounded-2xl flex-shrink-0 ring-1 ring-white/15 shadow-2xl"
                 />
               )}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <h2 className="text-xl font-bold text-ivory leading-tight">
+                  <h2 className="text-xl font-bold text-white leading-tight">
                     {selectedAnime.title}
                   </h2>
                   <span className="tag text-[10px]">
@@ -2580,7 +2580,7 @@ export default function App() {
                       </span>
                     ))}
                     {activeEpisode && (
-                      <span className="tag bg-gold/20 text-gold border-gold/30">
+                      <span className="tag bg-white/20 text-white border-white/30 backdrop-blur-md">
                         ▶ EP {activeEpisode.episode}
                       </span>
                     )}
@@ -2630,7 +2630,7 @@ export default function App() {
                 {loadingEpisodes ? (
                   <div className="space-y-2">
                     {Array.from({ length: 12 }).map((_, i) => (
-                      <div key={i} className="skeleton h-14 rounded-xl" />
+                      <div key={i} className="skeleton h-14 rounded-2xl" />
                     ))}
                   </div>
                 ) : episodeData?.episodes?.length ? (
@@ -2645,7 +2645,7 @@ export default function App() {
                     ))}
                   </div>
                 ) : (
-                  <div className="glass p-10 text-center">
+                  <div className="glass rounded-3xl p-10 text-center border border-white/10">
                     <p className="text-ivory-muted">
                       No episodes found on {selectedPlatform.name} for this title.
                     </p>
