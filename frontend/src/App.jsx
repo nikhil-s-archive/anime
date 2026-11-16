@@ -893,8 +893,9 @@ function ErrorToast({ message, onDismiss }) {
 }
 
 /**
- * Platform Selector Component on Top Right
- * Displays the selected platform's logo and name, and allows picking any platform
+ * Header Source Selector Component
+ * Replaces AnimeX brand in the header with the active source platform,
+ * allowing instant switching directly from the top-left header.
  */
 function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -933,17 +934,17 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
 
   return (
     <div className="relative flex-shrink-0" ref={dropdownRef}>
-      {/* ── Top-Right Platform Button (Logo + Name) ── */}
+      {/* ── Header Source Button (Replaces AnimeX) ── */}
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border border-white/15 bg-white/10 hover:bg-white/20 backdrop-blur-xl transition-all duration-200 shadow-sm group"
+        className="flex items-center gap-2.5 flex-shrink-0 group cursor-pointer focus:outline-none"
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        title={`Selected Platform: ${selectedPlatform?.name || "Select Platform"}`}
+        title={`Source: ${selectedPlatform?.name || "Select Source"} (Click to switch)`}
       >
-        {/* Platform Logo */}
-        <div className="w-6 h-6 rounded-lg overflow-hidden bg-black/60 flex items-center justify-center border border-white/10 flex-shrink-0 p-0.5">
+        {/* Source Logo */}
+        <div className="w-9 h-9 rounded-2xl overflow-hidden bg-white/10 border border-white/15 flex items-center justify-center p-1 group-hover:scale-105 group-hover:border-gold/40 transition-all backdrop-blur-md shadow-sm">
           {!logoError && selectedPlatform?.iconUrl ? (
             <img
               src={selectedPlatform.iconUrl}
@@ -952,39 +953,41 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
               onError={() => setLogoError(true)}
             />
           ) : (
-            <DisplayIcon className="h-4 w-4 text-ivory-muted" />
+            <AnimeArtworkIcon className="h-5 w-5 text-ivory-muted" />
           )}
         </div>
 
-        {/* Platform Name on Top Right */}
-        <div className="flex flex-col text-left leading-none">
-          <span className="text-[9px] uppercase tracking-wider text-ivory-muted/70 font-mono font-bold">
-            Source
-          </span>
-          <span className="text-sm font-bold text-white tracking-tight truncate max-w-[100px] sm:max-w-[140px] group-hover:text-white transition-colors">
-            {selectedPlatform?.name || "AniKoto"}
+        {/* Source Name & Switcher indicator */}
+        <div className="flex flex-col text-left">
+          <div className="flex items-center gap-1.5">
+            <span className="text-white font-extrabold text-lg tracking-tight leading-none group-hover:text-gold transition-colors">
+              {selectedPlatform?.name || "Select Source"}
+            </span>
+            <span
+              className={`text-[9px] text-ivory-muted/70 transition-transform duration-200 group-hover:text-gold ${
+                isOpen ? "rotate-180" : ""
+              }`}
+            >
+              ▼
+            </span>
+          </div>
+          <span className="text-[10px] text-ivory-muted/70 font-mono leading-none mt-0.5 flex items-center gap-1">
+            <span>Source</span>
+            <span className="text-[8px] opacity-40">·</span>
+            <span className="text-gold/90 font-medium group-hover:underline">Switch</span>
           </span>
         </div>
-
-        {/* Dropdown Chevron */}
-        <span
-          className={`text-[10px] text-ivory-muted/80 transition-transform duration-200 ${
-            isOpen ? "rotate-180" : ""
-          }`}
-        >
-          ▼
-        </span>
       </button>
 
       {/* ── Dropdown Menu ── */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-72 rounded-[24px] glass p-3 z-50 shadow-2xl border border-white/15 animate-slide-up backdrop-blur-3xl">
+        <div className="absolute left-0 mt-2.5 w-72 sm:w-80 rounded-[28px] glass p-3.5 z-50 shadow-2xl border border-white/15 animate-slide-up backdrop-blur-3xl">
           {/* Header & Search */}
           <div className="p-1 mb-2">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-white">Select Platform</span>
+              <span className="text-xs font-bold text-white">Select Source</span>
               <span className="text-[10px] font-mono text-white/80 bg-white/10 px-2 py-0.5 rounded-full border border-white/15">
-                {platforms.length} platforms
+                {platforms.length} sources
               </span>
             </div>
             <div className="relative">
@@ -2156,105 +2159,71 @@ export default function App() {
     <div className="app-shell min-h-screen flex flex-col">
       {/* ── Navbar ── */}
       <header className="glass-nav sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
-          {/* Top-Left Brand Logo (matches selected platform with AnimeX brand) */}
-          <button
-            onClick={() => {
-              setView("home");
-              setSelectedAnime(null);
-              setSearchQuery("");
-              setDebouncedQuery("");
-              window.history.pushState({}, "", "/home");
-            }}
-            className="flex items-center gap-2.5 flex-shrink-0 group"
-          >
-            <div className="w-9 h-9 rounded-2xl overflow-hidden bg-white/10 border border-white/15 flex items-center justify-center p-1 group-hover:scale-105 transition-transform backdrop-blur-md shadow-sm">
-              {selectedPlatform?.iconUrl ? (
-                <img
-                  src={selectedPlatform.iconUrl}
-                  alt={selectedPlatform.name}
-                  className="w-full h-full object-contain"
-                  onError={(e) => {
-                    e.currentTarget.style.display = "none";
-                  }}
-                />
-              ) : (
-                <AnimeArtworkIcon className="h-5 w-5 text-ivory-muted" />
-              )}
-            </div>
-            <div className="flex flex-col text-left">
-              <span className="text-white font-extrabold text-lg tracking-tight leading-none">
-                AnimeX
-              </span>
-              <span className="text-[10px] text-ivory-muted/70 font-mono leading-none mt-0.5">
-                {selectedPlatform?.name || "Anime"}
-              </span>
-            </div>
-          </button>
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+          {/* Header Source Selector (Replaces AnimeX brand and allows switching from top left) */}
+          <PlatformSelector
+            platforms={platforms}
+            selectedPlatform={selectedPlatform}
+            onSelectPlatform={handleSelectPlatform}
+          />
 
-          {/* Navigation Tabs (Home / Search) */}
-          <nav className="flex items-center bg-black/40 p-1 rounded-full border border-white/10 backdrop-blur-xl">
-            <button
-              type="button"
-              onClick={() => {
-                setView("home");
-                setSelectedAnime(null);
-                setSearchQuery("");
-                setDebouncedQuery("");
-                window.history.pushState({}, "", "/home");
-              }}
-              className={`px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all ${
-                view === "home"
-                  ? "bg-white text-black shadow-md font-bold"
-                  : "text-ivory-muted hover:text-white"
-              }`}
-            >
-              Home
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setView("browse");
-                setSelectedAnime(null);
-                window.history.pushState(
-                  {},
-                  "",
-                  debouncedQuery
-                    ? `/?q=${encodeURIComponent(debouncedQuery)}`
-                    : "/"
-                );
-              }}
-              className={`px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all ${
-                view === "browse"
-                  ? "bg-white text-black shadow-md font-bold"
-                  : "text-ivory-muted hover:text-white"
-              }`}
-            >
-              Search
-            </button>
-          </nav>
+          {/* Right Header Navigation */}
+          <div className="ml-auto flex items-center gap-2.5 sm:gap-3 flex-shrink-0">
+            {/* Back breadcrumb */}
+            {view === "playing" && (
+              <button onClick={goBack} className="ios-back-button">
+                <ChevronIcon className="h-4 w-4 rotate-90" />
+                <span>Episodes</span>
+              </button>
+            )}
+            {view === "episodes" && (
+              <button onClick={goBack} className="ios-back-button">
+                <ChevronIcon className="h-4 w-4 rotate-90" />
+                <span>Back</span>
+              </button>
+            )}
 
-          {/* Back breadcrumb */}
-          {view === "playing" && (
-            <button onClick={goBack} className="ios-back-button">
-              <ChevronIcon className="h-4 w-4 rotate-90" />
-              <span>Episodes</span>
-            </button>
-          )}
-          {view === "episodes" && (
-            <button onClick={goBack} className="ios-back-button">
-              <ChevronIcon className="h-4 w-4 rotate-90" />
-              <span>Back</span>
-            </button>
-          )}
-
-          {/* ── Top-Right Platform Selector (Logo + Name) ── */}
-          <div className="ml-auto flex-shrink-0">
-            <PlatformSelector
-              platforms={platforms}
-              selectedPlatform={selectedPlatform}
-              onSelectPlatform={handleSelectPlatform}
-            />
+            {/* Navigation Tabs (Home / Search) */}
+            <nav className="flex items-center bg-black/40 p-1 rounded-full border border-white/10 backdrop-blur-xl">
+              <button
+                type="button"
+                onClick={() => {
+                  setView("home");
+                  setSelectedAnime(null);
+                  setSearchQuery("");
+                  setDebouncedQuery("");
+                  window.history.pushState({}, "", "/home");
+                }}
+                className={`px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all ${
+                  view === "home"
+                    ? "bg-white text-black shadow-md font-bold"
+                    : "text-ivory-muted hover:text-white"
+                }`}
+              >
+                Home
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setView("browse");
+                  setSelectedAnime(null);
+                  window.history.pushState(
+                    {},
+                    "",
+                    debouncedQuery
+                      ? `/?q=${encodeURIComponent(debouncedQuery)}`
+                      : "/"
+                  );
+                }}
+                className={`px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all ${
+                  view === "browse"
+                    ? "bg-white text-black shadow-md font-bold"
+                    : "text-ivory-muted hover:text-white"
+                }`}
+              >
+                Search
+              </button>
+            </nav>
           </div>
         </div>
       </header>
@@ -2450,6 +2419,13 @@ export default function App() {
                       <Player
                         streamUrl={streamUrl}
                         rawStreamUrl={rawStreamUrl}
+                        downloadUrl={
+                          rawStreamUrl || streamUrl
+                            ? `https://anime.sumitra4welfare.workers.dev/proxy/hls?url=${encodeURIComponent(
+                                rawStreamUrl || streamUrl
+                              )}`
+                            : undefined
+                        }
                         subtitles={subtitles}
                         initialTime={playbackTime}
                         onTimeUpdate={handleTimeUpdate}

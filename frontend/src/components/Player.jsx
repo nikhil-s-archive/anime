@@ -224,6 +224,12 @@ const SUBTITLE_STYLES = [
   },
 ];
 
+const SUBTITLE_POSITIONS = [
+  { label: "Bottom (Default)", value: "bottom", linePercent: 92 },
+  { label: "Raised", value: "raised", linePercent: 76 },
+  { label: "Top", value: "top", linePercent: 10 },
+];
+
 const WarningIcon = () => (
   <svg
     viewBox="0 0 24 24"
@@ -243,6 +249,7 @@ const WarningIcon = () => (
 // ─── Custom Glass Select Component ───────────────────────────────────────────
 function GlassSelect({ value, options, onChange }) {
   const [open, setOpen] = useState(false);
+  const [openUpward, setOpenUpward] = useState(true);
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -252,8 +259,21 @@ function GlassSelect({ value, options, onChange }) {
       }
     };
     document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("touchstart", handleOutsideClick);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("touchstart", handleOutsideClick);
+    };
   }, []);
+
+  const handleToggle = () => {
+    if (!open && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      setOpenUpward(spaceBelow < 180 && rect.top > 180);
+    }
+    setOpen((prev) => !prev);
+  };
 
   const selectedOption = options.find((o) => o.value === value) || options[0];
 
@@ -261,7 +281,7 @@ function GlassSelect({ value, options, onChange }) {
     <div className={`glass-select ${open ? "open" : ""}`} ref={containerRef}>
       <div
         className="glass-select-trigger"
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={handleToggle}
       >
         <span className="glass-select-value truncate mr-1.5">
           {selectedOption?.label}
@@ -271,7 +291,7 @@ function GlassSelect({ value, options, onChange }) {
         </svg>
       </div>
       {open && (
-        <div className="glass-select-options">
+        <div className={`glass-select-options ${openUpward ? "open-up" : "open-down"}`}>
           {options.map((opt) => (
             <div
               key={String(opt.value)}
@@ -372,6 +392,14 @@ export default function Player({
     }
   });
 
+  const [subtitlePosition, setSubtitlePosition] = useState(() => {
+    try {
+      return localStorage.getItem("animex_sub_position") || "bottom";
+    } catch (_) {
+      return "bottom";
+    }
+  });
+
   const handleSubtitleSizeChange = useCallback((newSize) => {
     setSubtitleSize(newSize);
     try {
@@ -383,6 +411,13 @@ export default function Player({
     setSubtitleStyle(newStyle);
     try {
       localStorage.setItem("animex_sub_style", newStyle);
+    } catch (_) {}
+  }, []);
+
+  const handleSubtitlePositionChange = useCallback((newPos) => {
+    setSubtitlePosition(newPos);
+    try {
+      localStorage.setItem("animex_sub_position", newPos);
     } catch (_) {}
   }, []);
 
@@ -416,27 +451,86 @@ export default function Player({
     `;
   }, [subtitleSize, subtitleStyle]);
 
-  // Handle Episode Download
+  // Synchronize subtitle position on TextTrack VTTCues
+  useEffect(() => {
+    if (!videoRef.current) return;
+    const video = videoRef.current;
+
+    const applyPositionToCues = () => {
+      const tracks = video.textTracks;
+      if (!tracks || tracks.length === 0) return;
+      for (let i = 0; i < tracks.length; i++) {
+        const track = tracks[i];
+        if (track.cues && track.cues.length > 0) {
+          for (let j = 0; j < track.cues.length; j++) {
+            const cue = track.cues[j];
+            cue.snapToLines = false;
+            if (subtitlePosition === "top") {
+              cue.line = 10;
+              cue.lineAlign = "start";
+            } else if (subtitlePosition === "raised") {
+              cue.line = 76;
+              cue.lineAlign = "end";
+            } else {
+              cue.line = 92;
+              cue.lineAlign = "end";
+            }
+          }
+        }
+      }
+    };
+
+    applyPositionToCues();
+
+    const tracks = video.textTracks;
+    const cleanups = [];
+    if (tracks) {
+      for (let i = 0; i < tracks.length; i++) {
+        const tr = tracks[i];
+        const onCueChange = () => applyPositionToCues();
+        tr.addEventListener("cuechange", onCueChange);
+        cleanups.push(() => tr.removeEventListener("cuechange", onCueChange));
+      }
+    }
+
+    return () => {
+      cleanups.forEach((c) => c());
+    };
+  }, [subtitlePosition, activeSubtitle, subtitleSources]);
+
+  // Handle Episode Download via Worker HLS Proxy
   const handleDownload = useCallback(() => {
     if (onDownload) {
       onDownload();
       return;
     }
-    const target = downloadUrl || rawStreamUrl || streamUrl;
-    if (!target) return;
+
+    // Extract underlying stream URL
+    let underlyingUrl = rawStreamUrl || downloadUrl || streamUrl || "";
+    if (underlyingUrl.includes("/proxy/hls?url=")) {
+      try {
+        const parsed = new URL(underlyingUrl, window.location.href);
+        const inner = parsed.searchParams.get("url");
+        if (inner) underlyingUrl = inner;
+      } catch (_) {}
+    }
+    if (!underlyingUrl) return;
+
+    // Use requested worker endpoint
+    const finalDownloadUrl = `https://anime.sumitra4welfare.workers.dev/proxy/hls?url=${encodeURIComponent(underlyingUrl)}`;
 
     try {
-      navigator.clipboard?.writeText(target);
+      navigator.clipboard?.writeText(finalDownloadUrl);
     } catch (_) {}
 
     const safeTitle = (title || "anime-episode")
       .replace(/[/\\?%*:|"<>]/g, "-")
       .trim();
-    const isMp4 = target.toLowerCase().includes(".mp4");
+    const isMp4 = underlyingUrl.toLowerCase().includes(".mp4");
     const filename = `${safeTitle}.${isMp4 ? "mp4" : "m3u8"}`;
 
     const link = document.createElement("a");
-    link.href = target;
+    link.href = finalDownloadUrl;
     link.download = filename;
     link.target = "_blank";
     link.rel = "noopener noreferrer";
@@ -886,6 +980,26 @@ export default function Player({
     [patchState]
   );
 
+  // Close settings panel when clicking outside
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const handleOutsideClick = (e) => {
+      if (
+        settingsPanelRef.current &&
+        !settingsPanelRef.current.contains(e.target) &&
+        !e.target.closest(".settings-btn")
+      ) {
+        setSettingsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("touchstart", handleOutsideClick);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("touchstart", handleOutsideClick);
+    };
+  }, [settingsOpen]);
+
   // Keyboard Shortcuts
   useEffect(() => {
     const onKey = (e) => {
@@ -977,7 +1091,7 @@ export default function Player({
       ref={wrapperRef}
       className={`player-wrapper animate-fade-in ${
         isFullscreen ? "is-fullscreen fs" : ""
-      } ${controlsVisible ? "show-controls" : ""} sub-size-${subtitleSize} sub-style-${subtitleStyle}`}
+      } ${controlsVisible ? "show-controls" : ""} sub-size-${subtitleSize} sub-style-${subtitleStyle} sub-pos-${subtitlePosition}`}
       onMouseMove={showControls}
       onMouseLeave={() => playing && !settingsOpen && setControlsVisible(false)}
       onTouchStart={showControls}
@@ -1151,13 +1265,29 @@ export default function Player({
         </LiquidGlass>
       </div>
 
-      {/* Settings Flyout Panel */}
+      {/* Settings Backdrop on Mobile */}
+      {settingsOpen && (
+        <div
+          className="settings-backdrop md:hidden"
+          onClick={() => setSettingsOpen(false)}
+        />
+      )}
+
+      {/* Settings Flyout Panel / Mobile Bottom Sheet */}
       <div
         className={`settings-panel ${settingsOpen ? "show" : ""}`}
         ref={settingsPanelRef}
       >
+        {/* Mobile Pull Handle Indicator */}
+        <div className="sheet-handle-bar md:hidden flex justify-center pt-2.5 pb-1">
+          <div className="w-10 h-1 rounded-full bg-white/30" />
+        </div>
+
         <div className="settings-header">
-          <span>Settings</span>
+          <div className="flex items-center gap-2">
+            <SettingsIcon />
+            <span className="font-semibold text-white tracking-wide">Settings</span>
+          </div>
           <div
             className="close-settings"
             onClick={() => setSettingsOpen(false)}
@@ -1243,30 +1373,60 @@ export default function Player({
             />
           </div>
 
+          {/* Subtitle Position */}
+          <div className="setting-item">
+            <span>Subtitle Position</span>
+            <GlassSelect
+              value={subtitlePosition}
+              options={SUBTITLE_POSITIONS.map((p) => ({
+                label: p.label,
+                value: p.value,
+              }))}
+              onChange={handleSubtitlePositionChange}
+            />
+          </div>
+
           {/* Subtitle Live Preview Box */}
-          <div className="mx-4 my-2.5 p-2.5 rounded-2xl bg-black/50 border border-white/10 text-center">
-            <span className="text-[10px] font-mono text-white/50 block mb-1 uppercase tracking-wider">
-              Subtitle Preview
-            </span>
-            <span
-              className="inline-block px-2.5 py-0.5 rounded transition-all duration-150"
-              style={{
-                fontSize:
-                  SUBTITLE_SIZES.find((s) => s.value === subtitleSize)
-                    ?.cssSize || "1.15rem",
-                color:
-                  SUBTITLE_STYLES.find((s) => s.value === subtitleStyle)
-                    ?.color || "#ffffff",
-                backgroundColor:
-                  SUBTITLE_STYLES.find((s) => s.value === subtitleStyle)?.bg ||
-                  "rgba(10, 11, 12, 0.85)",
-                textShadow:
-                  SUBTITLE_STYLES.find((s) => s.value === subtitleStyle)
-                    ?.shadow || "none",
-              }}
-            >
-              Anime Subtitle
-            </span>
+          <div className="mx-4 my-2.5 p-2.5 rounded-2xl bg-black/60 border border-white/10 shadow-inner">
+            <div className="flex justify-between items-center mb-1.5 px-0.5">
+              <span className="text-[10px] font-mono text-white/50 uppercase tracking-wider">
+                Subtitle Live Preview
+              </span>
+              <span className="text-[10px] font-mono text-cyan-400 capitalize">
+                {subtitlePosition} · {subtitleSize}
+              </span>
+            </div>
+            <div className="relative h-16 w-full rounded-xl bg-gradient-to-b from-neutral-900/90 to-black/95 border border-white/5 overflow-hidden flex flex-col justify-between p-1.5">
+              <div
+                className={`w-full flex justify-center h-full ${
+                  subtitlePosition === "top"
+                    ? "items-start"
+                    : subtitlePosition === "raised"
+                    ? "items-center"
+                    : "items-end"
+                }`}
+              >
+                <span
+                  className="px-2.5 py-0.5 rounded transition-all duration-150 text-center select-none"
+                  style={{
+                    fontSize:
+                      SUBTITLE_SIZES.find((s) => s.value === subtitleSize)
+                        ?.cssSize || "1.05rem",
+                    color:
+                      SUBTITLE_STYLES.find((s) => s.value === subtitleStyle)
+                        ?.color || "#ffffff",
+                    backgroundColor:
+                      SUBTITLE_STYLES.find((s) => s.value === subtitleStyle)?.bg ||
+                      "rgba(10, 11, 12, 0.85)",
+                    textShadow:
+                      SUBTITLE_STYLES.find((s) => s.value === subtitleStyle)
+                        ?.shadow || "none",
+                  }}
+                >
+                  Anime Subtitle Preview
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
