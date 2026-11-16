@@ -460,10 +460,6 @@
 }
 .results-search { margin: 0 0 2rem; }
 
-.episode-sheet-handle { display: none; }
-.episode-sheet-body { min-width: 0; }
-.episode-list-rows { overscroll-behavior: contain; }
-
 /* ── Liquid Glass UI Video Player Theme (https://github.com/b4-behroz/Liquid-Glass-UI-Video-Player) ── */
 
 .player-wrapper {
@@ -1221,7 +1217,6 @@
   .glass-nav .relative.flex-shrink-0 > button > span { display: none; }
   .recommendations-heading { margin-bottom: 0.85rem; }
   .results-search { margin-bottom: 1.35rem; }
-  .main-playing { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
   .player-stage {
     position: static;
     top: auto;
@@ -1229,119 +1224,6 @@
     margin: 0 0 1rem;
     padding: 0;
     background: transparent;
-  }
-  .episode-sheet.is-playing {
-    position: fixed;
-    z-index: 50;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    display: flex;
-    height: calc(4.75rem + env(safe-area-inset-bottom));
-    flex-direction: column;
-    padding: 0.35rem 1rem calc(0.35rem + env(safe-area-inset-bottom));
-    overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-bottom: 0;
-    border-radius: 1.25rem 1.25rem 0 0;
-    background: rgba(22, 24, 27, 0.92);
-    backdrop-filter: blur(28px) saturate(155%);
-    -webkit-backdrop-filter: blur(28px) saturate(155%);
-    box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-    transition: height 0.25s ease;
-  }
-  .episode-sheet.is-playing.is-expanded {
-    height: min(68dvh, 560px);
-  }
-  .episode-sheet-handle {
-    display: block;
-    flex: 0 0 auto;
-    touch-action: pan-y;
-  }
-  .episode-sheet-grabber {
-    display: block;
-    width: 2.25rem;
-    height: 0.25rem;
-    margin: 0.15rem auto 0.3rem;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.38);
-  }
-  .episode-sheet-toggle {
-    display: flex;
-    width: 100%;
-    min-height: 2.75rem;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 0.25rem;
-    border: 0;
-    background: transparent;
-    color: #f5f5f7;
-    text-align: left;
-    font-weight: 650;
-  }
-  .episode-sheet-heading { display: flex; align-items: baseline; gap: 0.5rem; }
-  .episode-sheet-count { color: #a1a5aa; font-size: 0.8rem; font-weight: 450; }
-  .episode-sheet.is-playing .episode-sheet-body { display: none; }
-  .episode-sheet.is-playing.is-expanded .episode-sheet-body {
-    display: block;
-    min-height: 0;
-    flex: 1;
-    overflow-y: auto;
-    padding-bottom: 0.4rem;
-    overscroll-behavior: contain;
-  }
-  .episode-sheet.is-playing .episode-list-title { display: none; }
-  .episode-sheet.is-playing .episode-list-rows { max-height: none; }
-}
-
-@media (min-width: 900px) {
-  .playing-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(17rem, 22rem);
-    align-items: start;
-    gap: 1.5rem;
-  }
-
-  .playing-layout > .player-stage {
-    grid-column: 1;
-    grid-row: 1;
-    min-width: 0;
-    margin: 0;
-  }
-
-  .playing-layout > .anime-info-header {
-    grid-column: 1;
-    grid-row: 2;
-    margin-bottom: 0;
-  }
-
-  .playing-layout > .episode-sheet.is-playing {
-    position: sticky;
-    top: calc(5rem + env(safe-area-inset-top));
-    grid-column: 2;
-    grid-row: 1 / span 2;
-    display: flex;
-    max-height: calc(100dvh - 7rem);
-    flex-direction: column;
-    align-self: start;
-    overflow: hidden;
-    padding: 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 1.25rem;
-    background: rgba(22, 24, 27, 0.84);
-    backdrop-filter: blur(28px) saturate(155%);
-    -webkit-backdrop-filter: blur(28px) saturate(155%);
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  }
-
-  .playing-layout .episode-sheet-body {
-    min-height: 0;
-    overflow-y: auto;
-  }
-
-  .playing-layout .episode-list-rows {
-    max-height: none;
-    overflow: visible;
   }
 }
 

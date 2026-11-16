@@ -232,6 +232,9 @@ function findPlatformBySlug(slug, list = []) {
 function parsePath(pathname = window.location.pathname) {
   const parts = pathname.split("/").filter(Boolean);
   if (parts.length === 0) {
+    return { type: "landing" };
+  }
+  if (parts[0].toLowerCase() === "home") {
     return { type: "home" };
   }
   if (parts.length === 1) {
@@ -367,107 +370,6 @@ function clearSearchHistoryStorage() {
   } catch (_) {}
   return [];
 }
-
-const CURATED_SUGGESTIONS = [
-  {
-    title: "Solo Leveling",
-    genres: ["Action", "Fantasy"],
-    thumbnail:
-      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx151807-m1gNs3wi3R2C.jpg",
-    rating: "9.1",
-  },
-  {
-    title: "Jujutsu Kaisen",
-    genres: ["Action", "Supernatural"],
-    thumbnail:
-      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx113415-bbBWj4pEFseh.jpg",
-    rating: "8.9",
-  },
-  {
-    title: "Demon Slayer: Kimetsu no Yaiba",
-    genres: ["Action", "Fantasy"],
-    thumbnail:
-      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx101922-PEn1CTyeNhRt.png",
-    rating: "8.8",
-  },
-  {
-    title: "Attack on Titan",
-    genres: ["Action", "Dark Fantasy"],
-    thumbnail:
-      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx16498-73IhOXpJZiDY.png",
-    rating: "9.2",
-  },
-  {
-    title: "Chainsaw Man",
-    genres: ["Action", "Supernatural"],
-    thumbnail:
-      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx127230-FloXFsyoFqNm.png",
-    rating: "8.6",
-  },
-  {
-    title: "Frieren: Beyond Journey's End",
-    genres: ["Adventure", "Fantasy"],
-    thumbnail:
-      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx154587-n1HJZcLdooQq.jpg",
-    rating: "9.4",
-  },
-  {
-    title: "Bleach: Thousand-Year Blood War",
-    genres: ["Action", "Supernatural"],
-    thumbnail:
-      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx144411-VfuhcODyBvD4.jpg",
-    rating: "9.0",
-  },
-  {
-    title: "Dan Da Dan",
-    genres: ["Action", "Comedy"],
-    thumbnail:
-      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx171018-oXk27K3oA9hZ.jpg",
-    rating: "8.7",
-  },
-  {
-    title: "Kaiju No. 8",
-    genres: ["Action", "Sci-Fi"],
-    thumbnail:
-      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx153288-0tIu023G1D65.jpg",
-    rating: "8.5",
-  },
-  {
-    title: "One Piece",
-    genres: ["Action", "Adventure"],
-    thumbnail:
-      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx21-YCDoj1EkAxFn.jpg",
-    rating: "8.9",
-  },
-  {
-    title: "Death Note",
-    genres: ["Mystery", "Psychological"],
-    thumbnail:
-      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx1535-lawCwhzhi96X.jpg",
-    rating: "9.0",
-  },
-  {
-    title: "Hunter x Hunter",
-    genres: ["Action", "Adventure"],
-    thumbnail:
-      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx11061-w1p4CLrh1EZr.jpg",
-    rating: "9.1",
-  },
-];
-
-const GENRE_SUGGESTIONS = [
-  { label: "Action", icon: "⚔️" },
-  { label: "Fantasy", icon: "🧙" },
-  { label: "Supernatural", icon: "🔮" },
-  { label: "Sci-Fi", icon: "🚀" },
-  { label: "Mystery", icon: "🕵️" },
-  { label: "Psychological", icon: "🧠" },
-  { label: "Adventure", icon: "🗺️" },
-  { label: "Romance", icon: "🌸" },
-  { label: "Comedy", icon: "😂" },
-  { label: "Shounen", icon: "⚡" },
-  { label: "Isekai", icon: "🌀" },
-];
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -811,49 +713,131 @@ function AnimeCard({ item, isActive, onClick }) {
   );
 }
 
-/** Episode list row */
-function EpisodeRow({ ep, isActive, onClick }) {
+/**
+ * EpisodeGrid Component
+ * - Renders episodes in a clean responsive grid without episode names (just numbers)
+ * - If total episodes > 100, groups them into chunks of 100 with a clean Apple-glass <select> dropdown (e.g. 1-100, 101-200)
+ * - Highlights the currently active/playing episode
+ */
+function EpisodeGrid({
+  episodes = [],
+  activeEpisode = null,
+  onSelectEpisode,
+  loading = false,
+  platformName = "",
+}) {
+  const chunkSize = 100;
+  const totalChunks = Math.max(1, Math.ceil(episodes.length / chunkSize));
+  const [selectedChunk, setSelectedChunk] = useState(0);
+
+  // Sync selected chunk when activeEpisode changes
+  useEffect(() => {
+    if (!activeEpisode || episodes.length === 0) return;
+    const idx = episodes.findIndex(
+      (e) =>
+        String(e.episode) === String(activeEpisode.episode) ||
+        e.url === activeEpisode.url
+    );
+    if (idx !== -1) {
+      const chunk = Math.floor(idx / chunkSize);
+      setSelectedChunk(chunk);
+    }
+  }, [activeEpisode, episodes]);
+
+  const currentChunk = Math.min(selectedChunk, totalChunks - 1);
+  const startIdx = currentChunk * chunkSize;
+  const endIdx = Math.min((currentChunk + 1) * chunkSize, episodes.length);
+  const currentEpisodes = episodes.slice(startIdx, endIdx);
+
   return (
-    <button
-      onClick={onClick}
-      className={`w-full text-left px-4 py-3.5 rounded-2xl flex items-center gap-3.5
-                  transition-all duration-200 group
-                  ${
-                    isActive
-                      ? "bg-white/16 border border-white/30 shadow-lg backdrop-blur-xl"
-                      : "hover:bg-white/8 border border-transparent"
-                  }`}
-    >
-      <div
-        className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 transition-transform group-hover:scale-105
-                    ${
-                      isActive
-                        ? "bg-white text-black shadow-md"
-                        : "bg-white/10 text-ivory group-hover:bg-white/20"
-                    }`}
-      >
-        {ep.episode}
-      </div>
-      <div className="flex flex-col min-w-0 flex-1">
-        <span
-          className={`text-sm font-semibold truncate ${
-            isActive ? "text-white" : "text-ivory"
-          }`}
-        >
-          {ep.label || `Episode ${ep.episode}`}
-        </span>
-        {ep.badge && (
-          <span className="text-[10px] font-mono text-ivory-muted/70 mt-0.5">
-            {ep.badge}
+    <div className="glass rounded-[24px] p-4 sm:p-5 border border-white/12 animate-fade-in">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div className="flex items-center gap-2.5">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-white">
+            Episodes
+          </h3>
+          <span className="text-[11px] font-mono text-ivory-muted/80 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10">
+            {episodes.length} total
           </span>
+        </div>
+
+        {/* 100-Episode Chunk Selector */}
+        {totalChunks > 1 && (
+          <div className="flex items-center gap-2">
+            <label
+              htmlFor="episode-chunk-select"
+              className="text-xs font-mono text-ivory-muted/70"
+            >
+              Range:
+            </label>
+            <div className="relative">
+              <select
+                id="episode-chunk-select"
+                value={currentChunk}
+                onChange={(e) => setSelectedChunk(Number(e.target.value))}
+                className="appearance-none bg-black/60 border border-white/15 rounded-full pl-4 pr-8 py-1.5 text-xs font-mono font-semibold text-white focus:outline-none focus:border-white/30 backdrop-blur-xl cursor-pointer shadow-sm"
+              >
+                {Array.from({ length: totalChunks }).map((_, i) => {
+                  const s = i * chunkSize;
+                  const e = Math.min((i + 1) * chunkSize, episodes.length);
+                  const chunkSlice = episodes.slice(s, e);
+                  const firstNum = chunkSlice[0]?.episode;
+                  const lastNum = chunkSlice[chunkSlice.length - 1]?.episode;
+                  const label =
+                    firstNum && lastNum && firstNum !== lastNum
+                      ? `${firstNum} - ${lastNum}`
+                      : `${s + 1} - ${e}`;
+                  return (
+                    <option key={i} value={i} className="bg-navy-900 text-white">
+                      {label}
+                    </option>
+                  );
+                })}
+              </select>
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-white/70">
+                ▼
+              </span>
+            </div>
+          </div>
         )}
       </div>
-      {isActive && (
-        <span className="ml-auto text-white text-xs font-semibold flex-shrink-0 bg-white/20 px-2.5 py-1 rounded-full backdrop-blur-md">
-          ▶ Now Playing
-        </span>
+
+      {loading ? (
+        <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2">
+          {Array.from({ length: 24 }).map((_, i) => (
+            <div key={i} className="skeleton h-10 rounded-xl" />
+          ))}
+        </div>
+      ) : episodes.length === 0 ? (
+        <div className="p-6 text-center text-ivory-muted text-xs">
+          No episodes found on {platformName || "platform"}.
+        </div>
+      ) : (
+        <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 max-h-72 overflow-y-auto pr-1 no-scrollbar">
+          {currentEpisodes.map((ep) => {
+            const isActive =
+              activeEpisode &&
+              (String(activeEpisode.episode) === String(ep.episode) ||
+                activeEpisode.url === ep.url);
+            return (
+              <button
+                key={ep.url || ep.episode}
+                type="button"
+                onClick={() => onSelectEpisode(ep)}
+                title={ep.label || `Episode ${ep.episode}`}
+                className={`h-10 rounded-xl flex items-center justify-center text-xs sm:text-sm font-semibold transition-all duration-150 ${
+                  isActive
+                    ? "bg-white text-black shadow-lg scale-105 ring-2 ring-white font-extrabold"
+                    : "bg-white/8 hover:bg-white/18 text-white/90 border border-white/10 hover:border-white/25 active:scale-95"
+                }`}
+              >
+                {ep.episode}
+              </button>
+            );
+          })}
+        </div>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -1174,92 +1158,112 @@ function WatchHistorySection({ history, onSelect, onRemove, onClear }) {
   );
 }
 
-/** Anime Suggestions Component (Genres & Curated Picks) */
-function AnimeSuggestionsSection({
+/** Home page component (/home) showing Top Picks & Latest from the chosen platform */
+function HomeView({
   selectedPlatform,
-  onSelectSuggestion,
-  onSelectGenre,
+  popularAnime = [],
+  latestAnime = [],
+  loading = false,
+  error = null,
+  selectedAnime = null,
+  onSelectAnime,
 }) {
   return (
-    <section className="home-suggestions animate-fade-in mt-6 mb-12">
-      <div className="suggestions-heading">
+    <div className="home-page animate-fade-in space-y-10 mb-12">
+      {/* Header Banner */}
+      <div className="flex items-center justify-between flex-wrap gap-4 pt-2 pb-4 border-b border-white/8">
         <div>
-          <p className="eyebrow">DISCOVER & EXPLORE</p>
-          <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-            Anime Suggestions
-          </h2>
+          <p className="eyebrow">CHOSEN PLATFORM · {selectedPlatform.name.toUpperCase()}</p>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+            Explore {selectedPlatform.name}
+          </h1>
+          <p className="text-sm text-ivory-muted mt-1">
+            Browse top picks and latest releases directly from {selectedPlatform.name}.
+          </p>
         </div>
-        <span className="text-xs font-mono text-white/80 bg-white/10 px-3 py-1 rounded-full border border-white/15 backdrop-blur-md">
-          Source: {selectedPlatform.name}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-mono text-white/80 bg-white/10 px-3.5 py-1.5 rounded-full border border-white/15 backdrop-blur-md">
+            Source: {selectedPlatform.name}
+          </span>
+        </div>
       </div>
 
-      {/* Mood & Genre Discovery Pills */}
-      <div className="genre-pills flex items-center gap-2 overflow-x-auto pb-3 mb-6">
-        {GENRE_SUGGESTIONS.map((g) => (
-          <button
-            key={g.label}
-            type="button"
-            onClick={() => onSelectGenre(g.label)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap bg-white/8 hover:bg-white/16 border border-white/12 hover:border-white/25 text-white/90 hover:text-white transition-all duration-200 shadow-sm flex-shrink-0 backdrop-blur-md active:scale-95"
-          >
-            <span>{g.icon}</span>
-            <span>{g.label}</span>
-          </button>
-        ))}
-      </div>
+      {error && (
+        <div className="glass p-5 rounded-2xl border border-red-500/20 text-center">
+          <p className="text-sm text-red-300">{error}</p>
+        </div>
+      )}
 
-      {/* Curated Suggestion Cards Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        {CURATED_SUGGESTIONS.map((item) => (
-          <article
-            key={item.title}
-            className="anime-card group"
-            onClick={() => onSelectSuggestion(item)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => e.key === "Enter" && onSelectSuggestion(item)}
-            aria-label={`Explore ${item.title}`}
-          >
-            <img
-              src={item.thumbnail}
-              alt={item.title}
-              loading="lazy"
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-            />
-            <div
-              className="absolute inset-0 transition-opacity duration-300"
-              style={{
-                background:
-                  "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.2) 50%, transparent 100%)",
-              }}
-            />
+      {/* Top Picks Section */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight flex items-center gap-2">
+              <span className="text-gold">★</span> Top Picks
+            </h2>
+            <p className="text-xs text-ivory-muted mt-0.5">
+              Popular titles on {selectedPlatform.name}
+            </p>
+          </div>
+        </div>
 
-            {item.rating && (
-              <span className="ep-pill flex items-center gap-1 text-[11px] font-mono">
-                <span className="text-gold">★</span> {item.rating}
-              </span>
-            )}
+        {loading && popularAnime.length === 0 ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
+        ) : popularAnime.length > 0 ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {popularAnime.slice(0, 12).map((item, i) => (
+              <AnimeCard
+                key={`pop-${item.url || item.link}-${i}`}
+                item={item}
+                isActive={selectedAnime?.url === item.url}
+                onClick={() => onSelectAnime(item)}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-ivory-muted py-4">No top picks found on {selectedPlatform.name}.</p>
+        )}
+      </section>
 
-            <div className="absolute bottom-0 left-0 right-0 p-3">
-              <p className="text-white text-sm font-semibold line-clamp-2 leading-tight group-hover:text-white/80 transition-colors">
-                {item.title}
-              </p>
-              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                {item.genres?.slice(0, 2).map((genre) => (
-                  <span
-                    key={genre}
-                    className="text-[9px] font-mono text-ivory-muted/90 bg-white/10 px-2 py-0.5 rounded-full border border-white/5 backdrop-blur-sm"
-                  >
-                    {genre}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
+      {/* Latest Releases Section */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight flex items-center gap-2">
+              <span className="text-blue-400">⚡</span> Latest Releases
+            </h2>
+            <p className="text-xs text-ivory-muted mt-0.5">
+              Recently updated episodes on {selectedPlatform.name}
+            </p>
+          </div>
+        </div>
+
+        {loading && latestAnime.length === 0 ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
+        ) : latestAnime.length > 0 ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {latestAnime.slice(0, 18).map((item, i) => (
+              <AnimeCard
+                key={`lat-${item.url || item.link}-${i}`}
+                item={item}
+                isActive={selectedAnime?.url === item.url}
+                onClick={() => onSelectAnime(item)}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-ivory-muted py-4">No recent releases found on {selectedPlatform.name}.</p>
+        )}
+      </section>
+    </div>
   );
 }
 
@@ -1297,13 +1301,17 @@ export default function App() {
   const [view, setView] = useState(() => {
     if (initialRoute.type === "episode") return "playing";
     if (initialRoute.type === "anime") return "episodes";
+    if (initialRoute.type === "home") return "home";
     return "browse";
   });
-  const [episodesSheetOpen, setEpisodesSheetOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
-  const episodeSheetTouchStartY = useRef(null);
-  const episodeSheetIgnoreClickUntil = useRef(0);
+
+  // ── Home feed state (/home) ─────────────────────────────────────────────────
+  const [homePopular, setHomePopular] = useState([]);
+  const [homeLatest, setHomeLatest] = useState([]);
+  const [loadingHome, setLoadingHome] = useState(false);
+  const [homeError, setHomeError] = useState(null);
 
   // ── History state ───────────────────────────────────────────────────────────
   const [watchHistory, setWatchHistory] = useState(loadWatchHistory);
@@ -1342,26 +1350,40 @@ export default function App() {
     console.error("[AnimeX]", msg);
   }, []);
 
-  const handleEpisodeSheetTouchStart = (event) => {
-    episodeSheetTouchStartY.current = event.touches[0]?.clientY ?? null;
-  };
+  // ── Fetch Home Feed (/home) when view is home or platform changes ──────────
+  useEffect(() => {
+    if (view !== "home") return;
+    let cancelled = false;
+    setLoadingHome(true);
+    setHomeError(null);
 
-  const handleEpisodeSheetTouchEnd = (event) => {
-    const startY = episodeSheetTouchStartY.current;
-    episodeSheetTouchStartY.current = null;
-    if (startY === null) return;
+    Promise.allSettled([
+      api.popular(1, selectedPlatform.name),
+      api.latest(1, selectedPlatform.name),
+    ]).then(([popRes, latRes]) => {
+      if (cancelled) return;
+      const pop =
+        popRes.status === "fulfilled" ? popRes.value?.items || [] : [];
+      const lat =
+        latRes.status === "fulfilled" ? latRes.value?.items || [] : [];
+      setHomePopular(pop);
+      setHomeLatest(lat);
+      if (
+        pop.length === 0 &&
+        lat.length === 0 &&
+        popRes.status === "rejected"
+      ) {
+        setHomeError(
+          popRes.reason?.message || "Could not load feed from platform"
+        );
+      }
+      setLoadingHome(false);
+    });
 
-    const distance = event.changedTouches[0].clientY - startY;
-    if (Math.abs(distance) < 40) return;
-    episodeSheetIgnoreClickUntil.current = Date.now() + 500;
-    if (distance < 0) setEpisodesSheetOpen(true);
-    else setEpisodesSheetOpen(false);
-  };
-
-  const toggleEpisodesSheet = () => {
-    if (Date.now() < episodeSheetIgnoreClickUntil.current) return;
-    setEpisodesSheetOpen((open) => !open);
-  };
+    return () => {
+      cancelled = true;
+    };
+  }, [view, selectedPlatform.name]);
 
   // ── History callbacks ───────────────────────────────────────────────────────
   const recordSearch = useCallback((query) => {
@@ -1537,17 +1559,20 @@ export default function App() {
         return;
       }
 
-      setView("browse");
+      if (view === "home") {
+        window.history.pushState({}, "", "/home");
+      } else {
+        setView("browse");
+        if (!debouncedQuery) {
+          window.history.pushState({}, "", "/");
+        }
+      }
       setSelectedAnime(null);
       setEpisodeData(null);
       setActiveEpisode(null);
       setStreamUrl(null);
       setSubtitles([]);
       setPlaybackTime(0);
-      setEpisodesSheetOpen(false);
-      if (!debouncedQuery) {
-        window.history.pushState({}, "", "/");
-      }
     },
     [
       selectedPlatform.name,
@@ -1650,7 +1675,6 @@ export default function App() {
       setPlaybackTime(0);
       setAvailableServers({ sub: [], dub: [] });
       setCurrentServer("");
-      setEpisodesSheetOpen(false);
       setLoadingEpisodes(true);
 
       try {
@@ -1716,7 +1740,6 @@ export default function App() {
         setPlaybackTime(startTime || 0);
       }
       setActiveEpisode(ep);
-      setEpisodesSheetOpen(false);
       setLoadingStream(true);
       setView("playing");
 
@@ -1799,65 +1822,6 @@ export default function App() {
     ]
   );
 
-  const handleSuggestionClick = useCallback(
-    async (suggestion) => {
-      const platformSlug = toSlug(selectedPlatform.name);
-      const animeSlug = toSlug(suggestion.title);
-
-      const cached = getCachedAnime(platformSlug, animeSlug);
-      if (cached && cached.url) {
-        handleAnimeClick(cached);
-        return;
-      }
-
-      setLoadingEpisodes(true);
-      try {
-        const data = await api.search(
-          suggestion.title,
-          1,
-          selectedPlatform.name
-        );
-        const firstMatch = (data.items || [])[0];
-        if (firstMatch) {
-          cacheAnime(platformSlug, animeSlug, firstMatch);
-          handleAnimeClick(firstMatch);
-        } else {
-          setSearchQuery(suggestion.title);
-          setDebouncedQuery(suggestion.title);
-          recordSearch(suggestion.title);
-          window.history.pushState(
-            {},
-            "",
-            `/?q=${encodeURIComponent(suggestion.title)}`
-          );
-          setView("browse");
-        }
-      } catch (err) {
-        showError(
-          `Could not load ${suggestion.title} on ${selectedPlatform.name}: ${err.message}`
-        );
-      } finally {
-        setLoadingEpisodes(false);
-      }
-    },
-    [selectedPlatform.name, handleAnimeClick, recordSearch, showError]
-  );
-
-  const handleGenreClick = useCallback(
-    (genre) => {
-      setSearchQuery(genre);
-      setDebouncedQuery(genre);
-      setPage(1);
-      setView("browse");
-      recordSearch(genre);
-      window.history.pushState(
-        {},
-        "",
-        `/?q=${encodeURIComponent(genre)}`
-      );
-    },
-    [recordSearch]
-  );
 
   const handleWatchHistoryClick = useCallback(
     async (historyItem) => {
@@ -1923,7 +1887,7 @@ export default function App() {
   // ── Initial mount: resolve deep-linked path ──
   useEffect(() => {
     const route = parsePath(window.location.pathname);
-    if (route.type === "home") return;
+    if (route.type === "landing" || route.type === "home") return;
 
     let cancelled = false;
 
@@ -1938,7 +1902,7 @@ export default function App() {
       }
 
       if (route.type === "platform") {
-        setView("browse");
+        setView("home");
         return;
       }
 
@@ -2013,6 +1977,16 @@ export default function App() {
       const q = new URLSearchParams(window.location.search).get("q") || "";
 
       if (route.type === "home") {
+        setView("home");
+        setSelectedAnime(null);
+        setEpisodeData(null);
+        setActiveEpisode(null);
+        setStreamUrl(null);
+        setSubtitles([]);
+        return;
+      }
+
+      if (route.type === "landing") {
         setSearchQuery(q);
         setDebouncedQuery(q);
         setPage(1);
@@ -2022,7 +1996,6 @@ export default function App() {
         setActiveEpisode(null);
         setStreamUrl(null);
         setSubtitles([]);
-        setEpisodesSheetOpen(false);
         return;
       }
 
@@ -2031,15 +2004,12 @@ export default function App() {
         if (matched && matched.name !== selectedPlatform.name) {
           setSelectedPlatform(matched);
         }
-        setSearchQuery(q);
-        setDebouncedQuery(q);
-        setPage(1);
-        setView("browse");
+        setView("home");
         setSelectedAnime(null);
         setEpisodeData(null);
         setActiveEpisode(null);
         setStreamUrl(null);
-        setEpisodesSheetOpen(false);
+        setSubtitles([]);
         return;
       }
 
@@ -2056,7 +2026,6 @@ export default function App() {
           setActiveEpisode(null);
           setStreamUrl(null);
           setSubtitles([]);
-          setEpisodesSheetOpen(false);
           return;
         }
 
@@ -2126,7 +2095,6 @@ export default function App() {
   // ── Navigation helpers ───────────────────────────────────────────────────────
   const closePlayer = useCallback(() => {
     setView("episodes");
-    setEpisodesSheetOpen(false);
     setStreamUrl(null);
     setSubtitles([]);
     setPlaybackTime(0);
@@ -2147,10 +2115,11 @@ export default function App() {
           "",
           `/?q=${encodeURIComponent(debouncedQuery)}`
         );
+        setView("browse");
       } else {
-        window.history.pushState({}, "", "/");
+        window.history.pushState({}, "", "/home");
+        setView("home");
       }
-      setView("browse");
       setSelectedAnime(null);
       setEpisodeData(null);
       setStreamUrl(null);
@@ -2187,12 +2156,11 @@ export default function App() {
           {/* Top-Left Brand Logo (matches selected platform with AnimeX brand) */}
           <button
             onClick={() => {
-              setView("browse");
+              setView("home");
               setSelectedAnime(null);
               setSearchQuery("");
               setDebouncedQuery("");
-              clearSearchUrl();
-              setEpisodesSheetOpen(false);
+              window.history.pushState({}, "", "/home");
             }}
             className="flex items-center gap-2.5 flex-shrink-0 group"
           >
@@ -2219,6 +2187,48 @@ export default function App() {
               </span>
             </div>
           </button>
+
+          {/* Navigation Tabs (Home / Search) */}
+          <nav className="flex items-center bg-black/40 p-1 rounded-full border border-white/10 backdrop-blur-xl">
+            <button
+              type="button"
+              onClick={() => {
+                setView("home");
+                setSelectedAnime(null);
+                setSearchQuery("");
+                setDebouncedQuery("");
+                window.history.pushState({}, "", "/home");
+              }}
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all ${
+                view === "home"
+                  ? "bg-white text-black shadow-md font-bold"
+                  : "text-ivory-muted hover:text-white"
+              }`}
+            >
+              Home
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setView("browse");
+                setSelectedAnime(null);
+                window.history.pushState(
+                  {},
+                  "",
+                  debouncedQuery
+                    ? `/?q=${encodeURIComponent(debouncedQuery)}`
+                    : "/"
+                );
+              }}
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all ${
+                view === "browse"
+                  ? "bg-white text-black shadow-md font-bold"
+                  : "text-ivory-muted hover:text-white"
+              }`}
+            >
+              Search
+            </button>
+          </nav>
 
           {/* Back breadcrumb */}
           {view === "playing" && (
@@ -2247,6 +2257,19 @@ export default function App() {
 
       {/* ── Main content ── */}
       <main className={`main-content flex-1 max-w-7xl mx-auto w-full px-4 py-6 ${view === "playing" ? "main-playing" : ""}`}>
+        {/* ══════ HOME VIEW (/home) ══════ */}
+        {view === "home" && (
+          <HomeView
+            selectedPlatform={selectedPlatform}
+            popularAnime={homePopular}
+            latestAnime={homeLatest}
+            loading={loadingHome}
+            error={homeError}
+            selectedAnime={selectedAnime}
+            onSelectAnime={handleAnimeClick}
+          />
+        )}
+
         {/* ══════ BROWSE VIEW ══════ */}
         {view === "browse" && (
           !debouncedQuery ? (
@@ -2325,13 +2348,6 @@ export default function App() {
                 onSelect={handleWatchHistoryClick}
                 onRemove={handleRemoveWatchHistory}
                 onClear={handleClearWatchHistory}
-              />
-
-              {/* Anime Suggestions */}
-              <AnimeSuggestionsSection
-                selectedPlatform={selectedPlatform}
-                onSelectSuggestion={handleSuggestionClick}
-                onSelectGenre={handleGenreClick}
               />
             </>
           ) : (
@@ -2537,6 +2553,15 @@ export default function App() {
                         </div>
                       </div>
                     )}
+
+                    {/* ── Episode Grid Inline (directly below server switcher) ── */}
+                    <EpisodeGrid
+                      episodes={episodeData?.episodes || []}
+                      activeEpisode={activeEpisode}
+                      onSelectEpisode={handleEpisodeClick}
+                      loading={loadingEpisodes}
+                      platformName={selectedPlatform.name}
+                    />
                   </div>
                 ) : null}
               </div>
@@ -2589,70 +2614,16 @@ export default function App() {
               </div>
             </div>
 
-            <section
-              className={`episode-sheet ${
-                view === "playing" ? "is-playing" : ""
-              } ${episodesSheetOpen ? "is-expanded" : ""}`}
-            >
-              <div
-                className="episode-sheet-handle"
-                onTouchStart={handleEpisodeSheetTouchStart}
-                onTouchEnd={handleEpisodeSheetTouchEnd}
-              >
-                <span className="episode-sheet-grabber" />
-                <button
-                  type="button"
-                  className="episode-sheet-toggle"
-                  onClick={toggleEpisodesSheet}
-                  aria-expanded={episodesSheetOpen}
-                  aria-label={
-                    episodesSheetOpen ? "Collapse episode list" : "Show episode list"
-                  }
-                >
-                  <span className="episode-sheet-heading">
-                    <span>Episodes</span>
-                    <span className="episode-sheet-count">
-                      {episodeData?.totalEpisodes ??
-                        episodeData?.episodes?.length ??
-                        0}
-                    </span>
-                  </span>
-                  <ChevronIcon
-                    className={`h-5 w-5 transition-transform ${
-                      episodesSheetOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
-              </div>
-              <div className="episode-sheet-body">
-                <h3 className="section-title episode-list-title">Episodes</h3>
-
-                {loadingEpisodes ? (
-                  <div className="space-y-2">
-                    {Array.from({ length: 12 }).map((_, i) => (
-                      <div key={i} className="skeleton h-14 rounded-2xl" />
-                    ))}
-                  </div>
-                ) : episodeData?.episodes?.length ? (
-                  <div className="episode-list-rows space-y-1.5 max-h-[60vh] overflow-y-auto pr-1 no-scrollbar">
-                    {episodeData.episodes.map((ep) => (
-                      <EpisodeRow
-                        key={ep.url}
-                        ep={ep}
-                        isActive={activeEpisode?.url === ep.url}
-                        onClick={() => handleEpisodeClick(ep)}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="glass rounded-3xl p-10 text-center border border-white/10">
-                    <p className="text-ivory-muted">
-                      No episodes found on {selectedPlatform.name} for this title.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </section>
+            {/* ── Episode Grid (when viewing anime details before playing) ── */}
+            {view === "episodes" && (
+              <EpisodeGrid
+                episodes={episodeData?.episodes || []}
+                activeEpisode={activeEpisode}
+                onSelectEpisode={handleEpisodeClick}
+                loading={loadingEpisodes}
+                platformName={selectedPlatform.name}
+              />
+            )}
           </div>
         )}
       </main>
