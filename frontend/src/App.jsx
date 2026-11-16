@@ -805,7 +805,7 @@ function EpisodeGrid({
       {loading ? (
         <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2">
           {Array.from({ length: 24 }).map((_, i) => (
-            <div key={i} className="skeleton h-10 rounded-xl" />
+            <div key={i} className="skeleton h-10 rounded-2xl" />
           ))}
         </div>
       ) : episodes.length === 0 ? (
@@ -825,10 +825,10 @@ function EpisodeGrid({
                 type="button"
                 onClick={() => onSelectEpisode(ep)}
                 title={ep.label || `Episode ${ep.episode}`}
-                className={`h-10 rounded-xl flex items-center justify-center text-xs sm:text-sm font-semibold transition-all duration-150 ${
+                className={`h-10 rounded-2xl flex items-center justify-center text-xs sm:text-sm font-semibold transition-colors duration-150 border ${
                   isActive
-                    ? "bg-white text-black shadow-lg scale-105 ring-2 ring-white font-extrabold"
-                    : "bg-white/8 hover:bg-white/18 text-white/90 border border-white/10 hover:border-white/25 active:scale-95"
+                    ? "bg-white text-black border-white shadow-lg shadow-white/20 font-bold"
+                    : "bg-white/8 hover:bg-white/18 text-white/90 border-white/10 hover:border-white/25"
                 }`}
               >
                 {ep.episode}

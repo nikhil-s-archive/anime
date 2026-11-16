@@ -324,6 +324,48 @@ function fmtTime(secs) {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
+// ─── Subtitle helper: Convert WebVTT to SRT ────────────────────────────────────
+function vttToSrt(vttText) {
+  if (!vttText) return "";
+  let cleaned = vttText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  cleaned = cleaned.replace(/^WEBVTT[^\n]*\n+/i, "");
+  cleaned = cleaned.replace(/(STYLE|REGION|NOTE)\s*[\s\S]*?(?=\n\n|\n$|$)/gi, "");
+
+  const rawBlocks = cleaned.split(/\n\s*\n/).filter((b) => b.trim().length > 0);
+  const srtBlocks = [];
+  let counter = 1;
+
+  for (const block of rawBlocks) {
+    const lines = block.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (lines.length === 0) continue;
+
+    const timeLineIdx = lines.findIndex((l) => l.includes("-->"));
+    if (timeLineIdx === -1) continue;
+
+    let timeLine = lines[timeLineIdx];
+    // Remove position/alignment cues like line:0% position:50% align:middle
+    timeLine = timeLine.replace(/\s+(line|position|align|size):[^\s]+/gi, "");
+    // Standardize timestamps: ensure HH:MM:SS,mmm
+    timeLine = timeLine.replace(
+      /(\d{1,2}:)?(\d{2}):(\d{2})\.(\d{3})/g,
+      (match, hh, mm, ss, ms) => {
+        const hours = hh ? hh.replace(":", "").padStart(2, "0") : "00";
+        return `${hours}:${mm}:${ss},${ms}`;
+      }
+    );
+
+    const textLines = lines
+      .slice(timeLineIdx + 1)
+      .map((tl) => tl.replace(/<\/?[^>]+(>|$)/g, "").trim())
+      .filter(Boolean);
+
+    if (textLines.length === 0) continue;
+    srtBlocks.push(`${counter++}\n${timeLine}\n${textLines.join("\n")}`);
+  }
+
+  return srtBlocks.join("\n\n");
+}
+
 // ─── HLS Stream to Video Downloader (concatenates segments into single video file) ────
 async function downloadHlsStreamAsVideo(manifestUrl, filename, onProgress, signal) {
   const res = await fetch(manifestUrl, { signal });
@@ -622,6 +664,51 @@ export default function Player({
     };
   }, [subtitlePosition, activeSubtitle, subtitleSources]);
 
+  // Download matching subtitle track (.srt) alongside video
+  const downloadMatchingSubtitle = useCallback(
+    async (baseName) => {
+      if (!subtitles || subtitles.length === 0) return false;
+      const targetSub =
+        (activeSubtitle >= 0 ? subtitles[activeSubtitle] : null) ||
+        subtitles.find((s) => s.default) ||
+        subtitles.find((s) => /en|eng|english/i.test(s.label || s.lang || "")) ||
+        subtitles[0];
+
+      if (!targetSub) return false;
+
+      try {
+        let text = targetSub.content || "";
+        if (!text && (targetSub.proxyUrl || targetSub.url)) {
+          const res = await fetch(targetSub.proxyUrl || targetSub.url);
+          if (res.ok) text = await res.text();
+        }
+        if (!text) return false;
+
+        const srtContent = vttToSrt(text);
+        const subBlob = new Blob([srtContent], {
+          type: "text/plain;charset=utf-8",
+        });
+        const subUrl = URL.createObjectURL(subBlob);
+        const subA = document.createElement("a");
+        subA.style.display = "none";
+        subA.href = subUrl;
+        subA.download = `${baseName}.srt`;
+        document.body.appendChild(subA);
+        await new Promise((r) => setTimeout(r, 250));
+        subA.click();
+        setTimeout(() => {
+          document.body.removeChild(subA);
+          URL.revokeObjectURL(subUrl);
+        }, 5000);
+        return true;
+      } catch (err) {
+        console.warn("Could not download subtitle track:", err);
+        return false;
+      }
+    },
+    [subtitles, activeSubtitle]
+  );
+
   // Trigger file download directly to device (never opens a new tab or page)
   const triggerDownload = useCallback(
     async (targetProxyUrl, qualityName = "") => {
@@ -678,7 +765,10 @@ export default function Player({
             URL.revokeObjectURL(blobUrl);
           }, 4000);
 
-          setDownloadToast(`Download complete: ${safeTitle}${cleanQuality}.mp4`);
+          const subSaved = await downloadMatchingSubtitle(`${safeTitle}${cleanQuality}`);
+          setDownloadToast(
+            `Download complete: ${safeTitle}${cleanQuality}.mp4${subSaved ? " (+ Subtitles)" : ""}`
+          );
         } else {
           setDownloadToast(`Preparing ${qualityName || "video"} download…`);
           await downloadHlsStreamAsVideo(
@@ -689,7 +779,10 @@ export default function Player({
             },
             abortCtrl.signal
           );
-          setDownloadToast(`Download complete: ${safeTitle}${cleanQuality}.ts`);
+          const subSaved = await downloadMatchingSubtitle(`${safeTitle}${cleanQuality}`);
+          setDownloadToast(
+            `Download complete: ${safeTitle}${cleanQuality}.ts${subSaved ? " (+ Subtitles)" : ""}`
+          );
         }
       } catch (err) {
         if (err.name === "AbortError" || abortCtrl.signal.aborted) {
@@ -710,7 +803,10 @@ export default function Player({
               document.body.removeChild(a);
               URL.revokeObjectURL(blobUrl);
             }, 4000);
-            setDownloadToast(`Downloaded: ${safeTitle}${cleanQuality}`);
+            const subSaved = await downloadMatchingSubtitle(`${safeTitle}${cleanQuality}`);
+            setDownloadToast(
+              `Downloaded: ${safeTitle}${cleanQuality}${subSaved ? " (+ Subtitles)" : ""}`
+            );
           } catch (fallbackErr) {
             // Background hidden iframe fallback (never opens a new page)
             const iframe = document.createElement("iframe");
@@ -724,10 +820,10 @@ export default function Player({
       } finally {
         setDownloadProgress(null);
         downloadAbortRef.current = null;
-        setTimeout(() => setDownloadToast(false), 4500);
+        setTimeout(() => setDownloadToast(false), 5000);
       }
     },
-    [downloadUrl, rawStreamUrl, streamUrl, title, onDownload]
+    [downloadUrl, rawStreamUrl, streamUrl, title, onDownload, downloadMatchingSubtitle]
   );
 
   // Download playlist file (.m3u8) without opening a new page
@@ -1849,7 +1945,10 @@ export default function Player({
                           className="download-quality-btn group"
                         >
                           <div className="flex items-center gap-3 truncate">
-                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0 group-hover:scale-125 transition-transform shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                            <span
+                              className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0 group-hover:scale-125 transition-transform shadow-[0_0_8px_rgba(52,211,153,0.8)] m-[10px]"
+                              style={{ margin: "10px" }}
+                            />
                             <div className="text-left truncate">
                               <span className="block font-semibold text-xs text-white group-hover:text-cyan-300 transition-colors truncate">
                                 {srv.name}
@@ -1872,8 +1971,8 @@ export default function Player({
                 );
               })()}
 
-              {/* Extra Download Options: Playlist & Stream URL */}
-              <div className="flex items-center justify-between pt-3 mt-3 border-t border-white/10 text-xs">
+              {/* Extra Download Options: Playlist & Stream URL & Subtitles */}
+              <div className="flex items-center justify-between pt-3 mt-3 border-t border-white/10 text-xs flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -1899,6 +1998,27 @@ export default function Player({
                 >
                   Download .m3u8 Playlist
                 </button>
+                {subtitles.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const safeTitle = (title || "anime-episode")
+                        .replace(/[/\\?%*:|"<>]/g, "-")
+                        .trim();
+                      const success = await downloadMatchingSubtitle(safeTitle);
+                      setDownloadToast(
+                        success
+                          ? `Downloaded subtitles: ${safeTitle}.srt`
+                          : "No subtitles available"
+                      );
+                      setTimeout(() => setDownloadToast(false), 3000);
+                    }}
+                    className="text-[11px] text-amber-300 hover:text-amber-200 transition-colors font-medium"
+                    title="Download subtitle file (.srt) to play in VLC or media player"
+                  >
+                    Download Subtitles (.srt)
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
