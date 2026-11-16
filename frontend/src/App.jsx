@@ -5,6 +5,7 @@
  * Dynamic platform switching with logo and name on the top right
  */
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import Player from "./components/Player.jsx";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -902,6 +903,7 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
   const [filter, setFilter] = useState("");
   const [logoError, setLogoError] = useState(false);
   const dropdownRef = useRef(null);
+  const mobileSheetRef = useRef(null);
 
   // Reset logo error when selectedPlatform changes
   useEffect(() => {
@@ -922,17 +924,23 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
   // Close dropdown on outside click or ESC key
   useEffect(() => {
     function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false);
+      if (
+        (dropdownRef.current && dropdownRef.current.contains(event.target)) ||
+        (mobileSheetRef.current && mobileSheetRef.current.contains(event.target))
+      ) {
+        return;
       }
+      setIsOpen(false);
     }
     function handleKeyDown(event) {
       if (event.key === "Escape") setIsOpen(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside, { passive: true });
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
@@ -990,194 +998,204 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
         </div>
       </button>
 
-      {/* ── Source Selection Popup: Mobile Bottom Sheet + Desktop Solid Dropdown ── */}
-      {isOpen && (
-        <>
-          {/* Mobile Backdrop Overlay */}
-          <div
-            className="sm:hidden fixed inset-0 bg-black/80 z-[999] backdrop-blur-sm animate-fade-in"
-            onClick={() => setIsOpen(false)}
-            onMouseDown={() => setIsOpen(false)}
-          />
+      {/* ── Mobile Bottom Sheet (Portaled to document.body so it escapes header backdrop-filter) ── */}
+      {isOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="sm:hidden">
+            {/* Mobile Backdrop Overlay */}
+            <div
+              className="fixed inset-0 bg-black/80 z-[99998] backdrop-blur-sm animate-fade-in"
+              onClick={() => setIsOpen(false)}
+            />
 
-          {/* Mobile Bottom Popup Sheet (Solid Background) */}
-          <div
-            className="sm:hidden fixed inset-x-0 bottom-0 z-[1000] bg-[#0d111a] border-t border-white/20 rounded-t-[32px] p-5 shadow-[0_-12px_50px_rgba(0,0,0,0.95)] max-h-[85vh] flex flex-col animate-bottom-sheet"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Grab Handle */}
-            <div className="w-12 h-1.5 rounded-full bg-white/25 mx-auto mb-3.5 shrink-0" />
-
-            {/* Mobile Header Row */}
-            <div className="flex items-center justify-between pb-3 mb-2.5 border-b border-white/10 shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="text-base font-bold text-white tracking-wide">
-                  Select Source
-                </span>
-                <span className="text-[10px] font-mono text-white/80 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/15">
-                  {platforms.length} sources
-                </span>
-              </div>
-              <button
-                type="button"
+            {/* Mobile Bottom Popup Sheet */}
+            <div
+              ref={mobileSheetRef}
+              className="fixed inset-x-0 bottom-0 z-[99999] bg-[#0d111a] border-t border-white/20 rounded-t-[32px] p-5 shadow-[0_-12px_50px_rgba(0,0,0,0.95)] max-h-[85vh] h-[75vh] flex flex-col animate-bottom-sheet"
+              style={{
+                paddingBottom: "max(1.75rem, env(safe-area-inset-bottom, 24px))",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Grab Handle */}
+              <div
+                className="w-12 h-1.5 rounded-full bg-white/30 mx-auto mb-3.5 shrink-0 cursor-pointer active:scale-95 transition-transform"
                 onClick={() => setIsOpen(false)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center text-white/70 hover:text-white transition-all text-xs"
-                aria-label="Close"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Mobile Search Bar */}
-            <div className="relative mb-3 shrink-0">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ivory-muted/60 pointer-events-none">
-                <SearchIcon className="h-4 w-4" />
-              </span>
-              <input
-                type="text"
-                placeholder="Search platforms..."
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                className="w-full bg-black/60 border border-white/15 rounded-full pl-10 pr-4 py-2.5 text-sm text-white placeholder-ivory-muted/60 outline-none focus:border-white/35"
-                autoFocus
               />
-            </div>
 
-            {/* Mobile Platforms List */}
-            <div className="flex-1 overflow-y-auto space-y-1.5 pr-0.5 no-scrollbar min-h-0">
-              {filtered.map((p) => {
-                const isSelected =
-                  selectedPlatform?.name?.toLowerCase() === p.name.toLowerCase();
-                return (
-                  <button
-                    key={p.id || p.name}
-                    onClick={() => {
-                      onSelectPlatform(p);
-                      setIsOpen(false);
-                      setFilter("");
-                    }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-left text-sm transition-all ${
-                      isSelected
-                        ? "bg-white/20 text-white border border-white/25 shadow-sm font-semibold"
-                        : "text-ivory-muted hover:text-white hover:bg-white/10 border border-transparent"
-                    }`}
-                  >
-                    <div className="w-7 h-7 rounded-xl bg-black/60 p-1 border border-white/10 flex-shrink-0 flex items-center justify-center overflow-hidden">
-                      <img
-                        src={p.iconUrl}
-                        alt={p.name}
-                        className="w-full h-full object-contain"
-                        onError={(e) => {
-                          e.currentTarget.style.display = "none";
-                        }}
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p
-                        className={`font-semibold text-sm truncate ${
-                          isSelected ? "text-white" : "text-white/90"
-                        }`}
-                      >
-                        {p.name}
-                      </p>
-                      <p className="text-[11px] text-ivory-muted/60 truncate font-mono">
-                        {p.baseUrl ? p.baseUrl.replace(/^https?:\/\//, "") : ""}
-                      </p>
-                    </div>
-                    {isSelected && (
-                      <span className="text-white font-bold text-sm">✓</span>
-                    )}
-                  </button>
-                );
-              })}
-              {filtered.length === 0 && (
-                <p className="text-center text-xs text-ivory-muted py-6">
-                  No matching platform
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Desktop Dropdown Menu (Solid Background) */}
-          <div className="hidden sm:block absolute left-0 mt-2.5 w-80 rounded-[28px] bg-[#0d111a] p-3.5 z-50 shadow-2xl border border-white/15 animate-slide-up">
-            {/* Header & Search */}
-            <div className="p-1 mb-2">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-white">Select Source</span>
-                <span className="text-[10px] font-mono text-white/80 bg-white/10 px-2 py-0.5 rounded-full border border-white/15">
-                  {platforms.length} sources
-                </span>
+              {/* Mobile Header Row */}
+              <div className="flex items-center justify-between pb-3 mb-2.5 border-b border-white/10 shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-base font-bold text-white tracking-wide">
+                    Select Source
+                  </span>
+                  <span className="text-[10px] font-mono text-white/80 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/15">
+                    {platforms.length} sources
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center text-white/70 hover:text-white transition-all text-xs"
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
               </div>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ivory-muted/60 pointer-events-none">
-                  <SearchIcon className="h-3.5 w-3.5" />
+
+              {/* Mobile Search Bar */}
+              <div className="relative mb-3 shrink-0">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ivory-muted/60 pointer-events-none">
+                  <SearchIcon className="h-4 w-4" />
                 </span>
                 <input
                   type="text"
                   placeholder="Search platforms..."
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
-                  className="w-full bg-black/60 border border-white/15 rounded-full pl-8 pr-3 py-1.5 text-xs text-white placeholder-ivory-muted/60 outline-none focus:border-white/30"
-                  autoFocus
+                  className="w-full bg-black/60 border border-white/15 rounded-full pl-10 pr-4 py-2.5 text-sm text-white placeholder-ivory-muted/60 outline-none focus:border-white/35"
                 />
               </div>
-            </div>
 
-            {/* Desktop Platforms List */}
-            <div className="max-h-72 overflow-y-auto space-y-1 no-scrollbar pr-0.5">
-              {filtered.map((p) => {
-                const isSelected =
-                  selectedPlatform?.name?.toLowerCase() === p.name.toLowerCase();
-                return (
-                  <button
-                    key={p.id || p.name}
-                    onClick={() => {
-                      onSelectPlatform(p);
-                      setIsOpen(false);
-                      setFilter("");
-                    }}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-2xl text-left text-xs transition-all ${
-                      isSelected
-                        ? "bg-white/20 text-white border border-white/25 shadow-sm font-semibold"
-                        : "text-ivory-muted hover:text-white hover:bg-white/10 border border-transparent"
-                    }`}
-                  >
-                    <div className="w-5 h-5 rounded-lg bg-black/60 p-0.5 border border-white/10 flex-shrink-0 flex items-center justify-center overflow-hidden">
-                      <img
-                        src={p.iconUrl}
-                        alt={p.name}
-                        className="w-full h-full object-contain"
-                        onError={(e) => {
-                          e.currentTarget.style.display = "none";
-                        }}
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p
-                        className={`font-semibold truncate ${
-                          isSelected ? "text-white" : "text-white/90"
-                        }`}
-                      >
-                        {p.name}
-                      </p>
-                      <p className="text-[10px] text-ivory-muted/60 truncate font-mono">
-                        {p.baseUrl ? p.baseUrl.replace(/^https?:\/\//, "") : ""}
-                      </p>
-                    </div>
-                    {isSelected && (
-                      <span className="text-white font-bold text-xs">✓</span>
-                    )}
-                  </button>
-                );
-              })}
-              {filtered.length === 0 && (
-                <p className="text-center text-xs text-ivory-muted py-4">
-                  No matching platform
-                </p>
-              )}
+              {/* Mobile Platforms List */}
+              <div className="flex-1 overflow-y-auto space-y-1.5 pr-0.5 no-scrollbar min-h-0 overscroll-contain">
+                {filtered.map((p) => {
+                  const isSelected =
+                    selectedPlatform?.name?.toLowerCase() === p.name.toLowerCase();
+                  return (
+                    <button
+                      key={p.id || p.name}
+                      onClick={() => {
+                        onSelectPlatform(p);
+                        setIsOpen(false);
+                        setFilter("");
+                      }}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-left text-sm transition-all ${
+                        isSelected
+                          ? "bg-white/20 text-white border border-white/25 shadow-sm font-semibold"
+                          : "text-ivory-muted hover:text-white hover:bg-white/10 border border-transparent"
+                      }`}
+                    >
+                      <div className="w-7 h-7 rounded-xl bg-black/60 p-1 border border-white/10 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                        <img
+                          src={p.iconUrl}
+                          alt={p.name}
+                          className="w-full h-full object-contain"
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                          }}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className={`font-semibold text-sm truncate ${
+                            isSelected ? "text-white" : "text-white/90"
+                          }`}
+                        >
+                          {p.name}
+                        </p>
+                        <p className="text-[11px] text-ivory-muted/60 truncate font-mono">
+                          {p.baseUrl ? p.baseUrl.replace(/^https?:\/\//, "") : ""}
+                        </p>
+                      </div>
+                      {isSelected && (
+                        <span className="text-white font-bold text-sm">✓</span>
+                      )}
+                    </button>
+                  );
+                })}
+                {filtered.length === 0 && (
+                  <p className="text-center text-xs text-ivory-muted py-6">
+                    No matching platform
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* ── Desktop Dropdown Menu (Solid Background) ── */}
+      {isOpen && (
+        <div className="hidden sm:block absolute left-0 mt-2.5 w-80 rounded-[28px] bg-[#0d111a] p-3.5 z-50 shadow-2xl border border-white/15 animate-slide-up">
+          {/* Header & Search */}
+          <div className="p-1 mb-2">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-white">Select Source</span>
+              <span className="text-[10px] font-mono text-white/80 bg-white/10 px-2 py-0.5 rounded-full border border-white/15">
+                {platforms.length} sources
+              </span>
+            </div>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ivory-muted/60 pointer-events-none">
+                <SearchIcon className="h-3.5 w-3.5" />
+              </span>
+              <input
+                type="text"
+                placeholder="Search platforms..."
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                className="w-full bg-black/60 border border-white/15 rounded-full pl-8 pr-3 py-1.5 text-xs text-white placeholder-ivory-muted/60 outline-none focus:border-white/30"
+                autoFocus
+              />
             </div>
           </div>
-        </>
+
+          {/* Desktop Platforms List */}
+          <div className="max-h-72 overflow-y-auto space-y-1 no-scrollbar pr-0.5">
+            {filtered.map((p) => {
+              const isSelected =
+                selectedPlatform?.name?.toLowerCase() === p.name.toLowerCase();
+              return (
+                <button
+                  key={p.id || p.name}
+                  onClick={() => {
+                    onSelectPlatform(p);
+                    setIsOpen(false);
+                    setFilter("");
+                  }}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-2xl text-left text-xs transition-all ${
+                    isSelected
+                      ? "bg-white/20 text-white border border-white/25 shadow-sm font-semibold"
+                      : "text-ivory-muted hover:text-white hover:bg-white/10 border border-transparent"
+                  }`}
+                >
+                  <div className="w-5 h-5 rounded-lg bg-black/60 p-0.5 border border-white/10 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                    <img
+                      src={p.iconUrl}
+                      alt={p.name}
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                      }}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={`font-semibold truncate ${
+                        isSelected ? "text-white" : "text-white/90"
+                      }`}
+                    >
+                      {p.name}
+                    </p>
+                    <p className="text-[10px] text-ivory-muted/60 truncate font-mono">
+                      {p.baseUrl ? p.baseUrl.replace(/^https?:\/\//, "") : ""}
+                    </p>
+                  </div>
+                  {isSelected && (
+                    <span className="text-white font-bold text-xs">✓</span>
+                  )}
+                </button>
+              );
+            })}
+            {filtered.length === 0 && (
+              <p className="text-center text-xs text-ivory-muted py-4">
+                No matching platform
+              </p>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
