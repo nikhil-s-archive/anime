@@ -104,6 +104,25 @@ export default function Player({
   const [controlsVisible, setControlsVisible] = useState(true);
   const [seeking, setSeeking] = useState(false);
   const [activeSubtitle, setActiveSubtitle] = useState(-1);
+  const [subtitleSources, setSubtitleSources] = useState([]);
+
+  useEffect(() => {
+    const sources = subtitles.map((subtitle) => {
+      if (typeof subtitle.content === "string" && subtitle.content.length > 0) {
+        return URL.createObjectURL(
+          new Blob([subtitle.content], { type: "text/vtt;charset=utf-8" })
+        );
+      }
+      return subtitle.proxyUrl || "";
+    });
+    setSubtitleSources(sources);
+
+    return () => {
+      sources.forEach((source) => {
+        if (source.startsWith("blob:")) URL.revokeObjectURL(source);
+      });
+    };
+  }, [subtitles]);
 
   // Auto-select English or default subtitle
   useEffect(() => {
@@ -385,6 +404,7 @@ export default function Player({
       className="player-wrapper animate-fade-in"
       onMouseMove={showControls}
       onMouseLeave={() => playing && setControlsVisible(false)}
+      onTouchStart={showControls}
       style={{ cursor: controlsVisible ? "default" : "none" }}
     >
       {/* ── Video element ── */}
@@ -393,17 +413,26 @@ export default function Player({
         className="w-full max-h-[70vh] bg-black"
         playsInline
         crossOrigin="anonymous"
-        onClick={togglePlay}
+        onClick={() => {
+          showControls();
+          togglePlay();
+        }}
         onDoubleClick={handleFullscreen}
       >
         {subtitles.map((sub, i) => (
           <track
             key={sub.proxyUrl || i}
             kind="subtitles"
-            src={sub.proxyUrl}
+            src={subtitleSources[i] || undefined}
             srcLang={sub.lang || "en"}
             label={sub.label}
             default={activeSubtitle === i}
+            onLoad={() => {
+              const track = videoRef.current?.textTracks[i];
+              if (track) {
+                track.mode = i === activeSubtitle ? "showing" : "disabled";
+              }
+            }}
           />
         ))}
       </video>
@@ -432,9 +461,8 @@ export default function Player({
 
       {/* ── Title bar (top) ── */}
       <div
-        className="absolute top-0 left-0 right-0 px-4 py-3 flex items-center justify-between"
+        className="player-title-bar absolute top-3 left-3 right-3 px-4 py-2.5 flex items-center justify-between"
         style={{
-          background: "linear-gradient(to bottom, rgba(0,0,0,0.75), transparent)",
           opacity: controlsVisible ? 1 : 0,
           transition: "opacity 0.3s ease",
           pointerEvents: controlsVisible ? "auto" : "none",
@@ -446,8 +474,9 @@ export default function Player({
         {onClose && (
           <button
             onClick={onClose}
-            className="text-ivory-muted hover:text-gold transition-colors p-1 rounded-lg hover:bg-white/10"
+            className="player-control-button"
             title="Close player (Esc)"
+            aria-label="Close player"
           >
             <CloseIcon />
           </button>
@@ -456,7 +485,7 @@ export default function Player({
 
       {/* ── Controls (bottom) ── */}
       <div
-        className="player-controls"
+        className="player-controls player-control-dock"
         style={{
           opacity: controlsVisible ? 1 : 0,
           pointerEvents: controlsVisible ? "auto" : "none",
@@ -464,7 +493,7 @@ export default function Player({
         }}
       >
         {/* Progress bar with buffered track */}
-        <div className="relative mb-3 group">
+        <div className="relative mb-2 group">
           {/* Buffered indicator */}
           <div
             className="absolute top-1/2 -translate-y-1/2 h-1 rounded-full bg-white/20 pointer-events-none"
@@ -481,19 +510,21 @@ export default function Player({
             onChange={handleSeekChange}
             onMouseUp={handleSeekEnd}
             onTouchEnd={handleSeekEnd}
+            onTouchStart={handleSeekStart}
             style={{
-              background: `linear-gradient(to right, #C9A24B ${progressPct}%, rgba(255,255,255,0.15) ${progressPct}%)`,
+              background: `linear-gradient(to right, #E8EAED ${progressPct}%, rgba(255,255,255,0.15) ${progressPct}%)`,
             }}
           />
         </div>
 
         {/* Button row */}
-        <div className="flex items-center gap-3">
+        <div className="player-control-row flex items-center gap-3">
           {/* Play/Pause */}
           <button
             onClick={togglePlay}
-            className="text-ivory hover:text-gold transition-colors"
+            className="player-control-button player-play-button"
             title={playing ? "Pause (Space)" : "Play (Space)"}
+            aria-label={playing ? "Pause" : "Play"}
           >
             {playing ? <PauseIcon /> : <PlayIcon />}
           </button>
@@ -502,14 +533,15 @@ export default function Player({
           <div className="flex items-center gap-2">
             <button
               onClick={toggleMute}
-              className="text-ivory-muted hover:text-gold transition-colors"
+              className="player-control-button"
               title="Toggle mute (M)"
+              aria-label={muted ? "Unmute" : "Mute"}
             >
               <VolumeIcon muted={muted} />
             </button>
             <input
               type="range"
-              className="seek-bar w-20"
+              className="seek-bar player-volume"
               min={0}
               max={1}
               step={0.05}
@@ -520,16 +552,16 @@ export default function Player({
           </div>
 
           {/* Timestamp */}
-          <span className="text-ivory-muted text-xs font-mono ml-1 tabular-nums">
+          <span className="player-time text-ivory-muted text-xs font-mono ml-1 tabular-nums">
             {fmtTime(currentTime)} / {fmtTime(duration)}
           </span>
 
           {/* Spacer */}
-          <div className="flex-1" />
+          <div className="player-control-spacer flex-1" />
 
           {/* Subtitle (CC) selector */}
           {subtitles.length > 0 && (
-            <div className="flex items-center gap-1.5">
+            <div className="player-extra-control flex items-center gap-1.5">
               <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border border-gold/40 text-gold bg-gold/10">
                 CC
               </span>
@@ -553,7 +585,7 @@ export default function Player({
 
           {/* Quality selector */}
           {levels.length > 1 && (
-            <div className="relative">
+            <div className="player-extra-control relative">
               <select
                 value={activeLevel}
                 onChange={(e) => handleQualityChange(parseInt(e.target.value))}
@@ -575,8 +607,9 @@ export default function Player({
           {/* Fullscreen */}
           <button
             onClick={handleFullscreen}
-            className="text-ivory-muted hover:text-gold transition-colors"
+            className="player-control-button"
             title="Fullscreen (F)"
+            aria-label="Fullscreen"
           >
             <FullscreenIcon />
           </button>
@@ -584,7 +617,7 @@ export default function Player({
       </div>
 
       {/* ── Keyboard hint (shown briefly on mount) ── */}
-      <div className="absolute bottom-20 right-4 text-xs text-ivory-muted/60 font-mono pointer-events-none">
+      <div className="player-keyboard-hint absolute bottom-20 right-4 text-xs text-ivory-muted/60 font-mono pointer-events-none">
         Space · ←→ 10s · M mute · F fullscreen · Esc close
       </div>
     </div>

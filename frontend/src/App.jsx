@@ -221,6 +221,178 @@ function SkeletonCard() {
   );
 }
 
+function SearchBar({ value, onChange, onSubmit, onChoose, platform }) {
+  const [focused, setFocused] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [suggestionError, setSuggestionError] = useState("");
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const blurTimer = useRef(null);
+  const query = value.trim();
+
+  useEffect(() => {
+    if (!focused || query.length < 2) {
+      setSuggestions([]);
+      setSuggestionError("");
+      setLoadingSuggestions(false);
+      return undefined;
+    }
+
+    setSuggestions([]);
+    setSuggestionError("");
+    setLoadingSuggestions(true);
+    setActiveIndex(-1);
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      setLoadingSuggestions(true);
+      setSuggestionError("");
+      api
+        .search(query, 1, platform)
+        .then((data) => {
+          if (cancelled) return;
+          setSuggestions((data.items || []).slice(0, 6));
+          setActiveIndex(-1);
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          setSuggestions([]);
+          setSuggestionError(error.message);
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingSuggestions(false);
+        });
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [focused, platform, query]);
+
+  const chooseSuggestion = (item) => {
+    clearTimeout(blurTimer.current);
+    setFocused(false);
+    onChoose(item);
+  };
+
+  const handleKeyDown = (event) => {
+    if (event.key === "ArrowDown" && suggestions.length) {
+      event.preventDefault();
+      setActiveIndex((index) => (index + 1) % suggestions.length);
+    } else if (event.key === "ArrowUp" && suggestions.length) {
+      event.preventDefault();
+      setActiveIndex((index) =>
+        index <= 0 ? suggestions.length - 1 : index - 1
+      );
+    } else if (event.key === "Escape") {
+      setFocused(false);
+      setActiveIndex(-1);
+    } else if (
+      event.key === "Enter" &&
+      activeIndex >= 0 &&
+      suggestions[activeIndex]
+    ) {
+      event.preventDefault();
+      chooseSuggestion(suggestions[activeIndex]);
+    }
+  };
+
+  const showMenu =
+    focused &&
+    query.length >= 2 &&
+    (loadingSuggestions || suggestions.length > 0 || suggestionError);
+
+  return (
+    <form onSubmit={onSubmit} className="search-form">
+      <div className="search-control-wrap">
+        <div className="home-search">
+          <span aria-hidden="true">⌕</span>
+          <input
+            type="search"
+            role="combobox"
+            aria-label="Search anime"
+            aria-autocomplete="list"
+            aria-expanded={Boolean(showMenu)}
+            aria-controls="anime-search-suggestions"
+            aria-activedescendant={
+              activeIndex >= 0 ? `anime-suggestion-${activeIndex}` : undefined
+            }
+            placeholder={`Search ${platform} anime`}
+            value={value}
+            onFocus={() => {
+              clearTimeout(blurTimer.current);
+              setFocused(true);
+            }}
+            onBlur={() => {
+              blurTimer.current = setTimeout(() => setFocused(false), 120);
+            }}
+            onKeyDown={handleKeyDown}
+            onChange={(event) => onChange(event.target.value)}
+          />
+          {value && (
+            <button
+              type="button"
+              className="clear-search"
+              onClick={() => onChange("")}
+              aria-label="Clear search"
+            >
+              ×
+            </button>
+          )}
+        </div>
+        {showMenu && (
+          <div
+            id="anime-search-suggestions"
+            className="suggestion-menu"
+            role="listbox"
+            aria-label="Search suggestions"
+          >
+            {loadingSuggestions && (
+              <p className="suggestion-status">Looking for anime…</p>
+            )}
+            {suggestions.map((item, index) => (
+              <button
+                type="button"
+                id={`anime-suggestion-${index}`}
+                key={`${item.url || item.link}-${index}`}
+                className={`suggestion-option ${
+                  activeIndex === index ? "is-active" : ""
+                }`}
+                role="option"
+                aria-selected={activeIndex === index}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => chooseSuggestion(item)}
+              >
+                {item.thumbnail ? (
+                  <img src={item.thumbnail} alt="" loading="lazy" />
+                ) : (
+                  <span className="suggestion-placeholder" aria-hidden="true">▶</span>
+                )}
+                <span className="suggestion-copy">
+                  <span className="suggestion-title">{item.title}</span>
+                  {item.episodeLabel && (
+                    <span className="suggestion-detail">{item.episodeLabel}</span>
+                  )}
+                </span>
+                <span className="suggestion-enter" aria-hidden="true">↵</span>
+              </button>
+            ))}
+            {suggestionError && (
+              <p className="suggestion-status">
+                Suggestions unavailable: {suggestionError}
+              </p>
+            )}
+            {!loadingSuggestions && !suggestionError && suggestions.length === 0 && (
+              <p className="suggestion-status">No matches found.</p>
+            )}
+          </div>
+        )}
+      </div>
+      <button type="submit" className="search-submit">Search</button>
+    </form>
+  );
+}
+
 /** Individual anime card */
 function AnimeCard({ item, isActive, onClick }) {
   const [imgError, setImgError] = useState(false);
@@ -582,6 +754,9 @@ export default function App() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loadingList, setLoadingList] = useState(Boolean(initialQuery));
+  const [popularAnime, setPopularAnime] = useState([]);
+  const [loadingPopular, setLoadingPopular] = useState(true);
+  const [popularError, setPopularError] = useState("");
 
   const [selectedAnime, setSelectedAnime] = useState(null); // { title, url, thumbnail }
   const [episodeData, setEpisodeData] = useState(null); // { episodes: [], totalEpisodes, ... }
@@ -608,6 +783,16 @@ export default function App() {
     setError(msg);
     console.error("[AnimeX]", msg);
   }, []);
+
+  const chooseSuggestion = (item) => {
+    setSearchQuery(item.title);
+    setDebouncedQuery(item.title);
+    setPage(1);
+    setView("browse");
+    const url = new URL(window.location.href);
+    url.searchParams.set("q", item.title);
+    window.history.pushState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  };
 
   const submitSearch = (event) => {
     event.preventDefault();
@@ -640,6 +825,26 @@ export default function App() {
     window.addEventListener("popstate", syncSearchFromUrl);
     return () => window.removeEventListener("popstate", syncSearchFromUrl);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingPopular(true);
+    setPopularError("");
+    api
+      .popular(1, selectedPlatform.name)
+      .then((data) => {
+        if (!cancelled) setPopularAnime((data.items || []).slice(0, 6));
+      })
+      .catch((e) => {
+        if (!cancelled) setPopularError(e.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingPopular(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPlatform.name]);
 
   // ── Fetch available platforms on mount ──────────────────────────────────────
   useEffect(() => {
@@ -933,24 +1138,6 @@ export default function App() {
             </button>
           )}
 
-          {/* Search — only on browse view */}
-          {view === "browse" && debouncedQuery && (
-            <form onSubmit={submitSearch} className="header-search-form flex-1 max-w-md ml-auto relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ivory-muted text-sm pointer-events-none">
-                ⌕
-              </span>
-              <input
-                type="search"
-                placeholder={`Search ${selectedPlatform.name}…`}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="search-input pl-9"
-                aria-label="Search anime"
-              />
-              <button type="submit" className="sr-only">Search</button>
-            </form>
-          )}
-
           {/* Anime title in episodes/playing view */}
           {view !== "browse" && selectedAnime && (
             <div className="flex-1 ml-2 min-w-0">
@@ -962,15 +1149,6 @@ export default function App() {
                   {episodeData.totalEpisodes} episodes · {selectedPlatform.name}
                 </p>
               )}
-            </div>
-          )}
-
-          {/* Page indicator on browse */}
-          {view === "browse" && debouncedQuery && (
-            <div className="hidden sm:block flex-shrink-0">
-              <span className="tag font-mono">
-                {page > 1 ? `p.${page}` : "search"}
-              </span>
             </div>
           )}
 
@@ -988,41 +1166,69 @@ export default function App() {
         {/* ══════ BROWSE VIEW ══════ */}
         {view === "browse" && (
           !debouncedQuery ? (
-            <section className="search-home animate-fade-in">
-              <div className="search-home-content">
+            <>
+              <section className="search-home animate-fade-in">
+                <div className="search-home-content">
                 <p className="eyebrow">ANIMEX · YOUR ANIME LIBRARY</p>
                 <h1>What are you<br className="sm:hidden" /> in the mood for?</h1>
                 <p className="search-home-copy">
                   Find your next favorite on {selectedPlatform.name}.
                 </p>
-                <form onSubmit={submitSearch} className="home-search-form">
-                  <label className="home-search">
-                    <span aria-hidden="true">⌕</span>
-                    <input
-                      type="search"
-                      placeholder="Search anime"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      aria-label="Search anime"
-                    />
-                    {searchQuery && (
-                      <button
-                        type="button"
-                        className="clear-search"
-                        onClick={() => setSearchQuery("")}
-                        aria-label="Clear search"
-                      >
-                        ×
-                      </button>
-                    )}
-                  </label>
-                  <button type="submit" className="search-submit">Search</button>
-                </form>
+                <SearchBar
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  onSubmit={submitSearch}
+                  onChoose={chooseSuggestion}
+                  platform={selectedPlatform.name}
+                />
                 <p className="search-hint">Search results can be shared with a link.</p>
               </div>
-            </section>
+              </section>
+              <section className="home-recommendations animate-fade-in">
+                <div className="recommendations-heading">
+                  <div>
+                    <p className="eyebrow">PICKED FOR YOU</p>
+                    <h2>Popular anime</h2>
+                  </div>
+                  <span>{selectedPlatform.name}</span>
+                </div>
+                {loadingPopular ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {Array.from({ length: 6 }).map((_, index) => (
+                      <SkeletonCard key={index} />
+                    ))}
+                  </div>
+                ) : popularAnime.length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {popularAnime.map((item, index) => (
+                      <AnimeCard
+                        key={`${item.url || item.link}-${index}`}
+                        item={item}
+                        isActive={selectedAnime?.url === item.url}
+                        onClick={() => handleAnimeClick(item)}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="recommendations-empty" role="status">
+                    {popularError
+                      ? `Popular anime could not be loaded: ${popularError}`
+                      : `No popular anime available from ${selectedPlatform.name} right now.`}
+                  </div>
+                )}
+              </section>
+            </>
           ) : (
           <div className="animate-fade-in">
+            <div className="results-search">
+              <SearchBar
+                value={searchQuery}
+                onChange={setSearchQuery}
+                onSubmit={submitSearch}
+                onChoose={chooseSuggestion}
+                platform={selectedPlatform.name}
+              />
+            </div>
             <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
               <h1 className="section-title mb-0">
                 Results for <span className="result-query">“{debouncedQuery}”</span>

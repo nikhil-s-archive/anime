@@ -224,7 +224,7 @@ async function proxySub(subUrl, reqReferer) {
     });
   }
 
-  const vttText = await res.text();
+  const vttText = toWebVtt(await res.text());
   return new Response(vttText, {
     status: 200,
     headers: {
@@ -233,6 +233,15 @@ async function proxySub(subUrl, reqReferer) {
       ...CORS_HEADERS,
     },
   });
+}
+
+function toWebVtt(text) {
+  const normalized = String(text).replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n").trimStart();
+  if (/^WEBVTT(?:\s|$)/.test(normalized)) return normalized;
+  return `WEBVTT\n\n${normalized.replace(
+    /(\d{2}:\d{2}:\d{2}),(\d{3})/g,
+    "$1.$2"
+  )}`;
 }
 
 // ─── Router ───────────────────────────────────────────────────────────────────
@@ -446,10 +455,9 @@ export default {
         )}&referer=${encodeURIComponent(referer)}`;
 
         // Collect and proxy subtitles
-        const rawSubs =
-          primary.subtitles ||
-          rawStreams.flatMap((s) => s.subtitles || []) ||
-          [];
+        const rawSubs = primary.subtitles?.length
+          ? primary.subtitles
+          : rawStreams.flatMap((s) => s.subtitles || []);
         const seenSubUrls = new Set();
         const subtitles = [];
 
@@ -458,7 +466,8 @@ export default {
           if (!subUrl || seenSubUrls.has(subUrl)) continue;
           seenSubUrls.add(subUrl);
 
-          subtitles.push({
+          const remoteUrl = /^https?:\/\//i.test(subUrl);
+          const subtitle = {
             url: subUrl,
             label: s.label || "Subtitle",
             lang:
@@ -467,10 +476,15 @@ export default {
               (s.label || "").toLowerCase().slice(0, 2) ||
               "en",
             default: Boolean(s.default),
-            proxyUrl: `${origin}/proxy/sub?url=${encodeURIComponent(
+          };
+          if (remoteUrl) {
+            subtitle.proxyUrl = `${origin}/proxy/sub?url=${encodeURIComponent(
               subUrl
-            )}&referer=${encodeURIComponent(referer)}`,
-          });
+            )}&referer=${encodeURIComponent(referer)}`;
+          } else if (typeof subUrl === "string") {
+            subtitle.content = toWebVtt(subUrl);
+          }
+          subtitles.push(subtitle);
         }
 
         const isPrimaryDub = (primary.quality || "")
