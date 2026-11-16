@@ -1334,6 +1334,7 @@ export default function App() {
   const [activeEpisode, setActiveEpisode] = useState(null); // { episode, url }
   const [streamUrl, setStreamUrl] = useState(null); // proxied HLS URL
   const [rawStreamUrl, setRawStreamUrl] = useState(null); // direct/raw upstream stream URL
+  const [streams, setStreams] = useState([]); // extracted video streams with proxyUrls
   const [subtitles, setSubtitles] = useState([]); // available subtitle tracks
   const [loadingStream, setLoadingStream] = useState(false);
 
@@ -1760,6 +1761,11 @@ export default function App() {
         const proxied = api.proxyHls(extracted.streamUrl);
         setStreamUrl(proxied);
         setRawStreamUrl(extracted.rawStreamUrl || extracted.streamUrl || null);
+        const mappedStreams = (extracted.streams || []).map((s) => ({
+          ...s,
+          proxyUrl: api.proxyHls(s.proxyUrl || s.url),
+        }));
+        setStreams(mappedStreams);
         setSubtitles(extracted.subtitles || []);
         setCurrentType(extracted.type || type);
         setCurrentServer(extracted.server || server || "");
@@ -1779,6 +1785,7 @@ export default function App() {
           setActiveEpisode(null);
           setSubtitles([]);
           setStreamUrl(null);
+          setStreams([]);
         }
       } finally {
         setLoadingStream(false);
@@ -2102,6 +2109,7 @@ export default function App() {
     setView("episodes");
     setStreamUrl(null);
     setRawStreamUrl(null);
+    setStreams([]);
     setSubtitles([]);
     setPlaybackTime(0);
   }, []);
@@ -2130,6 +2138,7 @@ export default function App() {
       setEpisodeData(null);
       setStreamUrl(null);
       setRawStreamUrl(null);
+      setStreams([]);
       setSubtitles([]);
       setActiveEpisode(null);
       setPlaybackTime(0);
@@ -2419,13 +2428,10 @@ export default function App() {
                       <Player
                         streamUrl={streamUrl}
                         rawStreamUrl={rawStreamUrl}
-                        downloadUrl={
-                          rawStreamUrl || streamUrl
-                            ? `https://anime.sumitra4welfare.workers.dev/proxy/hls?url=${encodeURIComponent(
-                                rawStreamUrl || streamUrl
-                              )}`
-                            : undefined
-                        }
+                        downloadUrl={streamUrl}
+                        streams={streams}
+                        availableServers={availableServers}
+                        currentType={currentType}
                         subtitles={subtitles}
                         initialTime={playbackTime}
                         onTimeUpdate={handleTimeUpdate}

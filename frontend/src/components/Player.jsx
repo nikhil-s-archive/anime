@@ -328,6 +328,9 @@ export default function Player({
   streamUrl,
   rawStreamUrl,
   downloadUrl,
+  streams = [],
+  availableServers = { sub: [], dub: [] },
+  currentType = "sub",
   subtitles = [],
   title,
   initialTime = 0,
@@ -374,6 +377,12 @@ export default function Player({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [downloadToast, setDownloadToast] = useState(false);
+  const [downloadModalOpen, setDownloadModalOpen] = useState(false);
+  const [downloadAudioType, setDownloadAudioType] = useState(currentType || "sub");
+
+  useEffect(() => {
+    if (currentType) setDownloadAudioType(currentType);
+  }, [currentType]);
 
   // Subtitle custom style & size states (persisted in localStorage)
   const [subtitleSize, setSubtitleSize] = useState(() => {
@@ -498,49 +507,74 @@ export default function Player({
     };
   }, [subtitlePosition, activeSubtitle, subtitleSources]);
 
-  // Handle Episode Download via Worker HLS Proxy
-  const handleDownload = useCallback(() => {
-    if (onDownload) {
-      onDownload();
-      return;
-    }
+  // Trigger file download using extracted stream proxyUrl
+  const triggerDownload = useCallback(
+    (targetProxyUrl, qualityName = "") => {
+      if (onDownload) {
+        onDownload(targetProxyUrl, qualityName);
+        setDownloadModalOpen(false);
+        return;
+      }
 
-    // Extract underlying stream URL
-    let underlyingUrl = rawStreamUrl || downloadUrl || streamUrl || "";
-    if (underlyingUrl.includes("/proxy/hls?url=")) {
+      let finalDownloadUrl =
+        targetProxyUrl || streamUrl || downloadUrl || rawStreamUrl || "";
+      if (!finalDownloadUrl) return;
+
+      if (!finalDownloadUrl.startsWith("http")) {
+        finalDownloadUrl = new URL(finalDownloadUrl, window.location.href).href;
+      }
+
       try {
-        const parsed = new URL(underlyingUrl, window.location.href);
-        const inner = parsed.searchParams.get("url");
-        if (inner) underlyingUrl = inner;
+        navigator.clipboard?.writeText(finalDownloadUrl);
       } catch (_) {}
+
+      const safeTitle = (title || "anime-episode")
+        .replace(/[/\\?%*:|"<>]/g, "-")
+        .trim();
+      const isMp4 = finalDownloadUrl.toLowerCase().includes(".mp4");
+      const cleanQuality = qualityName
+        ? `-${qualityName.replace(/[/\\?%*:|"<>]/g, "_")}`
+        : "";
+      const filename = `${safeTitle}${cleanQuality}.${isMp4 ? "mp4" : "m3u8"}`;
+
+      const link = document.createElement("a");
+      link.href = finalDownloadUrl;
+      link.download = filename;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setDownloadToast(
+        `Starting download: ${qualityName || "Stream"} · Link copied`
+      );
+      setTimeout(() => setDownloadToast(false), 3500);
+      setDownloadModalOpen(false);
+    },
+    [downloadUrl, rawStreamUrl, streamUrl, title, onDownload]
+  );
+
+  // Open download quality selection modal
+  const handleOpenDownloadModal = useCallback(() => {
+    const hasServers =
+      (availableServers.sub && availableServers.sub.length > 0) ||
+      (availableServers.dub && availableServers.dub.length > 0) ||
+      (streams && streams.length > 0);
+
+    if (hasServers) {
+      if (currentType === "dub" && availableServers.dub?.length > 0) {
+        setDownloadAudioType("dub");
+      } else if (availableServers.sub?.length > 0) {
+        setDownloadAudioType("sub");
+      } else if (availableServers.dub?.length > 0) {
+        setDownloadAudioType("dub");
+      }
+      setDownloadModalOpen(true);
+    } else {
+      triggerDownload(streamUrl, "Default");
     }
-    if (!underlyingUrl) return;
-
-    // Use requested worker endpoint
-    const finalDownloadUrl = `https://anime.sumitra4welfare.workers.dev/proxy/hls?url=${encodeURIComponent(underlyingUrl)}`;
-
-    try {
-      navigator.clipboard?.writeText(finalDownloadUrl);
-    } catch (_) {}
-
-    const safeTitle = (title || "anime-episode")
-      .replace(/[/\\?%*:|"<>]/g, "-")
-      .trim();
-    const isMp4 = underlyingUrl.toLowerCase().includes(".mp4");
-    const filename = `${safeTitle}.${isMp4 ? "mp4" : "m3u8"}`;
-
-    const link = document.createElement("a");
-    link.href = finalDownloadUrl;
-    link.download = filename;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    setDownloadToast(true);
-    setTimeout(() => setDownloadToast(false), 3500);
-  }, [downloadUrl, rawStreamUrl, streamUrl, title, onDownload]);
+  }, [availableServers, streams, currentType, streamUrl, triggerDownload]);
 
   const patchState = useCallback((patch) => {
     setPlayerState((prev) => ({ ...prev, ...patch }));
@@ -1044,6 +1078,8 @@ export default function Player({
         case "escape":
           if (isFullscreen) {
             handleFullscreen();
+          } else if (downloadModalOpen) {
+            setDownloadModalOpen(false);
           } else if (settingsOpen) {
             setSettingsOpen(false);
           } else {
@@ -1116,7 +1152,7 @@ export default function Player({
         </span>
         <LiquidGlass
           className="download-player-btn"
-          onClick={handleDownload}
+          onClick={handleOpenDownloadModal}
           title="Download Episode"
         >
           <DownloadIcon />
@@ -1127,7 +1163,11 @@ export default function Player({
       {downloadToast && (
         <div className="absolute top-14 right-4 z-40 animate-slide-up flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-black/85 border border-white/20 text-white text-xs backdrop-blur-2xl shadow-2xl">
           <DownloadIcon />
-          <span>Starting download · Stream link copied</span>
+          <span>
+            {typeof downloadToast === "string"
+              ? downloadToast
+              : "Starting download · Stream link copied"}
+          </span>
         </div>
       )}
 
@@ -1430,6 +1470,152 @@ export default function Player({
           </div>
         </div>
       </div>
+
+      {/* Download Quality Selection Modal */}
+      {downloadModalOpen && (
+        <>
+          <div
+            className="download-modal-backdrop"
+            onClick={() => setDownloadModalOpen(false)}
+          />
+          <div className="download-modal animate-scale-in">
+            {/* Modal Header */}
+            <div className="download-modal-header">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white shrink-0 shadow-inner">
+                  <DownloadIcon />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-white tracking-wide">
+                    Download Anime
+                  </h3>
+                  <p className="text-[11px] text-white/60 truncate">
+                    {title}
+                  </p>
+                </div>
+              </div>
+              <button
+                className="close-settings"
+                onClick={() => setDownloadModalOpen(false)}
+                title="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Audio Type Selector (SUB / DUB) */}
+            {availableServers.sub?.length > 0 && availableServers.dub?.length > 0 && (
+              <div className="px-5 pt-3">
+                <div className="flex items-center bg-black/60 p-1 rounded-full border border-white/12">
+                  <button
+                    onClick={() => setDownloadAudioType("sub")}
+                    className={`flex-1 py-1.5 px-3 rounded-full text-xs font-bold transition-all ${
+                      downloadAudioType === "sub"
+                        ? "bg-white text-black shadow-md"
+                        : "text-white/60 hover:text-white"
+                    }`}
+                  >
+                    SUB ({availableServers.sub.length})
+                  </button>
+                  <button
+                    onClick={() => setDownloadAudioType("dub")}
+                    className={`flex-1 py-1.5 px-3 rounded-full text-xs font-bold transition-all ${
+                      downloadAudioType === "dub"
+                        ? "bg-white text-black shadow-md"
+                        : "text-white/60 hover:text-white"
+                    }`}
+                  >
+                    DUB ({availableServers.dub.length})
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Quality & Server Buttons */}
+            <div className="download-modal-body">
+              <div className="flex items-center justify-between mb-2.5 px-1">
+                <span className="text-[11px] font-semibold text-white/50 uppercase tracking-wider">
+                  Select Media Quality
+                </span>
+                <span className="text-[10px] font-mono text-cyan-400 uppercase">
+                  {downloadAudioType}
+                </span>
+              </div>
+
+              {(() => {
+                const currentServers =
+                  (downloadAudioType === "dub"
+                    ? availableServers.dub
+                    : availableServers.sub) || [];
+
+                if (currentServers.length === 0) {
+                  return (
+                    <div className="text-center py-4">
+                      <p className="text-xs text-white/60 mb-3">
+                        No separate quality options found for {downloadAudioType.toUpperCase()}.
+                      </p>
+                      <button
+                        onClick={() => triggerDownload(streamUrl, "Current")}
+                        className="download-quality-btn justify-center text-center font-semibold text-xs"
+                      >
+                        Download Current Stream
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 gap-2 max-h-[50vh] overflow-y-auto pr-1">
+                    {currentServers.map((srv, idx) => {
+                      // Match stream from streams array by url/linkId or quality name
+                      const matchedStream =
+                        streams.find(
+                          (s) =>
+                            s.url === srv.linkId ||
+                            s.quality === srv.name ||
+                            s.quality === srv.quality
+                        ) ||
+                        streams.find((s) => s.proxyUrl === srv.linkId);
+
+                      const targetProxyUrl =
+                        matchedStream?.proxyUrl ||
+                        (matchedStream?.url ? matchedStream.url : null) ||
+                        srv.linkId ||
+                        streamUrl;
+
+                      return (
+                        <button
+                          key={srv.linkId || idx}
+                          onClick={() => triggerDownload(targetProxyUrl, srv.name)}
+                          className="download-quality-btn group"
+                        >
+                          <div className="flex items-center gap-3 truncate">
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0 group-hover:scale-125 transition-transform shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                            <div className="text-left truncate">
+                              <span className="block font-semibold text-xs text-white group-hover:text-cyan-300 transition-colors truncate">
+                                {srv.name}
+                              </span>
+                              <span className="block text-[10px] text-white/40 font-mono">
+                                {downloadAudioType.toUpperCase()} · Stream
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[10px] text-white/50 px-2 py-0.5 rounded-md bg-white/10 group-hover:bg-white/20 transition-colors">
+                              Download
+                            </span>
+                            <DownloadIcon />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Bottom Controls Bar */}
       <div

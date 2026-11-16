@@ -942,6 +942,84 @@
   animation: fadeIn 0.2s ease;
 }
 
+/* Download Quality Selection Modal */
+.download-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(14px) saturate(180%);
+  -webkit-backdrop-filter: blur(14px) saturate(180%);
+  z-index: 99990;
+  animation: fadeIn 0.2s ease;
+}
+
+.download-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 92%;
+  max-width: 440px;
+  background: rgba(18, 18, 24, 0.95);
+  backdrop-filter: blur(32px) saturate(200%);
+  -webkit-backdrop-filter: blur(32px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 26px;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  z-index: 99995;
+  color: white;
+  overflow: hidden;
+  animation: downloadModalIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes downloadModalIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.download-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.download-modal-body {
+  padding: 14px 20px 20px;
+}
+
+.download-quality-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 11px 15px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.download-quality-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.download-quality-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
 /* Settings Panel */
 .settings-panel {
   position: absolute;
@@ -1324,18 +1402,6 @@
   .player-title-bar { padding: 0.45rem 0.6rem; }
   .player-title-bar .player-control-button { width: 2.75rem; height: 2.75rem; }
   .player-wrapper video { max-height: 36vh; }
-  .glass-nav > div { gap: 0.45rem; padding-right: 0.7rem; padding-left: 0.7rem; }
-  .glass-nav .text-\[10px\] { display: none; }
-  .glass-nav .btn-ghost { min-height: 44px; }
-  .glass-nav .relative.flex-shrink-0 > button {
-    min-width: 44px;
-    min-height: 44px;
-    justify-content: center;
-    gap: 0;
-    padding: 0.4rem;
-  }
-  .glass-nav .relative.flex-shrink-0 > button > div:nth-child(2),
-  .glass-nav .relative.flex-shrink-0 > button > span { display: none; }
   .recommendations-heading { margin-bottom: 0.85rem; }
   .results-search { margin-bottom: 1.35rem; }
   .player-stage {
