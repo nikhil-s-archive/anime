@@ -252,10 +252,10 @@ function AnimeCard({ item, isActive, onClick }) {
 
       {/* Gradient overlay */}
       <div
-        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+        className="absolute inset-0 transition-opacity duration-300"
         style={{
           background:
-            "linear-gradient(to top, rgba(13,58,92,0.95) 0%, rgba(13,58,92,0.5) 50%, transparent 100%)",
+            "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.15) 48%, transparent 100%)",
         }}
       />
 
@@ -266,9 +266,7 @@ function AnimeCard({ item, isActive, onClick }) {
 
       {/* Title on hover */}
       <div
-        className="absolute bottom-0 left-0 right-0 p-3 translate-y-2
-                   opacity-0 group-hover:opacity-100 group-hover:translate-y-0
-                   transition-all duration-300"
+        className="absolute bottom-0 left-0 right-0 p-3"
       >
         <p className="text-ivory text-sm font-semibold line-clamp-2 leading-tight">
           {item.title}
@@ -574,16 +572,16 @@ export default function App() {
   });
 
   // ── View state ──────────────────────────────────────────────────────────────
+  const initialQuery = new URLSearchParams(window.location.search).get("q") || "";
   const [view, setView] = useState("browse"); // "browse" | "episodes" | "playing"
-  const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
-  const debounceTimer = useRef(null);
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
+  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
 
   // ── Data state ──────────────────────────────────────────────────────────────
   const [animeList, setAnimeList] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [loadingList, setLoadingList] = useState(true);
+  const [loadingList, setLoadingList] = useState(Boolean(initialQuery));
 
   const [selectedAnime, setSelectedAnime] = useState(null); // { title, url, thumbnail }
   const [episodeData, setEpisodeData] = useState(null); // { episodes: [], totalEpisodes, ... }
@@ -609,6 +607,38 @@ export default function App() {
   const showError = useCallback((msg) => {
     setError(msg);
     console.error("[AnimeX]", msg);
+  }, []);
+
+  const submitSearch = (event) => {
+    event.preventDefault();
+    const query = searchQuery.trim();
+    setSearchQuery(query);
+    setDebouncedQuery(query);
+    setPage(1);
+    setView("browse");
+
+    const url = new URL(window.location.href);
+    if (query) url.searchParams.set("q", query);
+    else url.searchParams.delete("q");
+    window.history.pushState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  };
+
+  const clearSearchUrl = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("q");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  };
+
+  useEffect(() => {
+    const syncSearchFromUrl = () => {
+      const query = new URLSearchParams(window.location.search).get("q") || "";
+      setSearchQuery(query);
+      setDebouncedQuery(query);
+      setPage(1);
+      setView("browse");
+    };
+    window.addEventListener("popstate", syncSearchFromUrl);
+    return () => window.removeEventListener("popstate", syncSearchFromUrl);
   }, []);
 
   // ── Fetch available platforms on mount ──────────────────────────────────────
@@ -658,20 +688,26 @@ export default function App() {
       setSearchQuery("");
       setDebouncedQuery("");
       setPage(1);
+      clearSearchUrl();
     },
     [selectedPlatform.name]
   );
 
   // ── Fetch anime list when debouncedQuery, page, or selectedPlatform changes ──
   useEffect(() => {
+    if (!debouncedQuery.trim()) {
+      setAnimeList([]);
+      setTotalPages(1);
+      setLoadingList(false);
+      return undefined;
+    }
+
     let cancelled = false;
     setLoadingList(true);
     setAnimeList([]);
 
     const platformName = selectedPlatform.name;
-    const task = debouncedQuery
-      ? api.search(debouncedQuery, page, platformName)
-      : api.latest(page, platformName);
+    const task = api.search(debouncedQuery, page, platformName);
 
     task
       .then((data) => {
@@ -691,16 +727,6 @@ export default function App() {
       cancelled = true;
     };
   }, [debouncedQuery, page, selectedPlatform.name, showError]);
-
-  // Search debounce
-  useEffect(() => {
-    clearTimeout(debounceTimer.current);
-    debounceTimer.current = setTimeout(() => {
-      setDebouncedQuery(searchQuery);
-      setPage(1);
-    }, 500);
-    return () => clearTimeout(debounceTimer.current);
-  }, [searchQuery]);
 
   // ── Select anime → load episodes ────────────────────────────────────────────
   const handleAnimeClick = useCallback(
@@ -871,6 +897,8 @@ export default function App() {
               setView("browse");
               setSelectedAnime(null);
               setSearchQuery("");
+              setDebouncedQuery("");
+              clearSearchUrl();
             }}
             className="flex items-center gap-2.5 flex-shrink-0 group"
           >
@@ -906,10 +934,10 @@ export default function App() {
           )}
 
           {/* Search — only on browse view */}
-          {view === "browse" && (
-            <div className="flex-1 max-w-md ml-auto relative">
+          {view === "browse" && debouncedQuery && (
+            <form onSubmit={submitSearch} className="header-search-form flex-1 max-w-md ml-auto relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ivory-muted text-sm pointer-events-none">
-                🔍
+                ⌕
               </span>
               <input
                 type="search"
@@ -917,8 +945,10 @@ export default function App() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="search-input pl-9"
+                aria-label="Search anime"
               />
-            </div>
+              <button type="submit" className="sr-only">Search</button>
+            </form>
           )}
 
           {/* Anime title in episodes/playing view */}
@@ -936,10 +966,10 @@ export default function App() {
           )}
 
           {/* Page indicator on browse */}
-          {view === "browse" && (
+          {view === "browse" && debouncedQuery && (
             <div className="hidden sm:block flex-shrink-0">
               <span className="tag font-mono">
-                {debouncedQuery ? "search" : `p.${page}`}
+                {page > 1 ? `p.${page}` : "search"}
               </span>
             </div>
           )}
@@ -957,12 +987,45 @@ export default function App() {
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
         {/* ══════ BROWSE VIEW ══════ */}
         {view === "browse" && (
+          !debouncedQuery ? (
+            <section className="search-home animate-fade-in">
+              <div className="search-home-content">
+                <p className="eyebrow">ANIMEX · YOUR ANIME LIBRARY</p>
+                <h1>What are you<br className="sm:hidden" /> in the mood for?</h1>
+                <p className="search-home-copy">
+                  Find your next favorite on {selectedPlatform.name}.
+                </p>
+                <form onSubmit={submitSearch} className="home-search-form">
+                  <label className="home-search">
+                    <span aria-hidden="true">⌕</span>
+                    <input
+                      type="search"
+                      placeholder="Search anime"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      aria-label="Search anime"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        className="clear-search"
+                        onClick={() => setSearchQuery("")}
+                        aria-label="Clear search"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </label>
+                  <button type="submit" className="search-submit">Search</button>
+                </form>
+                <p className="search-hint">Search results can be shared with a link.</p>
+              </div>
+            </section>
+          ) : (
           <div className="animate-fade-in">
             <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
               <h1 className="section-title mb-0">
-                {debouncedQuery
-                  ? `Results on ${selectedPlatform.name} for "${debouncedQuery}"`
-                  : `Latest on ${selectedPlatform.name}`}
+                Results for <span className="result-query">“{debouncedQuery}”</span>
               </h1>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-ivory-muted font-mono">
@@ -991,10 +1054,11 @@ export default function App() {
                     onClick={() => {
                       setSearchQuery("");
                       setDebouncedQuery("");
+                      clearSearchUrl();
                     }}
                     className="btn-gold mt-4"
                   >
-                    Browse Latest
+                    Clear search
                   </button>
                 )}
               </div>
@@ -1020,6 +1084,7 @@ export default function App() {
               </>
             )}
           </div>
+          )
         )}
 
         {/* ══════ EPISODES VIEW ══════ */}

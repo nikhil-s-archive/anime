@@ -5,31 +5,31 @@ export default {
   theme: {
     extend: {
       colors: {
-        // AnimeX strict palette
+        // Neutral dark palette with a restrained silver accent.
         navy: {
-          DEFAULT: "#0D3A5C",
-          50: "#e8f1f8",
-          100: "#c5dcee",
-          200: "#9ec4e3",
-          300: "#77acd7",
-          400: "#5898cf",
-          500: "#3985c6",
-          600: "#2d72b0",
-          700: "#1f5a8c",
-          800: "#14456C",
-          900: "#0D3A5C",
-          950: "#081e30",
+          DEFAULT: "#08090A",
+          50: "#F5F5F7",
+          100: "#E5E7EB",
+          200: "#D1D5DB",
+          300: "#AEB4BB",
+          400: "#8C9299",
+          500: "#656B72",
+          600: "#454A50",
+          700: "#292D31",
+          800: "#17191C",
+          900: "#08090A",
+          950: "#050506",
         },
-        azure: "#1B5A8C",
+        azure: "#343A40",
         gold: {
-          DEFAULT: "#C9A24B",
-          light: "#dbb96a",
-          dark: "#a8832c",
+          DEFAULT: "#D7DCE2",
+          light: "#E8EAED",
+          dark: "#AEB4BB",
         },
         ivory: {
-          DEFAULT: "#FAF7F0",
-          dim: "#ede9e0",
-          muted: "#c8c4bc",
+          DEFAULT: "#F5F5F7",
+          dim: "#E5E7EB",
+          muted: "#A1A5AA",
         },
       },
       fontFamily: {
@@ -46,9 +46,9 @@ export default {
         xs: "2px",
       },
       boxShadow: {
-        glass: "0 8px 32px 0 rgba(13, 58, 92, 0.37)",
-        "glass-hover": "0 12px 40px 0 rgba(13, 58, 92, 0.55)",
-        "gold-glow": "0 0 20px rgba(201, 162, 75, 0.3)",
+        glass: "0 8px 32px rgba(0, 0, 0, 0.3)",
+        "glass-hover": "0 12px 40px rgba(0, 0, 0, 0.45)",
+        "gold-glow": "0 0 20px rgba(255, 255, 255, 0.12)",
       },
       animation: {
         "fade-in": "fadeIn 0.4s ease-out",
@@ -70,8 +70,8 @@ export default {
           "100%": { backgroundPosition: "200% 0" },
         },
         pulseGold: {
-          "0%, 100%": { boxShadow: "0 0 10px rgba(201, 162, 75, 0.2)" },
-          "50%": { boxShadow: "0 0 24px rgba(201, 162, 75, 0.6)" },
+          "0%, 100%": { boxShadow: "0 0 10px rgba(255, 255, 255, 0.08)" },
+          "50%": { boxShadow: "0 0 24px rgba(255, 255, 255, 0.2)" },
         },
       },
     },
