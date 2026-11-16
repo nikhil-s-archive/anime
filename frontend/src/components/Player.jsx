@@ -41,6 +41,12 @@ const FullscreenIcon = () => (
   </svg>
 );
 
+const ExitFullscreenIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+    <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" />
+  </svg>
+);
+
 const CloseIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
     <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
@@ -105,6 +111,7 @@ export default function Player({
   const [seeking, setSeeking] = useState(false);
   const [activeSubtitle, setActiveSubtitle] = useState(-1);
   const [subtitleSources, setSubtitleSources] = useState([]);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     const sources = subtitles.map((subtitle) => {
@@ -335,15 +342,103 @@ export default function Player({
     setSeeking(false);
   }, []);
 
-  const handleFullscreen = useCallback(() => {
-    const el = wrapperRef.current;
-    if (!el) return;
-    if (document.fullscreenElement) {
-      document.exitFullscreen();
-    } else {
-      el.requestFullscreen?.();
-    }
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return undefined;
+
+    const syncFullscreenState = () => {
+      setIsFullscreen(
+        Boolean(
+          document.fullscreenElement ||
+            document.webkitFullscreenElement ||
+            video.webkitDisplayingFullscreen
+        )
+      );
+    };
+    const handleNativeFullscreenEnd = () => {
+      video.controls = false;
+      syncFullscreenState();
+    };
+
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+    document.addEventListener("webkitfullscreenchange", syncFullscreenState);
+    video.addEventListener("webkitbeginfullscreen", syncFullscreenState);
+    video.addEventListener("webkitendfullscreen", handleNativeFullscreenEnd);
+    return () => {
+      document.removeEventListener("fullscreenchange", syncFullscreenState);
+      document.removeEventListener("webkitfullscreenchange", syncFullscreenState);
+      video.removeEventListener("webkitbeginfullscreen", syncFullscreenState);
+      video.removeEventListener("webkitendfullscreen", handleNativeFullscreenEnd);
+    };
   }, []);
+
+  const handleFullscreen = useCallback(async () => {
+    const wrapper = wrapperRef.current;
+    const video = videoRef.current;
+    if (!wrapper || !video) return;
+
+    if (video.webkitDisplayingFullscreen) {
+      video.webkitExitFullscreen?.();
+      return;
+    }
+
+    const fullscreenElement =
+      document.fullscreenElement || document.webkitFullscreenElement;
+    if (fullscreenElement) {
+      const exitFullscreen =
+      document.exitFullscreen ||
+      document.webkitExitFullscreen ||
+      document.webkitCancelFullScreen;
+      if (exitFullscreen) {
+        try {
+          await exitFullscreen.call(document);
+        } catch (error) {
+          onError?.(`Unable to exit fullscreen: ${error.message}`);
+        }
+      }
+      return;
+    }
+
+    const enterNativeVideoFullscreen = () => {
+      if (typeof video.webkitEnterFullscreen !== "function") return false;
+      try {
+        video.controls = true;
+        video.webkitEnterFullscreen();
+        return true;
+      } catch {
+        video.controls = false;
+        return false;
+      }
+    };
+
+    if (typeof wrapper.requestFullscreen === "function") {
+      try {
+        await wrapper.requestFullscreen({ navigationUI: "hide" });
+        return;
+      } catch (error) {
+        if (enterNativeVideoFullscreen()) return;
+        onError?.(`Unable to enter fullscreen: ${error.message}`);
+        return;
+      }
+    }
+
+    const webkitRequestFullscreen =
+      wrapper.webkitRequestFullscreen || wrapper.webkitRequestFullScreen;
+    if (typeof webkitRequestFullscreen === "function") {
+      try {
+        webkitRequestFullscreen.call(wrapper);
+        return;
+      } catch (error) {
+        if (enterNativeVideoFullscreen()) return;
+        onError?.(`Unable to enter fullscreen: ${error.message}`);
+        return;
+      }
+    }
+
+    if (!enterNativeVideoFullscreen()) {
+      onError?.("Fullscreen is not supported by this browser.");
+    }
+  }, [onError]);
 
   const handleQualityChange = useCallback((levelIndex) => {
     if (!hlsRef.current) return;
@@ -383,7 +478,15 @@ export default function Player({
           if (videoRef.current) videoRef.current.volume = Math.max(0, videoRef.current.volume - 0.1);
           break;
         case "Escape":
-          onClose?.();
+          if (
+            document.fullscreenElement ||
+            document.webkitFullscreenElement ||
+            videoRef.current?.webkitDisplayingFullscreen
+          ) {
+            handleFullscreen();
+          } else {
+            onClose?.();
+          }
           break;
       }
     };
@@ -608,10 +711,11 @@ export default function Player({
           <button
             onClick={handleFullscreen}
             className="player-control-button"
-            title="Fullscreen (F)"
-            aria-label="Fullscreen"
+            title={isFullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}
+            aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+            aria-pressed={isFullscreen}
           >
-            <FullscreenIcon />
+            {isFullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
           </button>
         </div>
       </div>
