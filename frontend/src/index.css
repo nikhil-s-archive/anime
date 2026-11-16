@@ -855,7 +855,7 @@
   transition: all 0.25s ease;
   touch-action: none;
   height: 130px;
-  width: 36px;
+  width: 12px;
   z-index: 45;
   background: rgba(20, 20, 26, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -1223,7 +1223,7 @@
   }
   .vol-sld {
     height: 96px;
-    width: 28px;
+    width: 8px;
     bottom: 42px;
   }
   .ctrl-btn.play-pause, .ctrl-btn.volume {
@@ -1402,6 +1402,7 @@
   .player-title-bar { padding: 0.45rem 0.6rem; }
   .player-title-bar .player-control-button { width: 2.75rem; height: 2.75rem; }
   .player-wrapper video { max-height: 36vh; }
+
   .recommendations-heading { margin-bottom: 0.85rem; }
   .results-search { margin-bottom: 1.35rem; }
   .player-stage {

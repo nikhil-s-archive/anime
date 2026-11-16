@@ -324,6 +324,119 @@ function fmtTime(secs) {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
+// ─── HLS Stream to Video Downloader (concatenates segments into single video file) ────
+async function downloadHlsStreamAsVideo(manifestUrl, filename, onProgress, signal) {
+  const res = await fetch(manifestUrl, { signal });
+  if (!res.ok) throw new Error(`Playlist fetch failed: HTTP ${res.status}`);
+  const text = await res.text();
+
+  let playlistUrl = manifestUrl;
+  let lines = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  // If master playlist, select the variant with highest bandwidth or first variant
+  const isMaster = lines.some((l) => l.startsWith("#EXT-X-STREAM-INF"));
+  if (isMaster) {
+    let bestVariantUrl = null;
+    let maxBandwidth = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].startsWith("#EXT-X-STREAM-INF")) {
+        const bwMatch = lines[i].match(/BANDWIDTH=(\d+)/);
+        const bw = bwMatch ? parseInt(bwMatch[1], 10) : 0;
+        const nextLine = lines[i + 1];
+        if (nextLine && !nextLine.startsWith("#")) {
+          if (bw > maxBandwidth) {
+            maxBandwidth = bw;
+            bestVariantUrl = nextLine;
+          }
+        }
+      }
+    }
+    if (bestVariantUrl) {
+      playlistUrl = new URL(bestVariantUrl, manifestUrl).href;
+      const subRes = await fetch(playlistUrl, { signal });
+      if (!subRes.ok)
+        throw new Error(`Variant playlist fetch failed: HTTP ${subRes.status}`);
+      const subText = await subRes.text();
+      lines = subText
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean);
+    }
+  }
+
+  // Extract segment URLs
+  const segmentUrls = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.startsWith("#")) {
+      try {
+        const absUrl = new URL(line, playlistUrl).href;
+        segmentUrls.push(absUrl);
+      } catch (_) {}
+    }
+  }
+
+  if (segmentUrls.length === 0) {
+    throw new Error("No video segments found in playlist");
+  }
+
+  // Download chunks concurrently
+  const total = segmentUrls.length;
+  const chunks = new Array(total);
+  let completed = 0;
+  let activeIndex = 0;
+  const concurrency = 6;
+
+  async function worker() {
+    while (activeIndex < total) {
+      if (signal?.aborted) throw new Error("Download aborted");
+      const idx = activeIndex++;
+      const segUrl = segmentUrls[idx];
+      let segRes;
+      let retries = 2;
+      while (retries >= 0) {
+        try {
+          segRes = await fetch(segUrl, { signal });
+          if (segRes.ok) break;
+        } catch (e) {
+          if (signal?.aborted) throw e;
+        }
+        retries--;
+        if (retries < 0)
+          throw new Error(`Failed to download video chunk ${idx + 1}`);
+        await new Promise((r) => setTimeout(r, 400));
+      }
+      chunks[idx] = await segRes.arrayBuffer();
+      completed++;
+      if (onProgress) {
+        const pct = Math.round((completed / total) * 100);
+        onProgress(pct, completed, total);
+      }
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, total) }, () => worker())
+  );
+
+  // Assemble into single playable MPEG-TS video file
+  const videoBlob = new Blob(chunks, { type: "video/mp2t" });
+  const blobUrl = URL.createObjectURL(videoBlob);
+  const a = document.createElement("a");
+  a.style.display = "none";
+  a.href = blobUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+  }, 5000);
+}
+
 export default function Player({
   streamUrl,
   rawStreamUrl,
@@ -379,6 +492,8 @@ export default function Player({
   const [downloadToast, setDownloadToast] = useState(false);
   const [downloadModalOpen, setDownloadModalOpen] = useState(false);
   const [downloadAudioType, setDownloadAudioType] = useState(currentType || "sub");
+  const [downloadProgress, setDownloadProgress] = useState(null); // { pct, completed, total, qualityName }
+  const downloadAbortRef = useRef(null);
 
   useEffect(() => {
     if (currentType) setDownloadAudioType(currentType);
@@ -507,9 +622,9 @@ export default function Player({
     };
   }, [subtitlePosition, activeSubtitle, subtitleSources]);
 
-  // Trigger file download using extracted stream proxyUrl
+  // Trigger file download directly to device (never opens a new tab or page)
   const triggerDownload = useCallback(
-    (targetProxyUrl, qualityName = "") => {
+    async (targetProxyUrl, qualityName = "") => {
       if (onDownload) {
         onDownload(targetProxyUrl, qualityName);
         setDownloadModalOpen(false);
@@ -531,28 +646,140 @@ export default function Player({
       const safeTitle = (title || "anime-episode")
         .replace(/[/\\?%*:|"<>]/g, "-")
         .trim();
-      const isMp4 = finalDownloadUrl.toLowerCase().includes(".mp4");
       const cleanQuality = qualityName
         ? `-${qualityName.replace(/[/\\?%*:|"<>]/g, "_")}`
         : "";
-      const filename = `${safeTitle}${cleanQuality}.${isMp4 ? "mp4" : "m3u8"}`;
 
-      const link = document.createElement("a");
-      link.href = finalDownloadUrl;
-      link.download = filename;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const isDirectMp4 =
+        finalDownloadUrl.toLowerCase().includes(".mp4") &&
+        !finalDownloadUrl.includes(".m3u8");
 
-      setDownloadToast(
-        `Starting download: ${qualityName || "Stream"} · Link copied`
-      );
-      setTimeout(() => setDownloadToast(false), 3500);
       setDownloadModalOpen(false);
+
+      const abortCtrl = new AbortController();
+      downloadAbortRef.current = abortCtrl;
+      setDownloadProgress({ pct: 0, completed: 0, total: 100, qualityName });
+
+      try {
+        if (isDirectMp4) {
+          setDownloadToast(`Downloading ${qualityName || "video"}…`);
+          const res = await fetch(finalDownloadUrl, { signal: abortCtrl.signal });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const blob = await res.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.style.display = "none";
+          a.href = blobUrl;
+          a.download = `${safeTitle}${cleanQuality}.mp4`;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(blobUrl);
+          }, 4000);
+
+          setDownloadToast(`Download complete: ${safeTitle}${cleanQuality}.mp4`);
+        } else {
+          setDownloadToast(`Preparing ${qualityName || "video"} download…`);
+          await downloadHlsStreamAsVideo(
+            finalDownloadUrl,
+            `${safeTitle}${cleanQuality}.ts`,
+            (pct, completed, total) => {
+              setDownloadProgress({ pct, completed, total, qualityName });
+            },
+            abortCtrl.signal
+          );
+          setDownloadToast(`Download complete: ${safeTitle}${cleanQuality}.ts`);
+        }
+      } catch (err) {
+        if (err.name === "AbortError" || abortCtrl.signal.aborted) {
+          setDownloadToast("Download cancelled");
+        } else {
+          console.warn("Direct video download error, falling back to blob save:", err);
+          try {
+            const res = await fetch(finalDownloadUrl);
+            const blob = await res.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.style.display = "none";
+            a.href = blobUrl;
+            a.download = `${safeTitle}${cleanQuality}.${isDirectMp4 ? "mp4" : "m3u8"}`;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+              document.body.removeChild(a);
+              URL.revokeObjectURL(blobUrl);
+            }, 4000);
+            setDownloadToast(`Downloaded: ${safeTitle}${cleanQuality}`);
+          } catch (fallbackErr) {
+            // Background hidden iframe fallback (never opens a new page)
+            const iframe = document.createElement("iframe");
+            iframe.style.display = "none";
+            iframe.src = finalDownloadUrl;
+            document.body.appendChild(iframe);
+            setTimeout(() => document.body.removeChild(iframe), 60000);
+            setDownloadToast("Download started in background");
+          }
+        }
+      } finally {
+        setDownloadProgress(null);
+        downloadAbortRef.current = null;
+        setTimeout(() => setDownloadToast(false), 4500);
+      }
     },
     [downloadUrl, rawStreamUrl, streamUrl, title, onDownload]
+  );
+
+  // Download playlist file (.m3u8) without opening a new page
+  const triggerPlaylistDownload = useCallback(
+    async (targetProxyUrl, qualityName = "") => {
+      let finalDownloadUrl =
+        targetProxyUrl || streamUrl || downloadUrl || rawStreamUrl || "";
+      if (!finalDownloadUrl) return;
+
+      if (!finalDownloadUrl.startsWith("http")) {
+        finalDownloadUrl = new URL(finalDownloadUrl, window.location.href).href;
+      }
+
+      try {
+        navigator.clipboard?.writeText(finalDownloadUrl);
+      } catch (_) {}
+
+      const safeTitle = (title || "anime-episode")
+        .replace(/[/\\?%*:|"<>]/g, "-")
+        .trim();
+      const cleanQuality = qualityName
+        ? `-${qualityName.replace(/[/\\?%*:|"<>]/g, "_")}`
+        : "";
+
+      setDownloadModalOpen(false);
+
+      try {
+        const res = await fetch(finalDownloadUrl);
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.style.display = "none";
+        a.href = blobUrl;
+        a.download = `${safeTitle}${cleanQuality}.m3u8`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(blobUrl);
+        }, 4000);
+        setDownloadToast(`Playlist saved: ${safeTitle}${cleanQuality}.m3u8`);
+      } catch (_) {
+        const iframe = document.createElement("iframe");
+        iframe.style.display = "none";
+        iframe.src = finalDownloadUrl;
+        document.body.appendChild(iframe);
+        setTimeout(() => document.body.removeChild(iframe), 60000);
+        setDownloadToast("Playlist download started in background");
+      }
+      setTimeout(() => setDownloadToast(false), 4000);
+    },
+    [downloadUrl, rawStreamUrl, streamUrl, title]
   );
 
   // Open download quality selection modal
@@ -1171,6 +1398,38 @@ export default function Player({
         </div>
       )}
 
+      {/* Live Download Progress Indicator (Never opens a new page) */}
+      {downloadProgress && (
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 animate-slide-up flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-black/95 border border-white/20 text-white shadow-2xl backdrop-blur-2xl w-[90%] max-w-sm">
+          <div className="w-4 h-4 rounded-full border-2 border-white/20 border-t-emerald-400 animate-spin shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="flex justify-between items-center text-xs mb-1">
+              <span className="font-semibold text-white truncate">
+                Downloading {downloadProgress.qualityName || "Video"}
+              </span>
+              <span className="font-mono text-emerald-400 font-bold ml-2">
+                {downloadProgress.pct}%
+              </span>
+            </div>
+            <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-emerald-400 transition-all duration-200"
+                style={{ width: `${downloadProgress.pct}%` }}
+              />
+            </div>
+            <div className="text-[10px] text-white/40 mt-1 font-mono">
+              {downloadProgress.completed} / {downloadProgress.total} chunks
+            </div>
+          </div>
+          <button
+            onClick={() => downloadAbortRef.current?.abort()}
+            className="px-2 py-1 text-[10px] font-semibold rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-colors shrink-0"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       {/* Video Canvas Stage */}
       <div className="player-video-stage">
         <video
@@ -1612,6 +1871,60 @@ export default function Player({
                   </div>
                 );
               })()}
+
+              {/* Extra Download Options: Playlist & Stream URL */}
+              <div className="flex items-center justify-between pt-3 mt-3 border-t border-white/10 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const activeList =
+                      (downloadAudioType === "dub"
+                        ? availableServers.dub
+                        : availableServers.sub) || [];
+                    const first = activeList[0];
+                    const matched =
+                      streams.find(
+                        (s) =>
+                          s.url === first?.linkId || s.quality === first?.name
+                      ) || streams[0];
+                    const dlUrl =
+                      matched?.proxyUrl || first?.linkId || streamUrl;
+                    triggerPlaylistDownload(
+                      dlUrl,
+                      first?.name || "Playlist"
+                    );
+                  }}
+                  className="text-[11px] text-white/60 hover:text-white transition-colors"
+                  title="Download .m3u8 playlist file for VLC or media player"
+                >
+                  Download .m3u8 Playlist
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const activeList =
+                      (downloadAudioType === "dub"
+                        ? availableServers.dub
+                        : availableServers.sub) || [];
+                    const first = activeList[0];
+                    const matched =
+                      streams.find(
+                        (s) =>
+                          s.url === first?.linkId || s.quality === first?.name
+                      ) || streams[0];
+                    const dlUrl =
+                      matched?.proxyUrl || first?.linkId || streamUrl;
+                    navigator.clipboard?.writeText(dlUrl);
+                    setDownloadToast("Stream URL copied to clipboard");
+                    setDownloadModalOpen(false);
+                    setTimeout(() => setDownloadToast(false), 3000);
+                  }}
+                  className="text-[11px] text-cyan-400 hover:text-cyan-300 font-semibold transition-colors"
+                  title="Copy stream link to clipboard"
+                >
+                  Copy Stream Link
+                </button>
+              </div>
             </div>
           </div>
         </>
