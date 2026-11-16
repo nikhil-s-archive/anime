@@ -1,13 +1,8 @@
 /**
- * App.jsx — AnimeX main application
+ * App.jsx — AnimeX multi-platform application
  *
- * State flow:
- *   "browse"  → shows anime grid (latest / search results)
- *   "episodes"→ shows episode list for a selected anime
- *   "playing" → shows Player component with active stream
- *
- * API calls go to /api/* which Vite proxies to the Worker in dev
- * and to VITE_API_BASE in production.
+ * Supported platforms: All sources from Mangayomi anime extensions
+ * Dynamic platform switching with logo and name on the top right
  */
 import { useState, useEffect, useCallback, useRef } from "react";
 import Player from "./components/Player.jsx";
@@ -16,6 +11,144 @@ import Player from "./components/Player.jsx";
 
 /** Set VITE_API_BASE in your .env for production, e.g. https://animex.worker.dev */
 const API_BASE = import.meta.env.VITE_API_BASE || "";
+
+// Default list of 17 platforms from anime_index.json for instant rendering
+const DEFAULT_PLATFORMS = [
+  {
+    name: "AniKoto",
+    id: 1356478902,
+    baseUrl: "https://anikototv.to",
+    lang: "en",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://anikototv.to",
+  },
+  {
+    name: "ReAnime",
+    id: 631942785,
+    baseUrl: "https://reanime.cz",
+    lang: "en",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://reanime.cz",
+  },
+  {
+    name: "Senshi",
+    id: 728461935,
+    baseUrl: "https://senshi.to",
+    lang: "en",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://senshi.to",
+  },
+  {
+    name: "MyroniX",
+    id: 347219856,
+    baseUrl: "https://myronix.strangled.net",
+    lang: "en",
+    iconUrl: "https://myronix.strangled.net/images/axolotl.png",
+  },
+  {
+    name: "AllWish",
+    id: -228451656,
+    baseUrl: "https://all-wish.me",
+    lang: "en",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://all-wish.me",
+  },
+  {
+    name: "JustAnime",
+    id: 892345671,
+    baseUrl: "https://justanime.to",
+    lang: "en",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://justanime.to",
+  },
+  {
+    name: "HiAnime",
+    id: 1183439094,
+    baseUrl: "https://hianime.at",
+    lang: "en",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://hianime.at",
+  },
+  {
+    name: "AnimeParadise",
+    id: 419768715,
+    baseUrl: "https://animeparadise.moe",
+    lang: "en",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=128&domain=https://animeparadise.moe",
+  },
+  {
+    name: "Playback Diagnostic",
+    id: 918273645,
+    baseUrl: "https://example.invalid",
+    lang: "en",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://apple.com",
+  },
+  {
+    name: "AniPM",
+    id: 1742685193,
+    baseUrl: "https://ani.pm",
+    lang: "en",
+    iconUrl: "https://ani.pm/apple-touch-icon.png",
+  },
+  {
+    name: "Anidap",
+    id: 543219876,
+    baseUrl: "https://anidap.lol",
+    lang: "en",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://anidap.lol",
+  },
+  {
+    name: "Miruro",
+    id: 617345892,
+    baseUrl: "https://www.miruro.to",
+    lang: "en",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://www.miruro.to",
+  },
+  {
+    name: "AniWave",
+    id: -367725331,
+    baseUrl: "https://aniwaves.ru",
+    lang: "en",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://aniwaves.ru",
+  },
+  {
+    name: "1Anime",
+    id: 384756102,
+    baseUrl: "https://1anime.app",
+    lang: "en",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://1anime.app",
+  },
+  {
+    name: "AnimeHeaven",
+    id: -1744325818,
+    baseUrl: "https://animeheaven.me",
+    lang: "en",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://animeheaven.me",
+  },
+  {
+    name: "Anichi",
+    id: 878498226,
+    baseUrl: "https://anichi.to",
+    lang: "en",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://anichi.to",
+  },
+  {
+    name: "AnimeKai",
+    id: 232158530,
+    baseUrl: "https://animekaitv.to",
+    lang: "en",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://animekaitv.to",
+  },
+];
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
 
@@ -29,16 +162,38 @@ async function apiFetch(path) {
 }
 
 const api = {
-  latest: (page = 1) => apiFetch(`/api/latest?page=${page}`),
-  search: (q, page = 1) =>
-    apiFetch(`/api/search?q=${encodeURIComponent(q)}&page=${page}`),
-  episodes: (url) => apiFetch(`/api/episodes?url=${encodeURIComponent(url)}`),
+  platforms: () => apiFetch(`/api/platforms`),
+  latest: (page = 1, platform = "") =>
+    apiFetch(
+      `/api/latest?page=${page}${
+        platform ? `&platform=${encodeURIComponent(platform)}` : ""
+      }`
+    ),
+  popular: (page = 1, platform = "") =>
+    apiFetch(
+      `/api/popular?page=${page}${
+        platform ? `&platform=${encodeURIComponent(platform)}` : ""
+      }`
+    ),
+  search: (q, page = 1, platform = "") =>
+    apiFetch(
+      `/api/search?q=${encodeURIComponent(q)}&page=${page}${
+        platform ? `&platform=${encodeURIComponent(platform)}` : ""
+      }`
+    ),
+  episodes: (url, platform = "") =>
+    apiFetch(
+      `/api/episodes?url=${encodeURIComponent(url)}${
+        platform ? `&platform=${encodeURIComponent(platform)}` : ""
+      }`
+    ),
   extract: (url, opts = {}) => {
     const params = new URLSearchParams();
     if (url) params.set("url", url);
     if (opts.type) params.set("type", opts.type);
     if (opts.server) params.set("server", opts.server);
     if (opts.linkId) params.set("linkId", opts.linkId);
+    if (opts.platform) params.set("platform", opts.platform);
     return apiFetch(`/api/extract?${params.toString()}`);
   },
   /** Build the proxied HLS manifest URL */
@@ -118,8 +273,10 @@ function AnimeCard({ item, isActive, onClick }) {
         <p className="text-ivory text-sm font-semibold line-clamp-2 leading-tight">
           {item.title}
         </p>
-        {item.released && (
-          <p className="text-gold text-xs mt-0.5 font-mono">{item.released}</p>
+        {item.platform && (
+          <p className="text-gold text-[10px] mt-0.5 font-mono">
+            {item.platform}
+          </p>
         )}
       </div>
 
@@ -138,19 +295,28 @@ function EpisodeRow({ ep, isActive, onClick }) {
       onClick={onClick}
       className={`w-full text-left px-4 py-3 rounded-xl flex items-center gap-3
                   transition-all duration-150 group
-                  ${isActive
-          ? "bg-gold/20 border border-gold/40"
-          : "hover:bg-white/5 border border-transparent"
-        }`}
+                  ${
+                    isActive
+                      ? "bg-gold/20 border border-gold/40"
+                      : "hover:bg-white/5 border border-transparent"
+                  }`}
     >
       <div
         className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0
-                    ${isActive ? "bg-gold text-navy" : "bg-navy-800/60 text-gold group-hover:bg-azure/40"}`}
+                    ${
+                      isActive
+                        ? "bg-gold text-navy"
+                        : "bg-navy-800/60 text-gold group-hover:bg-azure/40"
+                    }`}
       >
         {ep.episode}
       </div>
       <div className="flex flex-col min-w-0 flex-1">
-        <span className={`text-sm font-medium truncate ${isActive ? "text-ivory" : "text-ivory-muted"}`}>
+        <span
+          className={`text-sm font-medium truncate ${
+            isActive ? "text-ivory" : "text-ivory-muted"
+          }`}
+        >
           {ep.label || `Episode ${ep.episode}`}
         </span>
         {ep.badge && (
@@ -160,7 +326,9 @@ function EpisodeRow({ ep, isActive, onClick }) {
         )}
       </div>
       {isActive && (
-        <span className="ml-auto text-gold text-xs font-semibold flex-shrink-0">▶ Now Playing</span>
+        <span className="ml-auto text-gold text-xs font-semibold flex-shrink-0">
+          ▶ Now Playing
+        </span>
       )}
     </button>
   );
@@ -217,9 +385,194 @@ function ErrorToast({ message, onDismiss }) {
   );
 }
 
+/**
+ * Platform Selector Component on Top Right
+ * Displays the selected platform's logo and name, and allows picking any platform
+ */
+function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [filter, setFilter] = useState("");
+  const [logoError, setLogoError] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Reset logo error when selectedPlatform changes
+  useEffect(() => {
+    setLogoError(false);
+  }, [selectedPlatform?.name]);
+
+  // Close dropdown on outside click or ESC key
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    function handleKeyDown(event) {
+      if (event.key === "Escape") setIsOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
+  const filtered = platforms.filter(
+    (p) =>
+      p.name.toLowerCase().includes(filter.toLowerCase()) ||
+      (p.baseUrl && p.baseUrl.toLowerCase().includes(filter.toLowerCase()))
+  );
+
+  return (
+    <div className="relative flex-shrink-0" ref={dropdownRef}>
+      {/* ── Top-Right Platform Button (Logo + Name) ── */}
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl border border-gold/30 bg-navy-800/80 hover:bg-azure/50 hover:border-gold/60 transition-all duration-200 shadow-sm group"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        title={`Selected Platform: ${selectedPlatform?.name || "Select Platform"}`}
+      >
+        {/* Platform Logo */}
+        <div className="w-6 h-6 rounded-md overflow-hidden bg-navy-900 flex items-center justify-center border border-white/10 flex-shrink-0 p-0.5">
+          {!logoError && selectedPlatform?.iconUrl ? (
+            <img
+              src={selectedPlatform.iconUrl}
+              alt={selectedPlatform.name}
+              className="w-full h-full object-contain"
+              onError={() => setLogoError(true)}
+            />
+          ) : (
+            <span className="text-xs">📺</span>
+          )}
+        </div>
+
+        {/* Platform Name on Top Right */}
+        <div className="flex flex-col text-left leading-none">
+          <span className="text-[9px] uppercase tracking-wider text-gold/80 font-mono font-bold">
+            Source
+          </span>
+          <span className="text-sm font-bold text-ivory tracking-tight truncate max-w-[100px] sm:max-w-[140px] group-hover:text-gold transition-colors">
+            {selectedPlatform?.name || "AniKoto"}
+          </span>
+        </div>
+
+        {/* Dropdown Chevron */}
+        <span
+          className={`text-[10px] text-gold/80 transition-transform duration-200 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        >
+          ▼
+        </span>
+      </button>
+
+      {/* ── Dropdown Menu ── */}
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-72 rounded-2xl glass p-2.5 z-50 shadow-2xl border border-gold/40 animate-slide-up backdrop-blur-2xl">
+          {/* Header & Search */}
+          <div className="p-1 mb-2">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-ivory">Select Platform</span>
+              <span className="text-[10px] font-mono text-gold bg-gold/15 px-2 py-0.5 rounded-full border border-gold/25">
+                {platforms.length} platforms
+              </span>
+            </div>
+            <div className="relative">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-ivory-muted/60 pointer-events-none">
+                🔍
+              </span>
+              <input
+                type="text"
+                placeholder="Search platforms..."
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                className="w-full bg-navy-900/90 border border-white/10 rounded-lg pl-7 pr-2.5 py-1.5 text-xs text-ivory placeholder-ivory-muted/60 outline-none focus:border-gold/50"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          {/* Platforms List */}
+          <div className="max-h-64 overflow-y-auto space-y-1 no-scrollbar pr-0.5">
+            {filtered.map((p) => {
+              const isSelected =
+                selectedPlatform?.name?.toLowerCase() === p.name.toLowerCase();
+              return (
+                <button
+                  key={p.id || p.name}
+                  onClick={() => {
+                    onSelectPlatform(p);
+                    setIsOpen(false);
+                    setFilter("");
+                  }}
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left text-xs transition-all ${
+                    isSelected
+                      ? "bg-gold/20 text-ivory border border-gold/40 shadow-sm"
+                      : "text-ivory-muted hover:text-ivory hover:bg-white/5 border border-transparent"
+                  }`}
+                >
+                  <div className="w-5 h-5 rounded bg-navy-900/80 p-0.5 border border-white/10 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                    <img
+                      src={p.iconUrl}
+                      alt={p.name}
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                      }}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={`font-semibold truncate ${
+                        isSelected ? "text-gold" : "text-ivory"
+                      }`}
+                    >
+                      {p.name}
+                    </p>
+                    <p className="text-[10px] text-ivory-muted/60 truncate font-mono">
+                      {p.baseUrl ? p.baseUrl.replace(/^https?:\/\//, "") : ""}
+                    </p>
+                  </div>
+                  {isSelected && (
+                    <span className="text-gold font-bold text-xs">✓</span>
+                  )}
+                </button>
+              );
+            })}
+            {filtered.length === 0 && (
+              <p className="text-center text-xs text-ivory-muted py-4">
+                No matching platform
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 export default function App() {
+  // ── Platform state ──────────────────────────────────────────────────────────
+  const [platforms, setPlatforms] = useState(DEFAULT_PLATFORMS);
+  const [selectedPlatform, setSelectedPlatform] = useState(() => {
+    try {
+      const saved = localStorage.getItem("animex_platform");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const match = DEFAULT_PLATFORMS.find(
+          (p) => p.name.toLowerCase() === parsed.name?.toLowerCase()
+        );
+        if (match) return match;
+      }
+    } catch (_) {}
+    return DEFAULT_PLATFORMS[0]; // Default: AniKoto
+  });
+
   // ── View state ──────────────────────────────────────────────────────────────
   const [view, setView] = useState("browse"); // "browse" | "episodes" | "playing"
   const [searchQuery, setSearchQuery] = useState("");
@@ -232,19 +585,22 @@ export default function App() {
   const [totalPages, setTotalPages] = useState(1);
   const [loadingList, setLoadingList] = useState(true);
 
-  const [selectedAnime, setSelectedAnime] = useState(null);  // { title, url, thumbnail }
-  const [episodeData, setEpisodeData] = useState(null);       // { episodes: [], totalEpisodes, ... }
+  const [selectedAnime, setSelectedAnime] = useState(null); // { title, url, thumbnail }
+  const [episodeData, setEpisodeData] = useState(null); // { episodes: [], totalEpisodes, ... }
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
 
-  const [activeEpisode, setActiveEpisode] = useState(null);   // { episode, url }
-  const [streamUrl, setStreamUrl] = useState(null);           // proxied HLS URL
-  const [subtitles, setSubtitles] = useState([]);             // available subtitle tracks
+  const [activeEpisode, setActiveEpisode] = useState(null); // { episode, url }
+  const [streamUrl, setStreamUrl] = useState(null); // proxied HLS URL
+  const [subtitles, setSubtitles] = useState([]); // available subtitle tracks
   const [loadingStream, setLoadingStream] = useState(false);
 
   // Audio type & server selection state
-  const [currentType, setCurrentType] = useState("sub");       // "sub" | "dub"
-  const [currentServer, setCurrentServer] = useState("");     // active server name
-  const [availableServers, setAvailableServers] = useState({ sub: [], dub: [] });
+  const [currentType, setCurrentType] = useState("sub"); // "sub" | "dub"
+  const [currentServer, setCurrentServer] = useState(""); // active server name
+  const [availableServers, setAvailableServers] = useState({
+    sub: [],
+    dub: [],
+  });
   const [playbackTime, setPlaybackTime] = useState(0);
 
   // ── Error state ─────────────────────────────────────────────────────────────
@@ -255,15 +611,67 @@ export default function App() {
     console.error("[AnimeX]", msg);
   }, []);
 
-  // ── Fetch anime list ─────────────────────────────────────────────────────────
+  // ── Fetch available platforms on mount ──────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .platforms()
+      .then((data) => {
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : data.platforms || [];
+        if (list.length > 0) {
+          setPlatforms(list);
+          // If current selectedPlatform is in list, sync details
+          setSelectedPlatform((curr) => {
+            const updated = list.find(
+              (p) => p.name.toLowerCase() === curr.name.toLowerCase()
+            );
+            return updated || curr;
+          });
+        }
+      })
+      .catch((e) => {
+        console.warn("[AnimeX] Platforms list load notice:", e.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // ── Switch platform handler ─────────────────────────────────────────────────
+  const handleSelectPlatform = useCallback(
+    (platform) => {
+      if (platform.name === selectedPlatform.name) return;
+      setSelectedPlatform(platform);
+      try {
+        localStorage.setItem("animex_platform", JSON.stringify(platform));
+      } catch (_) {}
+
+      // Reset state to browse newly selected platform
+      setView("browse");
+      setSelectedAnime(null);
+      setEpisodeData(null);
+      setActiveEpisode(null);
+      setStreamUrl(null);
+      setSubtitles([]);
+      setPlaybackTime(0);
+      setSearchQuery("");
+      setDebouncedQuery("");
+      setPage(1);
+    },
+    [selectedPlatform.name]
+  );
+
+  // ── Fetch anime list when debouncedQuery, page, or selectedPlatform changes ──
   useEffect(() => {
     let cancelled = false;
     setLoadingList(true);
     setAnimeList([]);
 
+    const platformName = selectedPlatform.name;
     const task = debouncedQuery
-      ? api.search(debouncedQuery, page)
-      : api.latest(page);
+      ? api.search(debouncedQuery, page, platformName)
+      : api.latest(page, platformName);
 
     task
       .then((data) => {
@@ -272,14 +680,17 @@ export default function App() {
         setTotalPages(data.totalPages || 1);
       })
       .catch((e) => {
-        if (!cancelled) showError(`Failed to load anime: ${e.message}`);
+        if (!cancelled)
+          showError(`Failed to load anime from ${platformName}: ${e.message}`);
       })
       .finally(() => {
         if (!cancelled) setLoadingList(false);
       });
 
-    return () => { cancelled = true; };
-  }, [debouncedQuery, page, showError]);
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQuery, page, selectedPlatform.name, showError]);
 
   // Search debounce
   useEffect(() => {
@@ -292,33 +703,44 @@ export default function App() {
   }, [searchQuery]);
 
   // ── Select anime → load episodes ────────────────────────────────────────────
-  const handleAnimeClick = useCallback(async (item) => {
-    if (selectedAnime?.url === item.url && view === "episodes") return;
-    setSelectedAnime(item);
-    setView("episodes");
-    setEpisodeData(null);
-    setActiveEpisode(null);
-    setStreamUrl(null);
-    setSubtitles([]);
-    setPlaybackTime(0);
-    setAvailableServers({ sub: [], dub: [] });
-    setCurrentServer("");
-    setLoadingEpisodes(true);
+  const handleAnimeClick = useCallback(
+    async (item) => {
+      if (selectedAnime?.url === item.url && view === "episodes") return;
+      setSelectedAnime(item);
+      setView("episodes");
+      setEpisodeData(null);
+      setActiveEpisode(null);
+      setStreamUrl(null);
+      setSubtitles([]);
+      setPlaybackTime(0);
+      setAvailableServers({ sub: [], dub: [] });
+      setCurrentServer("");
+      setLoadingEpisodes(true);
 
-    try {
-      const data = await api.episodes(item.url);
-      setEpisodeData(data);
-    } catch (e) {
-      showError(`Failed to load episodes: ${e.message}`);
-      setView("browse");
-    } finally {
-      setLoadingEpisodes(false);
-    }
-  }, [selectedAnime, view, showError]);
+      try {
+        const data = await api.episodes(item.url, selectedPlatform.name);
+        setEpisodeData(data);
+      } catch (e) {
+        showError(
+          `Failed to load episodes from ${selectedPlatform.name}: ${e.message}`
+        );
+        setView("browse");
+      } finally {
+        setLoadingEpisodes(false);
+      }
+    },
+    [selectedAnime, view, selectedPlatform.name, showError]
+  );
 
   // ── Select episode → extract & proxy stream ─────────────────────────────────
   const handleEpisodeClick = useCallback(
-    async (ep, type = currentType, server = "", linkId = "", keepTime = false) => {
+    async (
+      ep,
+      type = currentType,
+      server = "",
+      linkId = "",
+      keepTime = false
+    ) => {
       const isDifferentEpisode = activeEpisode?.url !== ep.url;
       if (!keepTime && isDifferentEpisode) {
         setPlaybackTime(0);
@@ -328,7 +750,12 @@ export default function App() {
       setView("playing");
 
       try {
-        const extracted = await api.extract(ep.url, { type, server, linkId });
+        const extracted = await api.extract(ep.url, {
+          type,
+          server,
+          linkId,
+          platform: selectedPlatform.name,
+        });
         if (!extracted || !extracted.streamUrl) {
           throw new Error("No stream found for this episode");
         }
@@ -345,7 +772,9 @@ export default function App() {
           setAvailableServers(extracted.availableServers);
         }
       } catch (e) {
-        showError(`Failed to load stream: ${e.message}`);
+        showError(
+          `Failed to load stream from ${selectedPlatform.name}: ${e.message}`
+        );
         if (isDifferentEpisode) {
           setView("episodes");
           setActiveEpisode(null);
@@ -356,7 +785,7 @@ export default function App() {
         setLoadingStream(false);
       }
     },
-    [activeEpisode, currentType, showError]
+    [activeEpisode, currentType, selectedPlatform.name, showError]
   );
 
   const handleSwitchType = useCallback(
@@ -376,9 +805,21 @@ export default function App() {
         loadingStream
       )
         return;
-      handleEpisodeClick(activeEpisode, currentType, serverObj.name, serverObj.linkId, true);
+      handleEpisodeClick(
+        activeEpisode,
+        currentType,
+        serverObj.name,
+        serverObj.linkId,
+        true
+      );
     },
-    [currentServer, activeEpisode, loadingStream, currentType, handleEpisodeClick]
+    [
+      currentServer,
+      activeEpisode,
+      loadingStream,
+      currentType,
+      handleEpisodeClick,
+    ]
   );
 
   // ── Navigation helpers ───────────────────────────────────────────────────────
@@ -411,9 +852,9 @@ export default function App() {
   // ── Title for the browser tab ────────────────────────────────────────────────
   useEffect(() => {
     document.title = selectedAnime
-      ? `${selectedAnime.title} — AnimeX`
-      : "AnimeX — Stream Unlimited";
-  }, [selectedAnime]);
+      ? `${selectedAnime.title} — ${selectedPlatform.name}`
+      : `${selectedPlatform.name} — AnimeX`;
+  }, [selectedAnime, selectedPlatform.name]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // RENDER
@@ -421,20 +862,40 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col">
-
       {/* ── Navbar ── */}
       <header className="glass-nav sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
-
-          {/* Logo */}
+          {/* Top-Left Brand Logo (matches selected platform with AnimeX brand) */}
           <button
-            onClick={() => { setView("browse"); setSelectedAnime(null); setSearchQuery(""); }}
-            className="flex items-center gap-2 flex-shrink-0 group"
+            onClick={() => {
+              setView("browse");
+              setSelectedAnime(null);
+              setSearchQuery("");
+            }}
+            className="flex items-center gap-2.5 flex-shrink-0 group"
           >
-            <span className="text-2xl select-none">🎌</span>
-            <span className="text-gradient-gold font-extrabold text-xl tracking-tight">
-              AnimeX
-            </span>
+            <div className="w-8 h-8 rounded-lg overflow-hidden bg-navy-800 border border-gold/30 flex items-center justify-center p-0.5 group-hover:scale-105 transition-transform">
+              {selectedPlatform?.iconUrl ? (
+                <img
+                  src={selectedPlatform.iconUrl}
+                  alt={selectedPlatform.name}
+                  className="w-full h-full object-contain"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
+              ) : (
+                <span className="text-xl select-none">🎌</span>
+              )}
+            </div>
+            <div className="flex flex-col text-left">
+              <span className="text-gradient-gold font-extrabold text-lg tracking-tight leading-none">
+                AnimeX
+              </span>
+              <span className="text-[10px] text-ivory-muted/70 font-mono leading-none mt-0.5">
+                {selectedPlatform?.name || "Anime"}
+              </span>
+            </div>
           </button>
 
           {/* Back breadcrumb */}
@@ -452,7 +913,7 @@ export default function App() {
               </span>
               <input
                 type="search"
-                placeholder="Search anime…"
+                placeholder={`Search ${selectedPlatform.name}…`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="search-input pl-9"
@@ -468,7 +929,7 @@ export default function App() {
               </p>
               {episodeData && (
                 <p className="text-gold text-xs font-mono">
-                  {episodeData.totalEpisodes} episodes
+                  {episodeData.totalEpisodes} episodes · {selectedPlatform.name}
                 </p>
               )}
             </div>
@@ -476,24 +937,39 @@ export default function App() {
 
           {/* Page indicator on browse */}
           {view === "browse" && (
-            <div className="ml-auto flex-shrink-0">
+            <div className="hidden sm:block flex-shrink-0">
               <span className="tag font-mono">
                 {debouncedQuery ? "search" : `p.${page}`}
               </span>
             </div>
           )}
+
+          {/* ── Top-Right Platform Selector (Logo + Name) ── */}
+          <PlatformSelector
+            platforms={platforms}
+            selectedPlatform={selectedPlatform}
+            onSelectPlatform={handleSelectPlatform}
+          />
         </div>
       </header>
 
       {/* ── Main content ── */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
-
         {/* ══════ BROWSE VIEW ══════ */}
         {view === "browse" && (
           <div className="animate-fade-in">
-            <h1 className="section-title">
-              {debouncedQuery ? `Results for "${debouncedQuery}"` : "Latest Episodes"}
-            </h1>
+            <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
+              <h1 className="section-title mb-0">
+                {debouncedQuery
+                  ? `Results on ${selectedPlatform.name} for "${debouncedQuery}"`
+                  : `Latest on ${selectedPlatform.name}`}
+              </h1>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-ivory-muted font-mono">
+                  Source: <strong className="text-gold">{selectedPlatform.name}</strong>
+                </span>
+              </div>
+            </div>
 
             {loadingList ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
@@ -504,13 +980,18 @@ export default function App() {
             ) : animeList.length === 0 ? (
               <div className="glass p-12 text-center animate-fade-in">
                 <div className="text-5xl mb-4">🔍</div>
-                <p className="text-ivory font-semibold text-lg">No results found</p>
+                <p className="text-ivory font-semibold text-lg">
+                  No results found on {selectedPlatform.name}
+                </p>
                 <p className="text-ivory-muted text-sm mt-1">
-                  Try a different search term or browse the latest page
+                  Try another search query or switch to another platform from the top right.
                 </p>
                 {debouncedQuery && (
                   <button
-                    onClick={() => { setSearchQuery(""); setDebouncedQuery(""); }}
+                    onClick={() => {
+                      setSearchQuery("");
+                      setDebouncedQuery("");
+                    }}
                     className="btn-gold mt-4"
                   >
                     Browse Latest
@@ -522,7 +1003,7 @@ export default function App() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 animate-slide-up">
                   {animeList.map((item, i) => (
                     <AnimeCard
-                      key={`${item.url}-${i}`}
+                      key={`${item.url || item.link}-${i}`}
                       item={item}
                       isActive={selectedAnime?.url === item.url}
                       onClick={() => handleAnimeClick(item)}
@@ -551,7 +1032,9 @@ export default function App() {
                   <div className="player-wrapper flex items-center justify-center min-h-[320px]">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-12 h-12 rounded-full border-4 border-gold/20 border-t-gold animate-spin" />
-                      <p className="text-ivory-muted text-sm">Extracting stream…</p>
+                      <p className="text-ivory-muted text-sm">
+                        Extracting stream from {selectedPlatform.name}…
+                      </p>
                     </div>
                   </div>
                 ) : streamUrl ? (
@@ -574,14 +1057,17 @@ export default function App() {
                         <div className="absolute inset-0 bg-navy/60 backdrop-blur-sm flex items-center justify-center z-30 rounded-2xl">
                           <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-navy-800/90 border border-gold/30">
                             <div className="w-5 h-5 rounded-full border-2 border-gold/30 border-t-gold animate-spin" />
-                            <span className="text-xs font-semibold text-ivory">Switching stream…</span>
+                            <span className="text-xs font-semibold text-ivory">
+                              Switching stream…
+                            </span>
                           </div>
                         </div>
                       )}
                     </div>
 
                     {/* ── Sub/Dub & Server Controls ── */}
-                    {(availableServers.sub?.length > 0 || availableServers.dub?.length > 0) && (
+                    {(availableServers.sub?.length > 0 ||
+                      availableServers.dub?.length > 0) && (
                       <div className="glass px-4 py-3 flex flex-wrap items-center justify-between gap-3 animate-fade-in">
                         {/* Audio Type Toggle (SUB / DUB) */}
                         <div className="flex items-center gap-2">
@@ -591,7 +1077,10 @@ export default function App() {
                           <div className="flex items-center bg-navy-900/80 p-0.5 rounded-lg border border-white/10">
                             <button
                               onClick={() => handleSwitchType("sub")}
-                              disabled={loadingStream || availableServers.sub?.length === 0}
+                              disabled={
+                                loadingStream ||
+                                availableServers.sub?.length === 0
+                              }
                               className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
                                 currentType === "sub"
                                   ? "bg-gold text-navy shadow-sm"
@@ -600,11 +1089,17 @@ export default function App() {
                                   : "text-ivory-muted hover:text-ivory"
                               }`}
                             >
-                              SUB {availableServers.sub?.length > 0 ? `(${availableServers.sub.length})` : ""}
+                              SUB{" "}
+                              {availableServers.sub?.length > 0
+                                ? `(${availableServers.sub.length})`
+                                : ""}
                             </button>
                             <button
                               onClick={() => handleSwitchType("dub")}
-                              disabled={loadingStream || availableServers.dub?.length === 0}
+                              disabled={
+                                loadingStream ||
+                                availableServers.dub?.length === 0
+                              }
                               className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
                                 currentType === "dub"
                                   ? "bg-gold text-navy shadow-sm"
@@ -613,7 +1108,10 @@ export default function App() {
                                   : "text-ivory-muted hover:text-ivory"
                               }`}
                             >
-                              DUB {availableServers.dub?.length > 0 ? `(${availableServers.dub.length})` : ""}
+                              DUB{" "}
+                              {availableServers.dub?.length > 0
+                                ? `(${availableServers.dub.length})`
+                                : ""}
                             </button>
                           </div>
                         </div>
@@ -624,8 +1122,14 @@ export default function App() {
                             Server:
                           </span>
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            {((currentType === "dub" ? availableServers.dub : availableServers.sub) || []).map((srv) => {
-                              const isSelected = currentServer.toLowerCase() === srv.name.toLowerCase();
+                            {(
+                              (currentType === "dub"
+                                ? availableServers.dub
+                                : availableServers.sub) || []
+                            ).map((srv) => {
+                              const isSelected =
+                                currentServer.toLowerCase() ===
+                                srv.name.toLowerCase();
                               return (
                                 <button
                                   key={srv.linkId || srv.name}
@@ -637,7 +1141,8 @@ export default function App() {
                                       : "bg-navy-800/60 text-ivory-muted border-white/10 hover:border-white/20 hover:text-ivory"
                                   }`}
                                 >
-                                  {isSelected ? "● " : ""}{srv.name}
+                                  {isSelected ? "● " : ""}
+                                  {srv.name}
                                 </button>
                               );
                             })}
@@ -661,17 +1166,32 @@ export default function App() {
                 />
               )}
               <div className="min-w-0 flex-1">
-                <h2 className="text-xl font-bold text-ivory mb-1 leading-tight">
-                  {selectedAnime.title}
-                </h2>
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <h2 className="text-xl font-bold text-ivory leading-tight">
+                    {selectedAnime.title}
+                  </h2>
+                  <span className="tag text-[10px]">
+                    {selectedPlatform.name}
+                  </span>
+                </div>
                 {episodeData?.description && (
                   <p className="text-ivory-muted text-sm leading-relaxed line-clamp-3 mt-2">
                     {episodeData.description}
                   </p>
                 )}
                 {episodeData && (
-                  <div className="flex items-center gap-3 mt-3">
-                    <span className="tag">{episodeData.totalEpisodes} Episodes</span>
+                  <div className="flex items-center gap-3 mt-3 flex-wrap">
+                    <span className="tag">
+                      {episodeData.totalEpisodes} Episodes
+                    </span>
+                    {episodeData.genres?.map((g) => (
+                      <span
+                        key={g}
+                        className="tag bg-white/5 text-ivory-muted border-white/10 text-[10px]"
+                      >
+                        {g}
+                      </span>
+                    ))}
                     {activeEpisode && (
                       <span className="tag bg-gold/20 text-gold border-gold/30">
                         ▶ EP {activeEpisode.episode}
@@ -704,7 +1224,9 @@ export default function App() {
               </div>
             ) : (
               <div className="glass p-10 text-center">
-                <p className="text-ivory-muted">No episodes found for this title.</p>
+                <p className="text-ivory-muted">
+                  No episodes found on {selectedPlatform.name} for this title.
+                </p>
               </div>
             )}
           </div>
@@ -714,9 +1236,11 @@ export default function App() {
       {/* ── Footer ── */}
       <footer className="border-t border-white/5 mt-auto py-5">
         <div className="max-w-7xl mx-auto px-4 flex items-center justify-between flex-wrap gap-3">
-          <p className="text-ivory-muted text-xs">
-            AnimeX · Cloudflare Workers + React · MIT
-          </p>
+          <div className="flex items-center gap-2 text-ivory-muted text-xs">
+            <span>AnimeX · Multi-Platform Streaming</span>
+            <span>·</span>
+            <span className="text-gold font-semibold">{selectedPlatform.name}</span>
+          </div>
           <p className="text-ivory-muted/50 text-xs font-mono">
             {new Date().getFullYear()}
           </p>

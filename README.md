@@ -108,17 +108,17 @@ No `.env` file needed locally — the Vite proxy handles routing.
 
 ---
 
-## Adapting to a Different Source Site
+## Multi-Platform Ecosystem (Mangayomi Extensions)
 
-Edit these two things in [`worker/src/index.js`](./worker/src/index.js):
+The worker supports all anime sources indexed in [`anime_index.json`](https://raw.githubusercontent.com/Mallyd11/mangayomi-anime-extensions/main/anime_index.json) (17+ platforms including AniKoto, HiAnime, ReAnime, AniPM, Miruro, 1Anime, Anidap, JustAnime, etc.).
 
-| Constant | What to change |
-|---|---|
-| `BASE_URL` | Root URL of your target site |
-| `EMBED_DOMAIN` | Embed iframe host |
-| Cheerio selectors in `scrapeLatest` / `scrapeEpisodes` | Match target site's HTML structure |
-
-The `GOGOCDN_KEYS` are the public AES keys used by most Gogo-fork sites. Update if your target uses different values.
+### Synchronizing / Updating Sources
+To re-fetch and synchronize all upstream extension source files:
+```bash
+cd worker
+npm run sync-sources
+```
+This updates the extension definitions in [`worker/src/sources`](./worker/src/sources).
 
 ---
 
