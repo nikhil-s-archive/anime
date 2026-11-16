@@ -443,23 +443,33 @@
 .liquidGlass-wrapper {
   position: relative;
   font-weight: 600;
-  overflow: hidden;
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 2.2);
-  border-radius: 9999px;
-  background: transparent;
+  border-radius: 9999px !important;
+  overflow: hidden !important;
+  clip-path: inset(0 round 9999px) !important;
+  -webkit-clip-path: inset(0 round 9999px) !important;
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
+  isolation: isolate;
+  transform: translateZ(0);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.3);
   cursor: pointer;
   display: inline-flex;
   justify-content: center;
   align-items: center;
   user-select: none;
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 2.2), box-shadow 0.25s ease;
 }
 
 .liquidGlass-effect {
   position: absolute;
   z-index: 0;
   inset: 0;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  border-radius: 9999px !important;
+  clip-path: inset(0 round 9999px) !important;
+  -webkit-clip-path: inset(0 round 9999px) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   filter: url(#glass-distortion);
   overflow: hidden;
   pointer-events: none;
@@ -470,9 +480,11 @@
   inset: 0;
   z-index: 3;
   overflow: hidden;
-  border-radius: 9999px;
-  box-shadow: inset 1px 1px 0 0 rgba(255, 255, 255, 0.5),
-    inset -1px 0 0 1px rgba(255, 255, 255, 0.5);
+  border-radius: 9999px !important;
+  clip-path: inset(0 round 9999px) !important;
+  -webkit-clip-path: inset(0 round 9999px) !important;
+  box-shadow: inset 1px 1px 0 0 rgba(255, 255, 255, 0.6),
+    inset -1px 0 0 1px rgba(255, 255, 255, 0.35);
   pointer-events: none;
 }
 
@@ -480,8 +492,11 @@
   position: absolute;
   z-index: 2;
   inset: 0;
-  backdrop-filter: saturate(2);
-  -webkit-backdrop-filter: saturate(2);
+  border-radius: 9999px !important;
+  clip-path: inset(0 round 9999px) !important;
+  -webkit-clip-path: inset(0 round 9999px) !important;
+  backdrop-filter: saturate(1.8);
+  -webkit-backdrop-filter: saturate(1.8);
   background: rgba(255, 255, 255, 0.05);
   pointer-events: none;
 }
@@ -494,6 +509,7 @@
   justify-content: center;
   width: 100%;
   height: 100%;
+  border-radius: 9999px !important;
 }
 
 .liquidGlass-text svg {
@@ -503,6 +519,8 @@
 
 .liquidGlass-wrapper:hover {
   transform: scale(1.08);
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.45);
 }
 
 .liquidGlass-wrapper:active {
@@ -533,6 +551,7 @@
   width: 36px;
   height: 36px;
   padding: 6px;
+  border-radius: 9999px !important;
 }
 
 /* Center Controls Overlay */
@@ -560,12 +579,14 @@
   width: 76px;
   height: 76px;
   padding: 14px;
+  border-radius: 9999px !important;
 }
 
 .seek-b, .seek-f {
   width: 48px;
   height: 48px;
   padding: 10px;
+  border-radius: 9999px !important;
 }
 
 .svg-icon {
@@ -697,6 +718,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 9999px !important;
   transition: all 0.2s ease;
 }
 
@@ -704,12 +726,14 @@
   width: 40px;
   height: 40px;
   padding: 8px;
+  border-radius: 9999px !important;
 }
 
 .ctrl-btn.volume {
   width: 40px;
   height: 40px;
   padding: 8px;
+  border-radius: 9999px !important;
 }
 
 /* Volume Capsule Slider */
@@ -729,8 +753,10 @@
 
 .vol-sld {
   position: absolute;
-  border-radius: 9999px;
-  overflow: hidden;
+  border-radius: 9999px !important;
+  clip-path: inset(0 round 9999px) !important;
+  -webkit-clip-path: inset(0 round 9999px) !important;
+  overflow: hidden !important;
   bottom: 52px;
   left: 50%;
   transform: translateX(-50%);
@@ -741,13 +767,16 @@
   height: 130px;
   width: 36px;
   z-index: 45;
+  background: rgba(20, 20, 26, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
 .vol-sld-trk {
-  width: 36px;
+  width: 100%;
   height: 100%;
   position: relative;
-  border-radius: 9999px;
+  border-radius: 9999px !important;
   cursor: pointer;
   background: linear-gradient(
     to top,
@@ -773,6 +802,7 @@
   width: auto;
   height: 40px;
   padding: 0 14px;
+  border-radius: 9999px !important;
 }
 
 .time {
@@ -785,13 +815,30 @@
   width: auto;
   height: 40px;
   padding: 0 6px;
+  border-radius: 9999px !important;
+}
+
+.r-ctrls-btns .liquidGlass-text {
+  display: flex;
+  align-items: center;
   gap: 4px;
+  padding: 0 4px;
+  border-radius: 9999px !important;
 }
 
 .r-ctrls-btns .ctrl-btn {
   width: 32px;
   height: 32px;
-  padding: 4px;
+  padding: 5px;
+  border-radius: 9999px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.r-ctrls-btns .ctrl-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
 }
 
 /* Settings Panel */
@@ -948,50 +995,81 @@
     border-radius: 0.75rem;
   }
   .player-title-bar {
-    padding: 10px 14px;
+    padding: 8px 12px;
   }
-  .ctrl-ctr {
-    padding: 10px 12px 14px;
-  }
-  .c-ctrls {
-    gap: 20px;
-  }
-  .c-play, .refresh {
-    width: 54px;
-    height: 54px;
-    padding: 10px;
-  }
-  .seek-b, .seek-f {
-    width: 38px;
-    height: 38px;
-    padding: 8px;
-  }
-  .vol-sld {
-    height: 110px;
-    width: 32px;
-    bottom: 48px;
-  }
-  .time-display {
-    padding: 0 10px;
-    height: 34px;
-    font-size: 0.8em;
-  }
-  .r-ctrls-btns {
-    height: 34px;
-    padding: 0 6px;
-  }
-  .r-ctrls-btns .ctrl-btn {
+  .close-player-btn {
     width: 28px;
     height: 28px;
+    padding: 5px;
   }
-  .ctrl-btn.play-pause, .ctrl-btn.volume {
+  .close-player-btn svg {
+    width: 13px !important;
+    height: 13px !important;
+  }
+  .ctrl-ctr {
+    padding: 8px 10px 12px;
+  }
+  .c-ctrls {
+    gap: 16px;
+  }
+  .c-play, .refresh {
+    width: 48px;
+    height: 48px;
+    padding: 10px;
+  }
+  .c-play svg, .refresh svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+  .seek-b, .seek-f {
     width: 34px;
     height: 34px;
+    padding: 6px;
+  }
+  .seek-b svg, .seek-f svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+  .vol-sld {
+    height: 96px;
+    width: 28px;
+    bottom: 42px;
+  }
+  .ctrl-btn.play-pause, .ctrl-btn.volume {
+    width: 30px;
+    height: 30px;
+    padding: 5px;
+  }
+  .ctrl-btn.play-pause svg, .ctrl-btn.volume svg {
+    width: 13px !important;
+    height: 13px !important;
+  }
+  .time-display {
+    padding: 0 8px;
+    height: 30px;
+    font-size: 0.7em;
+  }
+  .r-ctrls-btns {
+    height: 30px;
+    padding: 0 3px;
+  }
+  .r-ctrls-btns .liquidGlass-text {
+    gap: 2px;
+    padding: 0 2px;
+  }
+  .r-ctrls-btns .ctrl-btn {
+    width: 24px;
+    height: 24px;
+    padding: 4px;
+  }
+  .r-ctrls-btns .ctrl-btn svg {
+    width: 13px !important;
+    height: 13px !important;
   }
   .settings-panel {
-    width: 250px;
-    bottom: 60px;
-    right: 10px;
+    width: 240px;
+    bottom: 52px;
+    right: 8px;
   }
 }
 
