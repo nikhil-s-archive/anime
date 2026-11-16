@@ -207,6 +207,268 @@ const api = {
   },
 };
 
+// ─── Routing & History Helpers ────────────────────────────────────────────────
+
+function toSlug(str) {
+  if (!str) return "";
+  return String(str)
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/[\s_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function findPlatformBySlug(slug, list = []) {
+  if (!slug) return null;
+  const clean = slug.toLowerCase();
+  return (
+    list.find(
+      (p) => toSlug(p.name) === clean || p.name.toLowerCase() === clean
+    ) || null
+  );
+}
+
+function parsePath(pathname = window.location.pathname) {
+  const parts = pathname.split("/").filter(Boolean);
+  if (parts.length === 0) {
+    return { type: "home" };
+  }
+  if (parts.length === 1) {
+    return {
+      type: "platform",
+      platformSlug: parts[0],
+    };
+  }
+  if (parts.length === 2) {
+    return {
+      type: "anime",
+      platformSlug: parts[0],
+      animeSlug: parts[1],
+    };
+  }
+  return {
+    type: "episode",
+    platformSlug: parts[0],
+    animeSlug: parts[1],
+    episodeNum: parts[2],
+  };
+}
+
+function cacheAnime(platformSlug, animeSlug, item) {
+  try {
+    const key = `animex_anime_${platformSlug}_${animeSlug}`;
+    localStorage.setItem(key, JSON.stringify(item));
+  } catch (_) {}
+}
+
+function getCachedAnime(platformSlug, animeSlug) {
+  try {
+    const key = `animex_anime_${platformSlug}_${animeSlug}`;
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function loadWatchHistory() {
+  try {
+    const raw = localStorage.getItem("animex_watch_history");
+    return raw ? JSON.parse(raw) : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function saveWatchHistoryEntry(entry) {
+  try {
+    const history = loadWatchHistory();
+    const updated = [
+      entry,
+      ...history.filter(
+        (h) =>
+          !(h.animeSlug === entry.animeSlug && h.platformSlug === entry.platformSlug)
+      ),
+    ].slice(0, 24);
+    localStorage.setItem("animex_watch_history", JSON.stringify(updated));
+    return updated;
+  } catch (_) {
+    return [];
+  }
+}
+
+function removeWatchHistoryEntry(item) {
+  try {
+    const history = loadWatchHistory();
+    const updated = history.filter(
+      (h) =>
+        !(
+          h.animeSlug === item.animeSlug &&
+          h.platformSlug === item.platformSlug &&
+          String(h.episodeNum) === String(item.episodeNum)
+        )
+    );
+    localStorage.setItem("animex_watch_history", JSON.stringify(updated));
+    return updated;
+  } catch (_) {
+    return [];
+  }
+}
+
+function clearWatchHistoryStorage() {
+  try {
+    localStorage.removeItem("animex_watch_history");
+  } catch (_) {}
+  return [];
+}
+
+function loadSearchHistory() {
+  try {
+    const raw = localStorage.getItem("animex_search_history");
+    return raw ? JSON.parse(raw) : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function saveSearchHistoryEntry(query) {
+  if (!query || !query.trim()) return loadSearchHistory();
+  const q = query.trim();
+  try {
+    const history = loadSearchHistory();
+    const updated = [
+      q,
+      ...history.filter((item) => item.toLowerCase() !== q.toLowerCase()),
+    ].slice(0, 10);
+    localStorage.setItem("animex_search_history", JSON.stringify(updated));
+    return updated;
+  } catch (_) {
+    return [];
+  }
+}
+
+function removeSearchHistoryEntry(query) {
+  try {
+    const history = loadSearchHistory();
+    const updated = history.filter(
+      (item) => item.toLowerCase() !== query.toLowerCase()
+    );
+    localStorage.setItem("animex_search_history", JSON.stringify(updated));
+    return updated;
+  } catch (_) {
+    return [];
+  }
+}
+
+function clearSearchHistoryStorage() {
+  try {
+    localStorage.removeItem("animex_search_history");
+  } catch (_) {}
+  return [];
+}
+
+const CURATED_SUGGESTIONS = [
+  {
+    title: "Solo Leveling",
+    genres: ["Action", "Fantasy"],
+    thumbnail:
+      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx151807-m1gNs3wi3R2C.jpg",
+    rating: "9.1",
+  },
+  {
+    title: "Jujutsu Kaisen",
+    genres: ["Action", "Supernatural"],
+    thumbnail:
+      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx113415-bbBWj4pEFseh.jpg",
+    rating: "8.9",
+  },
+  {
+    title: "Demon Slayer: Kimetsu no Yaiba",
+    genres: ["Action", "Fantasy"],
+    thumbnail:
+      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx101922-PEn1CTyeNhRt.png",
+    rating: "8.8",
+  },
+  {
+    title: "Attack on Titan",
+    genres: ["Action", "Dark Fantasy"],
+    thumbnail:
+      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx16498-73IhOXpJZiDY.png",
+    rating: "9.2",
+  },
+  {
+    title: "Chainsaw Man",
+    genres: ["Action", "Supernatural"],
+    thumbnail:
+      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx127230-FloXFsyoFqNm.png",
+    rating: "8.6",
+  },
+  {
+    title: "Frieren: Beyond Journey's End",
+    genres: ["Adventure", "Fantasy"],
+    thumbnail:
+      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx154587-n1HJZcLdooQq.jpg",
+    rating: "9.4",
+  },
+  {
+    title: "Bleach: Thousand-Year Blood War",
+    genres: ["Action", "Supernatural"],
+    thumbnail:
+      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx144411-VfuhcODyBvD4.jpg",
+    rating: "9.0",
+  },
+  {
+    title: "Dan Da Dan",
+    genres: ["Action", "Comedy"],
+    thumbnail:
+      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx171018-oXk27K3oA9hZ.jpg",
+    rating: "8.7",
+  },
+  {
+    title: "Kaiju No. 8",
+    genres: ["Action", "Sci-Fi"],
+    thumbnail:
+      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx153288-0tIu023G1D65.jpg",
+    rating: "8.5",
+  },
+  {
+    title: "One Piece",
+    genres: ["Action", "Adventure"],
+    thumbnail:
+      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx21-YCDoj1EkAxFn.jpg",
+    rating: "8.9",
+  },
+  {
+    title: "Death Note",
+    genres: ["Mystery", "Psychological"],
+    thumbnail:
+      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx1535-lawCwhzhi96X.jpg",
+    rating: "9.0",
+  },
+  {
+    title: "Hunter x Hunter",
+    genres: ["Action", "Adventure"],
+    thumbnail:
+      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx11061-w1p4CLrh1EZr.jpg",
+    rating: "9.1",
+  },
+];
+
+const GENRE_SUGGESTIONS = [
+  { label: "Action", icon: "⚔️" },
+  { label: "Fantasy", icon: "🧙" },
+  { label: "Supernatural", icon: "🔮" },
+  { label: "Sci-Fi", icon: "🚀" },
+  { label: "Mystery", icon: "🕵️" },
+  { label: "Psychological", icon: "🧠" },
+  { label: "Adventure", icon: "🗺️" },
+  { label: "Romance", icon: "🌸" },
+  { label: "Comedy", icon: "😂" },
+  { label: "Shounen", icon: "⚡" },
+  { label: "Isekai", icon: "🌀" },
+];
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function SearchIcon({ className = "h-4 w-4" }) {
@@ -815,12 +1077,209 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
   );
 }
 
+/** Watch History ("Continue Watching") Component */
+function WatchHistorySection({ history, onSelect, onRemove, onClear }) {
+  if (!history || history.length === 0) return null;
+
+  return (
+    <section className="watch-history-section animate-fade-in mb-8">
+      <div className="flex items-end justify-between gap-4 mb-4">
+        <div>
+          <p className="eyebrow">YOUR ACTIVITY</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-ivory tracking-tight">
+            Continue Watching
+          </h2>
+        </div>
+        <button
+          type="button"
+          onClick={onClear}
+          className="text-xs text-ivory-muted hover:text-gold transition-colors font-mono"
+        >
+          Clear History
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        {history.slice(0, 6).map((item) => (
+          <div
+            key={`${item.platformSlug}-${item.animeSlug}-${item.episodeNum}`}
+            className="history-card group relative cursor-pointer"
+            onClick={() => onSelect(item)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === "Enter" && onSelect(item)}
+          >
+            {/* Thumbnail */}
+            <div className="relative aspect-[2/3] w-full overflow-hidden bg-navy-900 rounded-t-xl">
+              {item.thumbnail ? (
+                <img
+                  src={item.thumbnail}
+                  alt={item.animeTitle}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <AnimeArtworkIcon className="h-8 w-8 text-ivory-muted/40" />
+                </div>
+              )}
+
+              {/* Gradient Overlay */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+
+              {/* Episode Pill */}
+              <span className="ep-pill">
+                EP {item.episodeNum}
+              </span>
+
+              {/* Platform Pill */}
+              <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold bg-black/60 text-ivory-muted backdrop-blur-sm">
+                {item.platformName}
+              </span>
+
+              {/* Play Button Icon on Hover */}
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/35 backdrop-blur-[2px]">
+                <div className="w-10 h-10 rounded-full bg-gold/90 text-navy flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
+                  <span className="ml-0.5 text-sm font-bold">▶</span>
+                </div>
+              </div>
+
+              {/* Remove Button */}
+              <button
+                type="button"
+                className="absolute bottom-2 right-2 w-6 h-6 rounded-full bg-black/70 hover:bg-red-500/90 text-white flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-all z-10"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemove(item);
+                }}
+                title="Remove from history"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Title & Info */}
+            <div className="p-2.5 bg-navy-800/80 rounded-b-xl border-t border-white/5">
+              <p className="text-xs font-semibold text-ivory line-clamp-1 group-hover:text-gold transition-colors">
+                {item.animeTitle}
+              </p>
+              <p className="text-[10px] text-ivory-muted/70 font-mono mt-0.5 truncate">
+                {item.episodeLabel || `Episode ${item.episodeNum}`}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** Anime Suggestions Component (Genres & Curated Picks) */
+function AnimeSuggestionsSection({
+  selectedPlatform,
+  onSelectSuggestion,
+  onSelectGenre,
+}) {
+  return (
+    <section className="home-suggestions animate-fade-in mt-6 mb-12">
+      <div className="suggestions-heading">
+        <div>
+          <p className="eyebrow">DISCOVER & EXPLORE</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-ivory tracking-tight">
+            Anime Suggestions
+          </h2>
+        </div>
+        <span className="text-xs font-mono text-gold/80 bg-gold/10 px-2.5 py-1 rounded-full border border-gold/20">
+          Source: {selectedPlatform.name}
+        </span>
+      </div>
+
+      {/* Mood & Genre Discovery Pills */}
+      <div className="genre-pills flex items-center gap-2 overflow-x-auto pb-3 mb-6">
+        {GENRE_SUGGESTIONS.map((g) => (
+          <button
+            key={g.label}
+            type="button"
+            onClick={() => onSelectGenre(g.label)}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap bg-navy-800/80 hover:bg-azure/50 border border-white/10 hover:border-gold/40 text-ivory-muted hover:text-ivory transition-all duration-200 shadow-sm flex-shrink-0"
+          >
+            <span>{g.icon}</span>
+            <span>{g.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Curated Suggestion Cards Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        {CURATED_SUGGESTIONS.map((item) => (
+          <article
+            key={item.title}
+            className="anime-card group"
+            onClick={() => onSelectSuggestion(item)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === "Enter" && onSelectSuggestion(item)}
+            aria-label={`Explore ${item.title}`}
+          >
+            <img
+              src={item.thumbnail}
+              alt={item.title}
+              loading="lazy"
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+            />
+            <div
+              className="absolute inset-0 transition-opacity duration-300"
+              style={{
+                background:
+                  "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.2) 50%, transparent 100%)",
+              }}
+            />
+
+            {item.rating && (
+              <span className="ep-pill flex items-center gap-1 text-[11px] font-mono">
+                <span className="text-gold">★</span> {item.rating}
+              </span>
+            )}
+
+            <div className="absolute bottom-0 left-0 right-0 p-3">
+              <p className="text-ivory text-sm font-semibold line-clamp-2 leading-tight group-hover:text-gold transition-colors">
+                {item.title}
+              </p>
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                {item.genres?.slice(0, 2).map((genre) => (
+                  <span
+                    key={genre}
+                    className="text-[9px] font-mono text-ivory-muted/80 bg-white/10 px-1.5 py-0.5 rounded"
+                  >
+                    {genre}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 export default function App() {
+  const initialRoute = parsePath(window.location.pathname);
+  const initialQuery =
+    new URLSearchParams(window.location.search).get("q") || "";
+
   // ── Platform state ──────────────────────────────────────────────────────────
   const [platforms, setPlatforms] = useState(DEFAULT_PLATFORMS);
   const [selectedPlatform, setSelectedPlatform] = useState(() => {
+    if (initialRoute.platformSlug) {
+      const match = findPlatformBySlug(
+        initialRoute.platformSlug,
+        DEFAULT_PLATFORMS
+      );
+      if (match) return match;
+    }
     try {
       const saved = localStorage.getItem("animex_platform");
       if (saved) {
@@ -835,22 +1294,27 @@ export default function App() {
   });
 
   // ── View state ──────────────────────────────────────────────────────────────
-  const initialQuery = new URLSearchParams(window.location.search).get("q") || "";
-  const [view, setView] = useState("browse"); // "browse" | "episodes" | "playing"
+  const [view, setView] = useState(() => {
+    if (initialRoute.type === "episode") return "playing";
+    if (initialRoute.type === "anime") return "episodes";
+    return "browse";
+  });
   const [episodesSheetOpen, setEpisodesSheetOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
   const episodeSheetTouchStartY = useRef(null);
   const episodeSheetIgnoreClickUntil = useRef(0);
 
+  // ── History state ───────────────────────────────────────────────────────────
+  const [watchHistory, setWatchHistory] = useState(loadWatchHistory);
+  const [searchHistory, setSearchHistory] = useState(loadSearchHistory);
+  const lastHistorySave = useRef(0);
+
   // ── Data state ──────────────────────────────────────────────────────────────
   const [animeList, setAnimeList] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loadingList, setLoadingList] = useState(Boolean(initialQuery));
-  const [popularAnime, setPopularAnime] = useState([]);
-  const [loadingPopular, setLoadingPopular] = useState(true);
-  const [popularError, setPopularError] = useState("");
 
   const [selectedAnime, setSelectedAnime] = useState(null); // { title, url, thumbnail }
   const [episodeData, setEpisodeData] = useState(null); // { episodes: [], totalEpisodes, ... }
@@ -899,14 +1363,73 @@ export default function App() {
     setEpisodesSheetOpen((open) => !open);
   };
 
+  // ── History callbacks ───────────────────────────────────────────────────────
+  const recordSearch = useCallback((query) => {
+    const updated = saveSearchHistoryEntry(query);
+    setSearchHistory(updated);
+  }, []);
+
+  const handleRemoveSearch = useCallback((query) => {
+    const updated = removeSearchHistoryEntry(query);
+    setSearchHistory(updated);
+  }, []);
+
+  const handleClearSearchHistory = useCallback(() => {
+    clearSearchHistoryStorage();
+    setSearchHistory([]);
+  }, []);
+
+  const handleRemoveWatchHistory = useCallback((item) => {
+    const updated = removeWatchHistoryEntry(item);
+    setWatchHistory(updated);
+  }, []);
+
+  const handleClearWatchHistory = useCallback(() => {
+    clearWatchHistoryStorage();
+    setWatchHistory([]);
+  }, []);
+
+  const handleTimeUpdate = useCallback(
+    (time) => {
+      setPlaybackTime(time);
+      const now = Date.now();
+      if (
+        now - lastHistorySave.current > 4000 &&
+        selectedAnime &&
+        activeEpisode
+      ) {
+        lastHistorySave.current = now;
+        saveWatchHistoryEntry({
+          animeTitle: selectedAnime.title,
+          animeSlug: toSlug(selectedAnime.title),
+          platformName: selectedPlatform.name,
+          platformSlug: toSlug(selectedPlatform.name),
+          episodeNum: activeEpisode.episode,
+          episodeLabel:
+            activeEpisode.label || `Episode ${activeEpisode.episode}`,
+          episodeUrl: activeEpisode.url,
+          animeUrl: selectedAnime.url,
+          thumbnail: selectedAnime.thumbnail || "",
+          timestamp: now,
+          playbackTime: time,
+          duration: 0,
+        });
+      }
+    },
+    [selectedAnime, activeEpisode, selectedPlatform.name]
+  );
+
   const chooseSuggestion = (item) => {
     setSearchQuery(item.title);
     setDebouncedQuery(item.title);
     setPage(1);
     setView("browse");
-    const url = new URL(window.location.href);
-    url.searchParams.set("q", item.title);
-    window.history.pushState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    recordSearch(item.title);
+    window.history.pushState(
+      {},
+      "",
+      `/?q=${encodeURIComponent(item.title)}`
+    );
   };
 
   const submitSearch = (event) => {
@@ -917,49 +1440,21 @@ export default function App() {
     setPage(1);
     setView("browse");
 
-    const url = new URL(window.location.href);
-    if (query) url.searchParams.set("q", query);
-    else url.searchParams.delete("q");
-    window.history.pushState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    if (query) {
+      recordSearch(query);
+      window.history.pushState(
+        {},
+        "",
+        `/?q=${encodeURIComponent(query)}`
+      );
+    } else {
+      window.history.pushState({}, "", "/");
+    }
   };
 
   const clearSearchUrl = () => {
-    const url = new URL(window.location.href);
-    url.searchParams.delete("q");
-    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    window.history.replaceState({}, "", "/");
   };
-
-  useEffect(() => {
-    const syncSearchFromUrl = () => {
-      const query = new URLSearchParams(window.location.search).get("q") || "";
-      setSearchQuery(query);
-      setDebouncedQuery(query);
-      setPage(1);
-      setView("browse");
-    };
-    window.addEventListener("popstate", syncSearchFromUrl);
-    return () => window.removeEventListener("popstate", syncSearchFromUrl);
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoadingPopular(true);
-    setPopularError("");
-    api
-      .popular(1, selectedPlatform.name)
-      .then((data) => {
-        if (!cancelled) setPopularAnime((data.items || []).slice(0, 6));
-      })
-      .catch((e) => {
-        if (!cancelled) setPopularError(e.message);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingPopular(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedPlatform.name]);
 
   // ── Fetch available platforms on mount ──────────────────────────────────────
   useEffect(() => {
@@ -971,7 +1466,6 @@ export default function App() {
         const list = Array.isArray(data) ? data : data.platforms || [];
         if (list.length > 0) {
           setPlatforms(list);
-          // If current selectedPlatform is in list, sync details
           setSelectedPlatform((curr) => {
             const updated = list.find(
               (p) => p.name.toLowerCase() === curr.name.toLowerCase()
@@ -997,7 +1491,52 @@ export default function App() {
         localStorage.setItem("animex_platform", JSON.stringify(platform));
       } catch (_) {}
 
-      // Reset state to browse newly selected platform
+      const newPlatformSlug = toSlug(platform.name);
+
+      if (selectedAnime) {
+        const animeSlug = toSlug(selectedAnime.title);
+        if (view === "playing" && activeEpisode) {
+          window.history.pushState(
+            {},
+            "",
+            `/${newPlatformSlug}/${animeSlug}/${activeEpisode.episode}`
+          );
+        } else {
+          window.history.pushState({}, "", `/${newPlatformSlug}/${animeSlug}`);
+        }
+        setEpisodeData(null);
+        setActiveEpisode(null);
+        setStreamUrl(null);
+        setSubtitles([]);
+        setPlaybackTime(0);
+        setLoadingEpisodes(true);
+        api
+          .search(selectedAnime.title, 1, platform.name)
+          .then((res) => {
+            const first = (res.items || [])[0];
+            if (first) {
+              cacheAnime(newPlatformSlug, animeSlug, first);
+              setSelectedAnime(first);
+              return api.episodes(first.url, platform.name);
+            }
+            throw new Error(`Not available on ${platform.name}`);
+          })
+          .then((data) => {
+            setEpisodeData(data);
+            setView("episodes");
+          })
+          .catch((err) => {
+            showError(
+              `Could not find "${selectedAnime.title}" on ${platform.name}: ${err.message}`
+            );
+            setView("browse");
+          })
+          .finally(() => {
+            setLoadingEpisodes(false);
+          });
+        return;
+      }
+
       setView("browse");
       setSelectedAnime(null);
       setEpisodeData(null);
@@ -1005,13 +1544,19 @@ export default function App() {
       setStreamUrl(null);
       setSubtitles([]);
       setPlaybackTime(0);
-      setSearchQuery("");
-      setDebouncedQuery("");
-      setPage(1);
-      clearSearchUrl();
       setEpisodesSheetOpen(false);
+      if (!debouncedQuery) {
+        window.history.pushState({}, "", "/");
+      }
     },
-    [selectedPlatform.name]
+    [
+      selectedPlatform.name,
+      selectedAnime,
+      view,
+      activeEpisode,
+      debouncedQuery,
+      showError,
+    ]
   );
 
   // ── Fetch anime list when debouncedQuery, page, or selectedPlatform changes ──
@@ -1049,10 +1594,53 @@ export default function App() {
     };
   }, [debouncedQuery, page, selectedPlatform.name, showError]);
 
+  // ── Resolve anime helper ────────────────────────────────────────────────────
+  const resolveAnime = useCallback(
+    async (platformSlug, animeSlug, platform) => {
+      const cached = getCachedAnime(platformSlug, animeSlug);
+      if (cached && cached.url) return cached;
+
+      const history = loadWatchHistory();
+      const matchHistory = history.find(
+        (h) => h.animeSlug === animeSlug && h.platformSlug === platformSlug
+      );
+      if (matchHistory && matchHistory.animeUrl) {
+        const item = {
+          title: matchHistory.animeTitle,
+          url: matchHistory.animeUrl,
+          thumbnail: matchHistory.thumbnail,
+        };
+        cacheAnime(platformSlug, animeSlug, item);
+        return item;
+      }
+
+      try {
+        const searchName = animeSlug.replace(/-/g, " ");
+        const res = await api.search(searchName, 1, platform.name);
+        const first = (res.items || [])[0];
+        if (first) {
+          cacheAnime(platformSlug, animeSlug, first);
+          return first;
+        }
+      } catch (err) {
+        console.warn("[AnimeX] Could not resolve anime:", err);
+      }
+      return null;
+    },
+    []
+  );
+
   // ── Select anime → load episodes ────────────────────────────────────────────
   const handleAnimeClick = useCallback(
-    async (item) => {
-      if (selectedAnime?.url === item.url && view === "episodes") return;
+    async (item, shouldPushUrl = true) => {
+      const platformSlug = toSlug(selectedPlatform.name);
+      const animeSlug = toSlug(item.title);
+      cacheAnime(platformSlug, animeSlug, item);
+
+      if (shouldPushUrl) {
+        window.history.pushState({}, "", `/${platformSlug}/${animeSlug}`);
+      }
+
       setSelectedAnime(item);
       setView("episodes");
       setEpisodeData(null);
@@ -1068,16 +1656,18 @@ export default function App() {
       try {
         const data = await api.episodes(item.url, selectedPlatform.name);
         setEpisodeData(data);
+        return data;
       } catch (e) {
         showError(
           `Failed to load episodes from ${selectedPlatform.name}: ${e.message}`
         );
         setView("browse");
+        return null;
       } finally {
         setLoadingEpisodes(false);
       }
     },
-    [selectedAnime, view, selectedPlatform.name, showError]
+    [selectedPlatform.name, showError]
   );
 
   // ── Select episode → extract & proxy stream ─────────────────────────────────
@@ -1087,11 +1677,43 @@ export default function App() {
       type = currentType,
       server = "",
       linkId = "",
-      keepTime = false
+      keepTime = false,
+      startTime = 0,
+      shouldPushUrl = true,
+      currentAnime = null
     ) => {
+      const anime = currentAnime || selectedAnime;
+      if (anime && shouldPushUrl) {
+        const platformSlug = toSlug(selectedPlatform.name);
+        const animeSlug = toSlug(anime.title);
+        window.history.pushState(
+          {},
+          "",
+          `/${platformSlug}/${animeSlug}/${ep.episode}`
+        );
+      }
+
+      if (anime) {
+        const updated = saveWatchHistoryEntry({
+          animeTitle: anime.title,
+          animeSlug: toSlug(anime.title),
+          platformName: selectedPlatform.name,
+          platformSlug: toSlug(selectedPlatform.name),
+          episodeNum: ep.episode,
+          episodeLabel: ep.label || `Episode ${ep.episode}`,
+          episodeUrl: ep.url,
+          animeUrl: anime.url,
+          thumbnail: anime.thumbnail || "",
+          timestamp: Date.now(),
+          playbackTime: startTime || 0,
+          duration: 0,
+        });
+        setWatchHistory(updated);
+      }
+
       const isDifferentEpisode = activeEpisode?.url !== ep.url;
       if (!keepTime && isDifferentEpisode) {
-        setPlaybackTime(0);
+        setPlaybackTime(startTime || 0);
       }
       setActiveEpisode(ep);
       setEpisodesSheetOpen(false);
@@ -1134,7 +1756,13 @@ export default function App() {
         setLoadingStream(false);
       }
     },
-    [activeEpisode, currentType, selectedPlatform.name, showError]
+    [
+      selectedAnime,
+      selectedPlatform.name,
+      currentType,
+      activeEpisode,
+      showError,
+    ]
   );
 
   const handleSwitchType = useCallback(
@@ -1171,15 +1799,349 @@ export default function App() {
     ]
   );
 
+  const handleSuggestionClick = useCallback(
+    async (suggestion) => {
+      const platformSlug = toSlug(selectedPlatform.name);
+      const animeSlug = toSlug(suggestion.title);
+
+      const cached = getCachedAnime(platformSlug, animeSlug);
+      if (cached && cached.url) {
+        handleAnimeClick(cached);
+        return;
+      }
+
+      setLoadingEpisodes(true);
+      try {
+        const data = await api.search(
+          suggestion.title,
+          1,
+          selectedPlatform.name
+        );
+        const firstMatch = (data.items || [])[0];
+        if (firstMatch) {
+          cacheAnime(platformSlug, animeSlug, firstMatch);
+          handleAnimeClick(firstMatch);
+        } else {
+          setSearchQuery(suggestion.title);
+          setDebouncedQuery(suggestion.title);
+          recordSearch(suggestion.title);
+          window.history.pushState(
+            {},
+            "",
+            `/?q=${encodeURIComponent(suggestion.title)}`
+          );
+          setView("browse");
+        }
+      } catch (err) {
+        showError(
+          `Could not load ${suggestion.title} on ${selectedPlatform.name}: ${err.message}`
+        );
+      } finally {
+        setLoadingEpisodes(false);
+      }
+    },
+    [selectedPlatform.name, handleAnimeClick, recordSearch, showError]
+  );
+
+  const handleGenreClick = useCallback(
+    (genre) => {
+      setSearchQuery(genre);
+      setDebouncedQuery(genre);
+      setPage(1);
+      setView("browse");
+      recordSearch(genre);
+      window.history.pushState(
+        {},
+        "",
+        `/?q=${encodeURIComponent(genre)}`
+      );
+    },
+    [recordSearch]
+  );
+
+  const handleWatchHistoryClick = useCallback(
+    async (historyItem) => {
+      const targetPlatform =
+        findPlatformBySlug(historyItem.platformSlug, platforms) ||
+        selectedPlatform;
+
+      if (targetPlatform.name !== selectedPlatform.name) {
+        setSelectedPlatform(targetPlatform);
+        try {
+          localStorage.setItem(
+            "animex_platform",
+            JSON.stringify(targetPlatform)
+          );
+        } catch (_) {}
+      }
+
+      const animeObj = {
+        title: historyItem.animeTitle,
+        url: historyItem.animeUrl,
+        thumbnail: historyItem.thumbnail,
+      };
+
+      cacheAnime(historyItem.platformSlug, historyItem.animeSlug, animeObj);
+      setSelectedAnime(animeObj);
+      window.history.pushState(
+        {},
+        "",
+        `/${historyItem.platformSlug}/${historyItem.animeSlug}/${historyItem.episodeNum}`
+      );
+
+      setLoadingEpisodes(true);
+      try {
+        const data = await api.episodes(animeObj.url, targetPlatform.name);
+        setEpisodeData(data);
+        const matchedEp = (data.episodes || []).find(
+          (e) => String(e.episode) === String(historyItem.episodeNum)
+        ) || {
+          episode: historyItem.episodeNum,
+          label: historyItem.episodeLabel,
+          url: historyItem.episodeUrl,
+        };
+
+        handleEpisodeClick(
+          matchedEp,
+          "sub",
+          "",
+          "",
+          false,
+          historyItem.playbackTime || 0,
+          false,
+          animeObj
+        );
+      } catch (err) {
+        showError(`Failed to resume: ${err.message}`);
+      } finally {
+        setLoadingEpisodes(false);
+      }
+    },
+    [platforms, selectedPlatform, handleEpisodeClick, showError]
+  );
+
+  // ── Initial mount: resolve deep-linked path ──
+  useEffect(() => {
+    const route = parsePath(window.location.pathname);
+    if (route.type === "home") return;
+
+    let cancelled = false;
+
+    const initDeepLink = async () => {
+      let platform = selectedPlatform;
+      if (route.platformSlug) {
+        const p = findPlatformBySlug(route.platformSlug, DEFAULT_PLATFORMS);
+        if (p) {
+          platform = p;
+          setSelectedPlatform(p);
+        }
+      }
+
+      if (route.type === "platform") {
+        setView("browse");
+        return;
+      }
+
+      if (route.type === "anime" || route.type === "episode") {
+        setLoadingEpisodes(true);
+        const anime = await resolveAnime(
+          route.platformSlug,
+          route.animeSlug,
+          platform
+        );
+        if (cancelled) return;
+        if (!anime) {
+          showError(
+            `Could not find anime "${route.animeSlug}" on ${platform.name}`
+          );
+          setView("browse");
+          setLoadingEpisodes(false);
+          return;
+        }
+        setSelectedAnime(anime);
+
+        try {
+          const epData = await api.episodes(anime.url, platform.name);
+          if (cancelled) return;
+          setEpisodeData(epData);
+
+          if (route.type === "anime") {
+            setView("episodes");
+          } else if (route.type === "episode") {
+            const matchedEp = (epData.episodes || []).find(
+              (e) => String(e.episode) === String(route.episodeNum)
+            ) || epData.episodes?.[0];
+
+            if (matchedEp) {
+              handleEpisodeClick(
+                matchedEp,
+                "sub",
+                "",
+                "",
+                false,
+                0,
+                false,
+                anime
+              );
+            } else {
+              setView("episodes");
+            }
+          }
+        } catch (err) {
+          if (!cancelled) {
+            showError(`Failed to load episodes: ${err.message}`);
+            setView("browse");
+          }
+        } finally {
+          if (!cancelled) setLoadingEpisodes(false);
+        }
+      }
+    };
+
+    initDeepLink();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Handle browser back / forward navigation ──
+  useEffect(() => {
+    const handlePopState = async () => {
+      const route = parsePath(window.location.pathname);
+      const q = new URLSearchParams(window.location.search).get("q") || "";
+
+      if (route.type === "home") {
+        setSearchQuery(q);
+        setDebouncedQuery(q);
+        setPage(1);
+        setView("browse");
+        setSelectedAnime(null);
+        setEpisodeData(null);
+        setActiveEpisode(null);
+        setStreamUrl(null);
+        setSubtitles([]);
+        setEpisodesSheetOpen(false);
+        return;
+      }
+
+      if (route.type === "platform") {
+        const matched = findPlatformBySlug(route.platformSlug, platforms);
+        if (matched && matched.name !== selectedPlatform.name) {
+          setSelectedPlatform(matched);
+        }
+        setSearchQuery(q);
+        setDebouncedQuery(q);
+        setPage(1);
+        setView("browse");
+        setSelectedAnime(null);
+        setEpisodeData(null);
+        setActiveEpisode(null);
+        setStreamUrl(null);
+        setEpisodesSheetOpen(false);
+        return;
+      }
+
+      let platformToUse = selectedPlatform;
+      const matched = findPlatformBySlug(route.platformSlug, platforms);
+      if (matched && matched.name !== selectedPlatform.name) {
+        platformToUse = matched;
+        setSelectedPlatform(matched);
+      }
+
+      if (route.type === "anime") {
+        if (selectedAnime && toSlug(selectedAnime.title) === route.animeSlug) {
+          setView("episodes");
+          setActiveEpisode(null);
+          setStreamUrl(null);
+          setSubtitles([]);
+          setEpisodesSheetOpen(false);
+          return;
+        }
+
+        const resolved = await resolveAnime(
+          route.platformSlug,
+          route.animeSlug,
+          platformToUse
+        );
+        if (resolved) {
+          handleAnimeClick(resolved, false);
+        }
+        return;
+      }
+
+      if (route.type === "episode") {
+        let anime = selectedAnime;
+        if (!anime || toSlug(anime.title) !== route.animeSlug) {
+          anime = await resolveAnime(
+            route.platformSlug,
+            route.animeSlug,
+            platformToUse
+          );
+          if (anime) setSelectedAnime(anime);
+        }
+        if (!anime) return;
+
+        let epData = episodeData;
+        if (!epData) {
+          try {
+            epData = await api.episodes(anime.url, platformToUse.name);
+            setEpisodeData(epData);
+          } catch (_) {}
+        }
+
+        const matchedEp = (epData?.episodes || []).find(
+          (e) => String(e.episode) === String(route.episodeNum)
+        ) || {
+          episode: route.episodeNum,
+          url: anime.url,
+        };
+
+        handleEpisodeClick(
+          matchedEp,
+          "sub",
+          "",
+          "",
+          false,
+          0,
+          false,
+          anime
+        );
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [
+    platforms,
+    selectedPlatform,
+    selectedAnime,
+    episodeData,
+    resolveAnime,
+    handleAnimeClick,
+    handleEpisodeClick,
+  ]);
+
   // ── Navigation helpers ───────────────────────────────────────────────────────
   const goBack = useCallback(() => {
     if (view === "playing") {
-      setView("episodes");
-      setEpisodesSheetOpen(false);
-      setStreamUrl(null);
-      setSubtitles([]);
-      setPlaybackTime(0);
+      if (selectedAnime) {
+        const platformSlug = toSlug(selectedPlatform.name);
+        const animeSlug = toSlug(selectedAnime.title);
+        window.history.pushState({}, "", `/${platformSlug}/${animeSlug}`);
+      }
+      closePlayer();
     } else {
+      if (debouncedQuery) {
+        window.history.pushState(
+          {},
+          "",
+          `/?q=${encodeURIComponent(debouncedQuery)}`
+        );
+      } else {
+        window.history.pushState({}, "", "/");
+      }
       setView("browse");
       setSelectedAnime(null);
       setEpisodeData(null);
@@ -1190,7 +2152,13 @@ export default function App() {
       setAvailableServers({ sub: [], dub: [] });
       setCurrentServer("");
     }
-  }, [view]);
+  }, [
+    view,
+    selectedAnime,
+    selectedPlatform.name,
+    debouncedQuery,
+    closePlayer,
+  ]);
 
   const closePlayer = useCallback(() => {
     setView("episodes");
@@ -1254,7 +2222,7 @@ export default function App() {
 
           {/* Back breadcrumb */}
           {view === "playing" && (
-            <button onClick={goBack} className="ios-back-button hidden sm:inline-flex">
+            <button onClick={goBack} className="ios-back-button">
               <ChevronIcon className="h-4 w-4 rotate-90" />
               <span>Episodes</span>
             </button>
@@ -1264,20 +2232,6 @@ export default function App() {
               <ChevronIcon className="h-4 w-4 rotate-90" />
               <span>Back</span>
             </button>
-          )}
-
-          {/* Anime title in episodes/playing view */}
-          {view !== "browse" && selectedAnime && (
-            <div className="flex-1 ml-2 min-w-0">
-              <p className="text-ivory font-semibold text-sm truncate">
-                {selectedAnime.title}
-              </p>
-              {episodeData && (
-                <p className="text-gold text-xs font-mono truncate">
-                  {episodeData.totalEpisodes} episodes · {selectedPlatform.name}
-                </p>
-              )}
-            </div>
           )}
 
           {/* ── Top-Right Platform Selector (Logo + Name) ── */}
@@ -1299,54 +2253,86 @@ export default function App() {
             <>
               <section className="search-home animate-fade-in">
                 <div className="search-home-content">
-                <p className="eyebrow">ANIMEX · YOUR ANIME LIBRARY</p>
-                <h1>What are you<br className="sm:hidden" /> in the mood for?</h1>
-                <p className="search-home-copy">
-                  Find your next favorite on {selectedPlatform.name}.
-                </p>
-                <SearchBar
-                  value={searchQuery}
-                  onChange={setSearchQuery}
-                  onSubmit={submitSearch}
-                  onChoose={chooseSuggestion}
-                  platform={selectedPlatform.name}
-                />
-                <p className="search-hint">Search results can be shared with a link.</p>
-              </div>
-              </section>
-              <section className="home-recommendations animate-fade-in">
-                <div className="recommendations-heading">
-                  <div>
-                    <p className="eyebrow">PICKED FOR YOU</p>
-                    <h2>Popular anime</h2>
-                  </div>
-                  <span>{selectedPlatform.name}</span>
+                  <p className="eyebrow">ANIMEX · YOUR ANIME LIBRARY</p>
+                  <h1>
+                    What are you
+                    <br className="sm:hidden" /> in the mood for?
+                  </h1>
+                  <p className="search-home-copy">
+                    Stream seamlessly on {selectedPlatform.name} and across 16+ anime extensions.
+                  </p>
+                  <SearchBar
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    onSubmit={submitSearch}
+                    onChoose={chooseSuggestion}
+                    platform={selectedPlatform.name}
+                  />
+
+                  {/* Search History Chips */}
+                  {searchHistory.length > 0 && (
+                    <div className="search-history-chips flex items-center justify-center flex-wrap gap-2 mt-4 animate-fade-in">
+                      <span className="text-[11px] font-mono text-ivory-muted/70 mr-1">
+                        Recent:
+                      </span>
+                      {searchHistory.map((query) => (
+                        <span
+                          key={query}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-white/5 hover:bg-white/10 border border-white/10 hover:border-gold/40 text-ivory-muted hover:text-ivory transition-all cursor-pointer group"
+                          onClick={() => {
+                            setSearchQuery(query);
+                            setDebouncedQuery(query);
+                            setPage(1);
+                            setView("browse");
+                            window.history.pushState(
+                              {},
+                              "",
+                              `/?q=${encodeURIComponent(query)}`
+                            );
+                          }}
+                        >
+                          <span>{query}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveSearch(query);
+                            }}
+                            className="text-ivory-muted/60 hover:text-white ml-0.5 text-sm leading-none"
+                            title="Remove"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={handleClearSearchHistory}
+                        className="text-[11px] text-ivory-muted/60 hover:text-gold font-mono ml-1 underline transition-colors"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  )}
+
+                  <p className="search-hint">Search results can be shared with a link.</p>
                 </div>
-                {loadingPopular ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                    {Array.from({ length: 6 }).map((_, index) => (
-                      <SkeletonCard key={index} />
-                    ))}
-                  </div>
-                ) : popularAnime.length > 0 ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                    {popularAnime.map((item, index) => (
-                      <AnimeCard
-                        key={`${item.url || item.link}-${index}`}
-                        item={item}
-                        isActive={selectedAnime?.url === item.url}
-                        onClick={() => handleAnimeClick(item)}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="recommendations-empty" role="status">
-                    {popularError
-                      ? `Popular anime could not be loaded: ${popularError}`
-                      : `No popular anime available from ${selectedPlatform.name} right now.`}
-                  </div>
-                )}
               </section>
+
+              {/* Watch History ("Continue Watching") */}
+              <WatchHistorySection
+                history={watchHistory}
+                onSelect={handleWatchHistoryClick}
+                onRemove={handleRemoveWatchHistory}
+                onClear={handleClearWatchHistory}
+              />
+
+              {/* Anime Suggestions */}
+              <AnimeSuggestionsSection
+                selectedPlatform={selectedPlatform}
+                onSelectSuggestion={handleSuggestionClick}
+                onSelectGenre={handleGenreClick}
+              />
             </>
           ) : (
           <div className="animate-fade-in">
@@ -1445,7 +2431,7 @@ export default function App() {
                         streamUrl={streamUrl}
                         subtitles={subtitles}
                         initialTime={playbackTime}
-                        onTimeUpdate={(t) => setPlaybackTime(t)}
+                        onTimeUpdate={handleTimeUpdate}
                         title={
                           activeEpisode
                             ? `${selectedAnime.title} · EP ${activeEpisode.episode}`

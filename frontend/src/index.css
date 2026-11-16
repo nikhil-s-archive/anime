@@ -344,30 +344,49 @@
 }
 .result-query { color: #aeb4bb; font-weight: 500; }
 
-.home-recommendations { padding: 0.5rem 0 2rem; }
-.recommendations-heading {
+.watch-history-section {
+  padding: 0.5rem 0 2.25rem;
+}
+
+.history-card {
+  position: relative;
+  border-radius: 0.95rem;
+  overflow: hidden;
+  background: rgba(22, 24, 27, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+}
+
+.history-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(215, 220, 226, 0.4);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
+}
+
+.home-suggestions {
+  padding: 0.5rem 0 3rem;
+}
+
+.suggestions-heading {
   display: flex;
-  align-items: end;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 1rem;
-  margin: 0 0 1.15rem;
+  margin: 0 0 1.25rem;
 }
-.recommendations-heading .eyebrow { margin-bottom: 0.4rem; }
-.recommendations-heading h2 {
-  margin: 0;
-  color: #f5f5f7;
-  font-size: clamp(1.35rem, 3vw, 1.75rem);
-  font-weight: 650;
-  letter-spacing: -0.035em;
+
+.genre-pills {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
-.recommendations-heading > span { color: #8d9299; font-size: 0.8rem; }
-.recommendations-empty {
-  padding: 1.2rem;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.035);
-  color: #a1a5aa;
-  font-size: 0.86rem;
+.genre-pills::-webkit-scrollbar {
+  display: none;
+}
+
+.search-history-chips {
+  margin-top: 1rem;
 }
 .results-search { margin: 0 0 2rem; }
 
