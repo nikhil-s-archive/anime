@@ -209,6 +209,95 @@ const api = {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+function SearchIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="10.8" cy="10.8" r="6.8" />
+      <path d="m16 16 4.2 4.2" />
+    </svg>
+  );
+}
+
+function AnimeArtworkIcon({ className = "h-8 w-8" }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 2.8 14.2 8l5.5-1.6-1.6 5.5 5.1 2.1-5.1 2.1 1.6 5.5-5.5-1.6L12 25l-2.1-5.1-5.5 1.6L6 16l-5.1-2.1L6 11.8 4.4 6.3 9.9 8z" transform="translate(0 -1.5) scale(.92)" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function DisplayIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="4" width="18" height="13" rx="2" />
+      <path d="M8 21h8m-4-4v4m-2-12 5 2.5-5 2.5z" />
+    </svg>
+  );
+}
+
+function WarningIcon({ className = "h-5 w-5" }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m10.3 3.8-8 14a2 2 0 0 0 1.7 3h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0Z" />
+      <path d="M12 9v4m0 4h.01" />
+    </svg>
+  );
+}
+
+function ChevronIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
 /** Animated skeleton card for loading state */
 function SkeletonCard() {
   return (
@@ -306,7 +395,7 @@ function SearchBar({ value, onChange, onSubmit, onChoose, platform }) {
     <form onSubmit={onSubmit} className="search-form">
       <div className="search-control-wrap">
         <div className="home-search">
-          <span aria-hidden="true">⌕</span>
+          <SearchIcon className="h-5 w-5 flex-shrink-0" />
           <input
             type="search"
             role="combobox"
@@ -366,7 +455,9 @@ function SearchBar({ value, onChange, onSubmit, onChoose, platform }) {
                 {item.thumbnail ? (
                   <img src={item.thumbnail} alt="" loading="lazy" />
                 ) : (
-                  <span className="suggestion-placeholder" aria-hidden="true">▶</span>
+                  <span className="suggestion-placeholder" aria-hidden="true">
+                    <AnimeArtworkIcon className="h-5 w-5" />
+                  </span>
                 )}
                 <span className="suggestion-copy">
                   <span className="suggestion-title">{item.title}</span>
@@ -418,7 +509,7 @@ function AnimeCard({ item, isActive, onClick }) {
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center bg-navy-800">
-          <span className="text-4xl opacity-40">🎌</span>
+          <AnimeArtworkIcon className="h-9 w-9 opacity-50" />
         </div>
       )}
 
@@ -543,7 +634,7 @@ function ErrorToast({ message, onDismiss }) {
                  glass px-5 py-3 flex items-center gap-3 max-w-sm w-full"
       role="alert"
     >
-      <span className="text-red-400 text-lg flex-shrink-0">⚠</span>
+      <WarningIcon className="h-5 w-5 flex-shrink-0 text-red-400" />
       <p className="text-ivory-muted text-sm flex-1">{message}</p>
       <button
         onClick={onDismiss}
@@ -615,7 +706,7 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
               onError={() => setLogoError(true)}
             />
           ) : (
-            <span className="text-xs">📺</span>
+            <DisplayIcon className="h-4 w-4 text-ivory-muted" />
           )}
         </div>
 
@@ -651,8 +742,8 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
               </span>
             </div>
             <div className="relative">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-ivory-muted/60 pointer-events-none">
-                🔍
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ivory-muted/60 pointer-events-none">
+                <SearchIcon className="h-3.5 w-3.5" />
               </span>
               <input
                 type="text"
@@ -746,8 +837,11 @@ export default function App() {
   // ── View state ──────────────────────────────────────────────────────────────
   const initialQuery = new URLSearchParams(window.location.search).get("q") || "";
   const [view, setView] = useState("browse"); // "browse" | "episodes" | "playing"
+  const [episodesSheetOpen, setEpisodesSheetOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
+  const episodeSheetTouchStartY = useRef(null);
+  const episodeSheetIgnoreClickUntil = useRef(0);
 
   // ── Data state ──────────────────────────────────────────────────────────────
   const [animeList, setAnimeList] = useState([]);
@@ -783,6 +877,27 @@ export default function App() {
     setError(msg);
     console.error("[AnimeX]", msg);
   }, []);
+
+  const handleEpisodeSheetTouchStart = (event) => {
+    episodeSheetTouchStartY.current = event.touches[0]?.clientY ?? null;
+  };
+
+  const handleEpisodeSheetTouchEnd = (event) => {
+    const startY = episodeSheetTouchStartY.current;
+    episodeSheetTouchStartY.current = null;
+    if (startY === null) return;
+
+    const distance = event.changedTouches[0].clientY - startY;
+    if (Math.abs(distance) < 40) return;
+    episodeSheetIgnoreClickUntil.current = Date.now() + 500;
+    if (distance < 0) setEpisodesSheetOpen(true);
+    else setEpisodesSheetOpen(false);
+  };
+
+  const toggleEpisodesSheet = () => {
+    if (Date.now() < episodeSheetIgnoreClickUntil.current) return;
+    setEpisodesSheetOpen((open) => !open);
+  };
 
   const chooseSuggestion = (item) => {
     setSearchQuery(item.title);
@@ -894,6 +1009,7 @@ export default function App() {
       setDebouncedQuery("");
       setPage(1);
       clearSearchUrl();
+      setEpisodesSheetOpen(false);
     },
     [selectedPlatform.name]
   );
@@ -946,6 +1062,7 @@ export default function App() {
       setPlaybackTime(0);
       setAvailableServers({ sub: [], dub: [] });
       setCurrentServer("");
+      setEpisodesSheetOpen(false);
       setLoadingEpisodes(true);
 
       try {
@@ -977,6 +1094,7 @@ export default function App() {
         setPlaybackTime(0);
       }
       setActiveEpisode(ep);
+      setEpisodesSheetOpen(false);
       setLoadingStream(true);
       setView("playing");
 
@@ -1057,6 +1175,7 @@ export default function App() {
   const goBack = useCallback(() => {
     if (view === "playing") {
       setView("episodes");
+      setEpisodesSheetOpen(false);
       setStreamUrl(null);
       setSubtitles([]);
       setPlaybackTime(0);
@@ -1075,6 +1194,7 @@ export default function App() {
 
   const closePlayer = useCallback(() => {
     setView("episodes");
+    setEpisodesSheetOpen(false);
     setStreamUrl(null);
     setSubtitles([]);
     setPlaybackTime(0);
@@ -1092,7 +1212,7 @@ export default function App() {
   // ─────────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="app-shell min-h-screen flex flex-col">
       {/* ── Navbar ── */}
       <header className="glass-nav sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
@@ -1104,6 +1224,7 @@ export default function App() {
               setSearchQuery("");
               setDebouncedQuery("");
               clearSearchUrl();
+              setEpisodesSheetOpen(false);
             }}
             className="flex items-center gap-2.5 flex-shrink-0 group"
           >
@@ -1118,7 +1239,7 @@ export default function App() {
                   }}
                 />
               ) : (
-                <span className="text-xl select-none">🎌</span>
+                <AnimeArtworkIcon className="h-5 w-5 text-ivory-muted" />
               )}
             </div>
             <div className="flex flex-col text-left">
@@ -1132,9 +1253,16 @@ export default function App() {
           </button>
 
           {/* Back breadcrumb */}
-          {view !== "browse" && (
-            <button onClick={goBack} className="btn-ghost text-xs">
-              ← {view === "playing" ? "Episodes" : "Back"}
+          {view === "playing" && (
+            <button onClick={goBack} className="ios-back-button hidden sm:inline-flex">
+              <ChevronIcon className="h-4 w-4 rotate-90" />
+              <span>Episodes</span>
+            </button>
+          )}
+          {view === "episodes" && (
+            <button onClick={goBack} className="ios-back-button">
+              <ChevronIcon className="h-4 w-4 rotate-90" />
+              <span>Back</span>
             </button>
           )}
 
@@ -1145,7 +1273,7 @@ export default function App() {
                 {selectedAnime.title}
               </p>
               {episodeData && (
-                <p className="text-gold text-xs font-mono">
+                <p className="text-gold text-xs font-mono truncate">
                   {episodeData.totalEpisodes} episodes · {selectedPlatform.name}
                 </p>
               )}
@@ -1153,16 +1281,18 @@ export default function App() {
           )}
 
           {/* ── Top-Right Platform Selector (Logo + Name) ── */}
-          <PlatformSelector
-            platforms={platforms}
-            selectedPlatform={selectedPlatform}
-            onSelectPlatform={handleSelectPlatform}
-          />
+          <div className="ml-auto flex-shrink-0">
+            <PlatformSelector
+              platforms={platforms}
+              selectedPlatform={selectedPlatform}
+              onSelectPlatform={handleSelectPlatform}
+            />
+          </div>
         </div>
       </header>
 
       {/* ── Main content ── */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
+      <main className={`main-content flex-1 max-w-7xl mx-auto w-full px-4 py-6 ${view === "playing" ? "main-playing" : ""}`}>
         {/* ══════ BROWSE VIEW ══════ */}
         {view === "browse" && (
           !debouncedQuery ? (
@@ -1248,7 +1378,7 @@ export default function App() {
               </div>
             ) : animeList.length === 0 ? (
               <div className="glass p-12 text-center animate-fade-in">
-                <div className="text-5xl mb-4">🔍</div>
+                <SearchIcon className="mx-auto mb-4 h-10 w-10 text-ivory-muted" />
                 <p className="text-ivory font-semibold text-lg">
                   No results found on {selectedPlatform.name}
                 </p>
@@ -1295,10 +1425,10 @@ export default function App() {
 
         {/* ══════ EPISODES VIEW ══════ */}
         {(view === "episodes" || view === "playing") && selectedAnime && (
-          <div className="animate-fade-in">
+          <div className={`animate-fade-in ${view === "playing" ? "playing-layout" : ""}`}>
             {/* ── Player (shown when streaming) ── */}
             {view === "playing" && (
-              <div className="mb-6">
+              <div className="player-stage mb-6">
                 {loadingStream && !streamUrl ? (
                   <div className="player-wrapper flex items-center justify-center min-h-[320px]">
                     <div className="flex flex-col items-center gap-3">
@@ -1427,7 +1557,7 @@ export default function App() {
             )}
 
             {/* ── Anime info header ── */}
-            <div className="glass p-5 mb-6 flex gap-5 items-start">
+            <div className="anime-info-header glass p-5 mb-6 flex gap-5 items-start">
               {/* Thumbnail */}
               {selectedAnime.thumbnail && (
                 <img
@@ -1473,33 +1603,70 @@ export default function App() {
               </div>
             </div>
 
-            {/* ── Episode list ── */}
-            <h3 className="section-title">Episodes</h3>
-
-            {loadingEpisodes ? (
-              <div className="space-y-2">
-                {Array.from({ length: 12 }).map((_, i) => (
-                  <div key={i} className="skeleton h-14 rounded-xl" />
-                ))}
-              </div>
-            ) : episodeData?.episodes?.length ? (
-              <div className="space-y-1.5 max-h-[60vh] overflow-y-auto pr-1 no-scrollbar">
-                {episodeData.episodes.map((ep) => (
-                  <EpisodeRow
-                    key={ep.url}
-                    ep={ep}
-                    isActive={activeEpisode?.url === ep.url}
-                    onClick={() => handleEpisodeClick(ep)}
+            <section
+              className={`episode-sheet ${
+                view === "playing" ? "is-playing" : ""
+              } ${episodesSheetOpen ? "is-expanded" : ""}`}
+            >
+              <div
+                className="episode-sheet-handle"
+                onTouchStart={handleEpisodeSheetTouchStart}
+                onTouchEnd={handleEpisodeSheetTouchEnd}
+              >
+                <span className="episode-sheet-grabber" />
+                <button
+                  type="button"
+                  className="episode-sheet-toggle"
+                  onClick={toggleEpisodesSheet}
+                  aria-expanded={episodesSheetOpen}
+                  aria-label={
+                    episodesSheetOpen ? "Collapse episode list" : "Show episode list"
+                  }
+                >
+                  <span className="episode-sheet-heading">
+                    <span>Episodes</span>
+                    <span className="episode-sheet-count">
+                      {episodeData?.totalEpisodes ??
+                        episodeData?.episodes?.length ??
+                        0}
+                    </span>
+                  </span>
+                  <ChevronIcon
+                    className={`h-5 w-5 transition-transform ${
+                      episodesSheetOpen ? "rotate-180" : ""
+                    }`}
                   />
-                ))}
+                </button>
               </div>
-            ) : (
-              <div className="glass p-10 text-center">
-                <p className="text-ivory-muted">
-                  No episodes found on {selectedPlatform.name} for this title.
-                </p>
+              <div className="episode-sheet-body">
+                <h3 className="section-title episode-list-title">Episodes</h3>
+
+                {loadingEpisodes ? (
+                  <div className="space-y-2">
+                    {Array.from({ length: 12 }).map((_, i) => (
+                      <div key={i} className="skeleton h-14 rounded-xl" />
+                    ))}
+                  </div>
+                ) : episodeData?.episodes?.length ? (
+                  <div className="episode-list-rows space-y-1.5 max-h-[60vh] overflow-y-auto pr-1 no-scrollbar">
+                    {episodeData.episodes.map((ep) => (
+                      <EpisodeRow
+                        key={ep.url}
+                        ep={ep}
+                        isActive={activeEpisode?.url === ep.url}
+                        onClick={() => handleEpisodeClick(ep)}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="glass p-10 text-center">
+                    <p className="text-ivory-muted">
+                      No episodes found on {selectedPlatform.name} for this title.
+                    </p>
+                  </div>
+                )}
               </div>
-            )}
+            </section>
           </div>
         )}
       </main>

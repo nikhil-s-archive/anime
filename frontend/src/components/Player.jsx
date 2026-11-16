@@ -47,6 +47,22 @@ const ExitFullscreenIcon = () => (
   </svg>
 );
 
+const WarningIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="w-8 h-8"
+    aria-hidden="true"
+  >
+    <path d="m10.3 3.8-8 14a2 2 0 0 0 1.7 3h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0Z" />
+    <path d="M12 9v4m0 4h.01" />
+  </svg>
+);
+
 const CloseIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
     <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
@@ -504,72 +520,15 @@ export default function Player({
   return (
     <div
       ref={wrapperRef}
-      className="player-wrapper animate-fade-in"
+      className={`player-wrapper animate-fade-in ${isFullscreen ? "is-fullscreen" : ""}`}
       onMouseMove={showControls}
       onMouseLeave={() => playing && setControlsVisible(false)}
       onTouchStart={showControls}
       style={{ cursor: controlsVisible ? "default" : "none" }}
     >
-      {/* ── Video element ── */}
-      <video
-        ref={videoRef}
-        className="w-full max-h-[70vh] bg-black"
-        playsInline
-        crossOrigin="anonymous"
-        onClick={() => {
-          showControls();
-          togglePlay();
-        }}
-        onDoubleClick={handleFullscreen}
-      >
-        {subtitles.map((sub, i) => (
-          <track
-            key={sub.proxyUrl || i}
-            kind="subtitles"
-            src={subtitleSources[i] || undefined}
-            srcLang={sub.lang || "en"}
-            label={sub.label}
-            default={activeSubtitle === i}
-            onLoad={() => {
-              const track = videoRef.current?.textTracks[i];
-              if (track) {
-                track.mode = i === activeSubtitle ? "showing" : "disabled";
-              }
-            }}
-          />
-        ))}
-      </video>
-
-      {/* ── Loading overlay ── */}
-      {loading && !hlsError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-navy-900/70 backdrop-blur-sm">
-          <LoadingSpinner />
-        </div>
-      )}
-
-      {/* ── Error overlay ── */}
-      {hlsError && (
-        <div className="hls-error animate-fade-in">
-          <div className="text-red-400 text-4xl mb-3">⚠️</div>
-          <p className="text-ivory font-semibold mb-1">Stream Error</p>
-          <p className="text-ivory-muted text-sm text-center max-w-xs">{hlsError}</p>
-          <button
-            onClick={() => { patchState({ hlsError: null, loading: true }); }}
-            className="btn-gold mt-4 text-xs"
-          >
-            Retry
-          </button>
-        </div>
-      )}
-
-      {/* ── Title bar (top) ── */}
+      {/* ── Title bar ── */}
       <div
-        className="player-title-bar absolute top-3 left-3 right-3 px-4 py-2.5 flex items-center justify-between"
-        style={{
-          opacity: controlsVisible ? 1 : 0,
-          transition: "opacity 0.3s ease",
-          pointerEvents: controlsVisible ? "auto" : "none",
-        }}
+        className="player-title-bar px-4 py-2.5 flex items-center justify-between"
       >
         <span className="text-ivory font-semibold text-sm line-clamp-1 max-w-[75%]">
           {title}
@@ -586,7 +545,59 @@ export default function Player({
         )}
       </div>
 
-      {/* ── Controls (bottom) ── */}
+      <div className="player-video-stage">
+        <video
+          ref={videoRef}
+          className="w-full bg-black"
+          playsInline
+          crossOrigin="anonymous"
+          onClick={() => {
+            showControls();
+            togglePlay();
+          }}
+          onDoubleClick={handleFullscreen}
+        >
+          {subtitles.map((sub, i) => (
+            <track
+              key={sub.proxyUrl || i}
+              kind="subtitles"
+              src={subtitleSources[i] || undefined}
+              srcLang={sub.lang || "en"}
+              label={sub.label}
+              default={activeSubtitle === i}
+              onLoad={() => {
+                const track = videoRef.current?.textTracks[i];
+                if (track) {
+                  track.mode = i === activeSubtitle ? "showing" : "disabled";
+                }
+              }}
+            />
+          ))}
+        </video>
+
+        {loading && !hlsError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-navy-900/70 backdrop-blur-sm">
+            <LoadingSpinner />
+          </div>
+        )}
+
+        {hlsError && (
+          <div className="hls-error animate-fade-in">
+            <div className="mb-3 text-red-400">
+              <WarningIcon />
+            </div>
+            <p className="text-ivory font-semibold mb-1">Stream Error</p>
+            <p className="text-ivory-muted text-sm text-center max-w-xs">{hlsError}</p>
+            <button
+              onClick={() => { patchState({ hlsError: null, loading: true }); }}
+              className="btn-gold mt-4 text-xs"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+      </div>
+
       <div
         className="player-controls player-control-dock"
         style={{
@@ -721,7 +732,7 @@ export default function Player({
       </div>
 
       {/* ── Keyboard hint (shown briefly on mount) ── */}
-      <div className="player-keyboard-hint absolute bottom-20 right-4 text-xs text-ivory-muted/60 font-mono pointer-events-none">
+      <div className="player-keyboard-hint text-xs text-ivory-muted/60 font-mono pointer-events-none">
         Space · ←→ 10s · M mute · F fullscreen · Esc close
       </div>
     </div>
