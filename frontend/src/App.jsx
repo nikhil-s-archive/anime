@@ -1,44 +1,42 @@
 /**
- * App.jsx — AnimeX Apple TV Theme & Multi-Platform Streaming
+ * App.jsx — AnimeX multi-platform application
  *
- * Requirements:
- *   - Apple TV-inspired dark aesthetic (deep black, refined typography, sleek frosted glass)
- *   - Mobile responsive layout
- *   - URL query parameter search (?q=search_query) instead of giant home search landing page
- *   - Home page displays rich Apple TV catalog (Featured Hero Spotlight, Latest/Popular tabs, Grid)
- *   - Liquid Glass UI Video Player integration
- *   - Multi-platform support (all 17 Mangayomi extension sources with dynamic logo/name on top right)
- *   - Zero purple gradients
+ * Supported platforms: All sources from Mangayomi anime extensions
+ * Dynamic platform switching with logo and name on the top right
  */
-
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Player from "./components/Player.jsx";
 
-// ─── Config & Constants ───────────────────────────────────────────────────────
+// ─── Config ───────────────────────────────────────────────────────────────────
 
+/** Set VITE_API_BASE in your .env for production, e.g. https://animex.worker.dev */
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
+// Default list of 17 platforms from anime_index.json for instant rendering
 const DEFAULT_PLATFORMS = [
   {
     name: "AniKoto",
     id: 1356478902,
     baseUrl: "https://anikototv.to",
     lang: "en",
-    iconUrl: "https://www.google.com/s2/favicons?sz=256&domain=https://anikototv.to",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://anikototv.to",
   },
   {
     name: "ReAnime",
     id: 631942785,
     baseUrl: "https://reanime.cz",
     lang: "en",
-    iconUrl: "https://www.google.com/s2/favicons?sz=256&domain=https://reanime.cz",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://reanime.cz",
   },
   {
     name: "Senshi",
     id: 728461935,
     baseUrl: "https://senshi.to",
     lang: "en",
-    iconUrl: "https://www.google.com/s2/favicons?sz=256&domain=https://senshi.to",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://senshi.to",
   },
   {
     name: "MyroniX",
@@ -52,28 +50,40 @@ const DEFAULT_PLATFORMS = [
     id: -228451656,
     baseUrl: "https://all-wish.me",
     lang: "en",
-    iconUrl: "https://www.google.com/s2/favicons?sz=256&domain=https://all-wish.me",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://all-wish.me",
   },
   {
     name: "JustAnime",
     id: 892345671,
     baseUrl: "https://justanime.to",
     lang: "en",
-    iconUrl: "https://www.google.com/s2/favicons?sz=256&domain=https://justanime.to",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://justanime.to",
   },
   {
     name: "HiAnime",
     id: 1183439094,
     baseUrl: "https://hianime.at",
     lang: "en",
-    iconUrl: "https://www.google.com/s2/favicons?sz=256&domain=https://hianime.at",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://hianime.at",
   },
   {
     name: "AnimeParadise",
     id: 419768715,
     baseUrl: "https://animeparadise.moe",
     lang: "en",
-    iconUrl: "https://www.google.com/s2/favicons?sz=128&domain=https://animeparadise.moe",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=128&domain=https://animeparadise.moe",
+  },
+  {
+    name: "Playback Diagnostic",
+    id: 918273645,
+    baseUrl: "https://example.invalid",
+    lang: "en",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://apple.com",
   },
   {
     name: "AniPM",
@@ -87,53 +97,60 @@ const DEFAULT_PLATFORMS = [
     id: 543219876,
     baseUrl: "https://anidap.lol",
     lang: "en",
-    iconUrl: "https://www.google.com/s2/favicons?sz=256&domain=https://anidap.lol",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://anidap.lol",
   },
   {
     name: "Miruro",
     id: 617345892,
-    baseUrl: "https://miruro.to",
+    baseUrl: "https://www.miruro.to",
     lang: "en",
-    iconUrl: "https://www.google.com/s2/favicons?sz=256&domain=https://miruro.to",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://www.miruro.to",
   },
   {
     name: "AniWave",
     id: -367725331,
     baseUrl: "https://aniwaves.ru",
     lang: "en",
-    iconUrl: "https://www.google.com/s2/favicons?sz=256&domain=https://aniwaves.ru",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://aniwaves.ru",
   },
   {
     name: "1Anime",
     id: 384756102,
     baseUrl: "https://1anime.app",
     lang: "en",
-    iconUrl: "https://www.google.com/s2/favicons?sz=256&domain=https://1anime.app",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://1anime.app",
   },
   {
     name: "AnimeHeaven",
     id: -1744325818,
     baseUrl: "https://animeheaven.me",
     lang: "en",
-    iconUrl: "https://www.google.com/s2/favicons?sz=256&domain=https://animeheaven.me",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://animeheaven.me",
   },
   {
     name: "Anichi",
     id: 878498226,
     baseUrl: "https://anichi.to",
     lang: "en",
-    iconUrl: "https://www.google.com/s2/favicons?sz=256&domain=https://anichi.to",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://anichi.to",
   },
   {
     name: "AnimeKai",
     id: 232158530,
     baseUrl: "https://animekaitv.to",
     lang: "en",
-    iconUrl: "https://www.google.com/s2/favicons?sz=256&domain=https://animekaitv.to",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://animekaitv.to",
   },
 ];
 
-// ─── API Client ───────────────────────────────────────────────────────────────
+// ─── API helpers ──────────────────────────────────────────────────────────────
 
 async function apiFetch(path) {
   const res = await fetch(`${API_BASE}${path}`);
@@ -147,13 +164,29 @@ async function apiFetch(path) {
 const api = {
   platforms: () => apiFetch(`/api/platforms`),
   latest: (page = 1, platform = "") =>
-    apiFetch(`/api/latest?page=${page}${platform ? `&platform=${encodeURIComponent(platform)}` : ""}`),
+    apiFetch(
+      `/api/latest?page=${page}${
+        platform ? `&platform=${encodeURIComponent(platform)}` : ""
+      }`
+    ),
   popular: (page = 1, platform = "") =>
-    apiFetch(`/api/popular?page=${page}${platform ? `&platform=${encodeURIComponent(platform)}` : ""}`),
+    apiFetch(
+      `/api/popular?page=${page}${
+        platform ? `&platform=${encodeURIComponent(platform)}` : ""
+      }`
+    ),
   search: (q, page = 1, platform = "") =>
-    apiFetch(`/api/search?q=${encodeURIComponent(q)}&page=${page}${platform ? `&platform=${encodeURIComponent(platform)}` : ""}`),
+    apiFetch(
+      `/api/search?q=${encodeURIComponent(q)}&page=${page}${
+        platform ? `&platform=${encodeURIComponent(platform)}` : ""
+      }`
+    ),
   episodes: (url, platform = "") =>
-    apiFetch(`/api/episodes?url=${encodeURIComponent(url)}${platform ? `&platform=${encodeURIComponent(platform)}` : ""}`),
+    apiFetch(
+      `/api/episodes?url=${encodeURIComponent(url)}${
+        platform ? `&platform=${encodeURIComponent(platform)}` : ""
+      }`
+    ),
   extract: (url, opts = {}) => {
     const params = new URLSearchParams();
     if (url) params.set("url", url);
@@ -163,6 +196,7 @@ const api = {
     if (opts.platform) params.set("platform", opts.platform);
     return apiFetch(`/api/extract?${params.toString()}`);
   },
+  /** Build the proxied HLS manifest URL */
   proxyHls: (streamUrl) => {
     if (!streamUrl) return "";
     if (streamUrl.includes("/proxy/hls?url=")) {
@@ -173,131 +207,560 @@ const api = {
   },
 };
 
-// ─── SVG Icons ────────────────────────────────────────────────────────────────
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
-const SearchIcon = ({ className = "w-4 h-4" }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <circle cx="11" cy="11" r="8" />
-    <path d="m21 21-4.3-4.3" />
-  </svg>
-);
+function SearchIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="10.8" cy="10.8" r="6.8" />
+      <path d="m16 16 4.2 4.2" />
+    </svg>
+  );
+}
 
-const PlayMiniIcon = ({ className = "w-4 h-4" }) => (
-  <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-    <path d="M8 5v14l11-7z" />
-  </svg>
-);
+function AnimeArtworkIcon({ className = "h-8 w-8" }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 2.8 14.2 8l5.5-1.6-1.6 5.5 5.1 2.1-5.1 2.1 1.6 5.5-5.5-1.6L12 25l-2.1-5.1-5.5 1.6L6 16l-5.1-2.1L6 11.8 4.4 6.3 9.9 8z" transform="translate(0 -1.5) scale(.92)" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
 
-const ChevronLeftIcon = ({ className = "w-4 h-4" }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="m15 18-6-6 6-6" />
-  </svg>
-);
+function DisplayIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="4" width="18" height="13" rx="2" />
+      <path d="M8 21h8m-4-4v4m-2-12 5 2.5-5 2.5z" />
+    </svg>
+  );
+}
 
-const ChevronDownIcon = ({ className = "w-4 h-4" }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="m6 9 6 6 6-6" />
-  </svg>
-);
+function WarningIcon({ className = "h-5 w-5" }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m10.3 3.8-8 14a2 2 0 0 0 1.7 3h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0Z" />
+      <path d="M12 9v4m0 4h.01" />
+    </svg>
+  );
+}
 
-// ─── Platform Selector Component ──────────────────────────────────────────────
+function ChevronIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
 
+/** Animated skeleton card for loading state */
+function SkeletonCard() {
+  return (
+    <div
+      className="rounded-xl overflow-hidden"
+      style={{ aspectRatio: "2/3" }}
+    >
+      <div className="skeleton w-full h-full" />
+    </div>
+  );
+}
+
+function SearchBar({ value, onChange, onSubmit, onChoose, platform }) {
+  const [focused, setFocused] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [suggestionError, setSuggestionError] = useState("");
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const blurTimer = useRef(null);
+  const query = value.trim();
+
+  useEffect(() => {
+    if (!focused || query.length < 2) {
+      setSuggestions([]);
+      setSuggestionError("");
+      setLoadingSuggestions(false);
+      return undefined;
+    }
+
+    setSuggestions([]);
+    setSuggestionError("");
+    setLoadingSuggestions(true);
+    setActiveIndex(-1);
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      setLoadingSuggestions(true);
+      setSuggestionError("");
+      api
+        .search(query, 1, platform)
+        .then((data) => {
+          if (cancelled) return;
+          setSuggestions((data.items || []).slice(0, 6));
+          setActiveIndex(-1);
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          setSuggestions([]);
+          setSuggestionError(error.message);
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingSuggestions(false);
+        });
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [focused, platform, query]);
+
+  const chooseSuggestion = (item) => {
+    clearTimeout(blurTimer.current);
+    setFocused(false);
+    onChoose(item);
+  };
+
+  const handleKeyDown = (event) => {
+    if (event.key === "ArrowDown" && suggestions.length) {
+      event.preventDefault();
+      setActiveIndex((index) => (index + 1) % suggestions.length);
+    } else if (event.key === "ArrowUp" && suggestions.length) {
+      event.preventDefault();
+      setActiveIndex((index) =>
+        index <= 0 ? suggestions.length - 1 : index - 1
+      );
+    } else if (event.key === "Escape") {
+      setFocused(false);
+      setActiveIndex(-1);
+    } else if (
+      event.key === "Enter" &&
+      activeIndex >= 0 &&
+      suggestions[activeIndex]
+    ) {
+      event.preventDefault();
+      chooseSuggestion(suggestions[activeIndex]);
+    }
+  };
+
+  const showMenu =
+    focused &&
+    query.length >= 2 &&
+    (loadingSuggestions || suggestions.length > 0 || suggestionError);
+
+  return (
+    <form onSubmit={onSubmit} className="search-form">
+      <div className="search-control-wrap">
+        <div className="home-search">
+          <SearchIcon className="h-5 w-5 flex-shrink-0" />
+          <input
+            type="search"
+            role="combobox"
+            aria-label="Search anime"
+            aria-autocomplete="list"
+            aria-expanded={Boolean(showMenu)}
+            aria-controls="anime-search-suggestions"
+            aria-activedescendant={
+              activeIndex >= 0 ? `anime-suggestion-${activeIndex}` : undefined
+            }
+            placeholder={`Search ${platform} anime`}
+            value={value}
+            onFocus={() => {
+              clearTimeout(blurTimer.current);
+              setFocused(true);
+            }}
+            onBlur={() => {
+              blurTimer.current = setTimeout(() => setFocused(false), 120);
+            }}
+            onKeyDown={handleKeyDown}
+            onChange={(event) => onChange(event.target.value)}
+          />
+          {value && (
+            <button
+              type="button"
+              className="clear-search"
+              onClick={() => onChange("")}
+              aria-label="Clear search"
+            >
+              ×
+            </button>
+          )}
+        </div>
+        {showMenu && (
+          <div
+            id="anime-search-suggestions"
+            className="suggestion-menu"
+            role="listbox"
+            aria-label="Search suggestions"
+          >
+            {loadingSuggestions && (
+              <p className="suggestion-status">Looking for anime…</p>
+            )}
+            {suggestions.map((item, index) => (
+              <button
+                type="button"
+                id={`anime-suggestion-${index}`}
+                key={`${item.url || item.link}-${index}`}
+                className={`suggestion-option ${
+                  activeIndex === index ? "is-active" : ""
+                }`}
+                role="option"
+                aria-selected={activeIndex === index}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => chooseSuggestion(item)}
+              >
+                {item.thumbnail ? (
+                  <img src={item.thumbnail} alt="" loading="lazy" />
+                ) : (
+                  <span className="suggestion-placeholder" aria-hidden="true">
+                    <AnimeArtworkIcon className="h-5 w-5" />
+                  </span>
+                )}
+                <span className="suggestion-copy">
+                  <span className="suggestion-title">{item.title}</span>
+                  {item.episodeLabel && (
+                    <span className="suggestion-detail">{item.episodeLabel}</span>
+                  )}
+                </span>
+                <span className="suggestion-enter" aria-hidden="true">↵</span>
+              </button>
+            ))}
+            {suggestionError && (
+              <p className="suggestion-status">
+                Suggestions unavailable: {suggestionError}
+              </p>
+            )}
+            {!loadingSuggestions && !suggestionError && suggestions.length === 0 && (
+              <p className="suggestion-status">No matches found.</p>
+            )}
+          </div>
+        )}
+      </div>
+      <button type="submit" className="search-submit">Search</button>
+    </form>
+  );
+}
+
+/** Individual anime card */
+function AnimeCard({ item, isActive, onClick }) {
+  const [imgError, setImgError] = useState(false);
+
+  return (
+    <article
+      className={`anime-card group ${isActive ? "active" : ""}`}
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === "Enter" && onClick()}
+      aria-label={`Watch ${item.title}`}
+    >
+      {/* Thumbnail */}
+      {!imgError && item.thumbnail ? (
+        <img
+          src={item.thumbnail}
+          alt={item.title}
+          loading="lazy"
+          className="w-full h-full object-cover transition-transform duration-500
+                     group-hover:scale-110"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center bg-navy-800">
+          <AnimeArtworkIcon className="h-9 w-9 opacity-50" />
+        </div>
+      )}
+
+      {/* Gradient overlay */}
+      <div
+        className="absolute inset-0 transition-opacity duration-300"
+        style={{
+          background:
+            "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.15) 48%, transparent 100%)",
+        }}
+      />
+
+      {/* Episode badge */}
+      {item.episodeLabel && (
+        <span className="ep-pill">{item.episodeLabel}</span>
+      )}
+
+      {/* Title on hover */}
+      <div
+        className="absolute bottom-0 left-0 right-0 p-3"
+      >
+        <p className="text-ivory text-sm font-semibold line-clamp-2 leading-tight">
+          {item.title}
+        </p>
+        {item.platform && (
+          <p className="text-gold text-[10px] mt-0.5 font-mono">
+            {item.platform}
+          </p>
+        )}
+      </div>
+
+      {/* Active indicator */}
+      {isActive && (
+        <div className="absolute inset-0 ring-2 ring-gold rounded-xl pointer-events-none" />
+      )}
+    </article>
+  );
+}
+
+/** Episode list row */
+function EpisodeRow({ ep, isActive, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full text-left px-4 py-3 rounded-xl flex items-center gap-3
+                  transition-all duration-150 group
+                  ${
+                    isActive
+                      ? "bg-gold/20 border border-gold/40"
+                      : "hover:bg-white/5 border border-transparent"
+                  }`}
+    >
+      <div
+        className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0
+                    ${
+                      isActive
+                        ? "bg-gold text-navy"
+                        : "bg-navy-800/60 text-gold group-hover:bg-azure/40"
+                    }`}
+      >
+        {ep.episode}
+      </div>
+      <div className="flex flex-col min-w-0 flex-1">
+        <span
+          className={`text-sm font-medium truncate ${
+            isActive ? "text-ivory" : "text-ivory-muted"
+          }`}
+        >
+          {ep.label || `Episode ${ep.episode}`}
+        </span>
+        {ep.badge && (
+          <span className="text-[10px] font-mono text-gold/70 mt-0.5">
+            {ep.badge}
+          </span>
+        )}
+      </div>
+      {isActive && (
+        <span className="ml-auto text-gold text-xs font-semibold flex-shrink-0">
+          ▶ Now Playing
+        </span>
+      )}
+    </button>
+  );
+}
+
+/** Pagination controls */
+function Pagination({ page, totalPages, onPrev, onNext }) {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex items-center justify-center gap-4 mt-8">
+      <button
+        onClick={onPrev}
+        disabled={page <= 1}
+        className="btn-ghost disabled:opacity-30 disabled:cursor-not-allowed"
+      >
+        ← Prev
+      </button>
+      <span className="text-ivory-muted text-sm font-mono tabular-nums">
+        {page} / {totalPages}
+      </span>
+      <button
+        onClick={onNext}
+        disabled={page >= totalPages}
+        className="btn-ghost disabled:opacity-30 disabled:cursor-not-allowed"
+      >
+        Next →
+      </button>
+    </div>
+  );
+}
+
+/** Global error toast */
+function ErrorToast({ message, onDismiss }) {
+  useEffect(() => {
+    const t = setTimeout(onDismiss, 6000);
+    return () => clearTimeout(t);
+  }, [message, onDismiss]);
+
+  return (
+    <div
+      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-slide-up
+                 glass px-5 py-3 flex items-center gap-3 max-w-sm w-full"
+      role="alert"
+    >
+      <WarningIcon className="h-5 w-5 flex-shrink-0 text-red-400" />
+      <p className="text-ivory-muted text-sm flex-1">{message}</p>
+      <button
+        onClick={onDismiss}
+        className="text-ivory-muted hover:text-ivory transition-colors text-lg leading-none"
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Platform Selector Component on Top Right
+ * Displays the selected platform's logo and name, and allows picking any platform
+ */
 function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
   const [isOpen, setIsOpen] = useState(false);
   const [filter, setFilter] = useState("");
   const [logoError, setLogoError] = useState(false);
-  const ref = useRef(null);
+  const dropdownRef = useRef(null);
 
+  // Reset logo error when selectedPlatform changes
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) {
+    setLogoError(false);
+  }, [selectedPlatform?.name]);
+
+  // Close dropdown on outside click or ESC key
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsOpen(false);
       }
-    };
+    }
+    function handleKeyDown(event) {
+      if (event.key === "Escape") setIsOpen(false);
+    }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, []);
 
-  const filtered = useMemo(() => {
-    if (!filter) return platforms;
-    return platforms.filter((p) =>
-      p.name.toLowerCase().includes(filter.toLowerCase())
-    );
-  }, [platforms, filter]);
+  const filtered = platforms.filter(
+    (p) =>
+      p.name.toLowerCase().includes(filter.toLowerCase()) ||
+      (p.baseUrl && p.baseUrl.toLowerCase().includes(filter.toLowerCase()))
+  );
 
   return (
-    <div className="relative" ref={ref}>
-      {/* Top Right Selector Button */}
+    <div className="relative flex-shrink-0" ref={dropdownRef}>
+      {/* ── Top-Right Platform Button (Logo + Name) ── */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="liquidGlass-wrapper px-3 py-1.5 h-10 border border-white/15 gap-2.5 max-w-[160px] sm:max-w-[210px]"
-        title={`Selected Platform: ${selectedPlatform?.name || "AniKoto"}`}
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl border border-gold/30 bg-navy-800/80 hover:bg-azure/50 hover:border-gold/60 transition-all duration-200 shadow-sm group"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        title={`Selected Platform: ${selectedPlatform?.name || "Select Platform"}`}
       >
-        <div className="liquidGlass-effect" />
-        <div className="liquidGlass-shine" />
-        <div className="liquidGlass-constant" />
-        <div className="liquidGlass-text flex items-center gap-2">
-          {/* Logo icon */}
-          <div className="w-5 h-5 rounded-full overflow-hidden bg-black/60 flex items-center justify-center border border-white/20 flex-shrink-0">
-            {!logoError && selectedPlatform?.iconUrl ? (
-              <img
-                src={selectedPlatform.iconUrl}
-                alt=""
-                className="w-full h-full object-contain"
-                onError={() => setLogoError(true)}
-              />
-            ) : (
-              <span className="text-[10px] font-bold text-white">
-                {selectedPlatform?.name?.charAt(0) || "A"}
-              </span>
-            )}
-          </div>
-
-          {/* Name */}
-          <div className="flex flex-col text-left leading-none min-w-0">
-            <span className="text-[9px] uppercase tracking-wider text-white/50 font-bold hidden sm:block">
-              Platform
-            </span>
-            <span className="text-xs font-semibold text-white truncate max-w-[70px] sm:max-w-[110px]">
-              {selectedPlatform?.name || "AniKoto"}
-            </span>
-          </div>
-
-          {/* Chevron */}
-          <ChevronDownIcon
-            className={`w-3.5 h-3.5 text-white/60 transition-transform duration-200 ${
-              isOpen ? "rotate-180" : ""
-            }`}
-          />
+        {/* Platform Logo */}
+        <div className="w-6 h-6 rounded-md overflow-hidden bg-navy-900 flex items-center justify-center border border-white/10 flex-shrink-0 p-0.5">
+          {!logoError && selectedPlatform?.iconUrl ? (
+            <img
+              src={selectedPlatform.iconUrl}
+              alt={selectedPlatform.name}
+              className="w-full h-full object-contain"
+              onError={() => setLogoError(true)}
+            />
+          ) : (
+            <DisplayIcon className="h-4 w-4 text-ivory-muted" />
+          )}
         </div>
+
+        {/* Platform Name on Top Right */}
+        <div className="flex flex-col text-left leading-none">
+          <span className="text-[9px] uppercase tracking-wider text-gold/80 font-mono font-bold">
+            Source
+          </span>
+          <span className="text-sm font-bold text-ivory tracking-tight truncate max-w-[100px] sm:max-w-[140px] group-hover:text-gold transition-colors">
+            {selectedPlatform?.name || "AniKoto"}
+          </span>
+        </div>
+
+        {/* Dropdown Chevron */}
+        <span
+          className={`text-[10px] text-gold/80 transition-transform duration-200 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        >
+          ▼
+        </span>
       </button>
 
-      {/* Flyout Menu */}
+      {/* ── Dropdown Menu ── */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-64 sm:w-72 rounded-2xl bg-black/80 backdrop-blur-2xl border border-white/20 p-2.5 z-50 shadow-2xl animate-fade-in">
-          <div className="flex items-center justify-between px-2 py-1 mb-2">
-            <span className="text-xs font-semibold text-white/70">Switch Platform</span>
-            <span className="text-[10px] font-mono text-white/50 bg-white/10 px-2 py-0.5 rounded-full">
-              {platforms.length} sources
-            </span>
+        <div className="absolute right-0 mt-2 w-72 rounded-2xl glass p-2.5 z-50 shadow-2xl border border-gold/40 animate-slide-up backdrop-blur-2xl">
+          {/* Header & Search */}
+          <div className="p-1 mb-2">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-ivory">Select Platform</span>
+              <span className="text-[10px] font-mono text-gold bg-gold/15 px-2 py-0.5 rounded-full border border-gold/25">
+                {platforms.length} platforms
+              </span>
+            </div>
+            <div className="relative">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ivory-muted/60 pointer-events-none">
+                <SearchIcon className="h-3.5 w-3.5" />
+              </span>
+              <input
+                type="text"
+                placeholder="Search platforms..."
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                className="w-full bg-navy-900/90 border border-white/10 rounded-lg pl-7 pr-2.5 py-1.5 text-xs text-ivory placeholder-ivory-muted/60 outline-none focus:border-gold/50"
+                autoFocus
+              />
+            </div>
           </div>
 
-          {/* Search input */}
-          <div className="relative mb-2">
-            <input
-              type="text"
-              placeholder="Filter platform..."
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="w-full bg-white/10 border border-white/15 rounded-xl px-3 py-1.5 text-xs text-white placeholder-white/40 outline-none focus:border-white/40"
-              autoFocus
-            />
-          </div>
-
-          {/* List */}
-          <div className="max-h-60 overflow-y-auto space-y-1 no-scrollbar">
+          {/* Platforms List */}
+          <div className="max-h-64 overflow-y-auto space-y-1 no-scrollbar pr-0.5">
             {filtered.map((p) => {
-              const isSelected = selectedPlatform?.name?.toLowerCase() === p.name.toLowerCase();
+              const isSelected =
+                selectedPlatform?.name?.toLowerCase() === p.name.toLowerCase();
               return (
                 <button
                   key={p.id || p.name}
@@ -306,16 +769,16 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
                     setIsOpen(false);
                     setFilter("");
                   }}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left text-xs transition-colors ${
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left text-xs transition-all ${
                     isSelected
-                      ? "bg-white/20 text-white font-semibold border border-white/30"
-                      : "text-white/70 hover:text-white hover:bg-white/10"
+                      ? "bg-gold/20 text-ivory border border-gold/40 shadow-sm"
+                      : "text-ivory-muted hover:text-ivory hover:bg-white/5 border border-transparent"
                   }`}
                 >
-                  <div className="w-5 h-5 rounded-full bg-black/50 p-0.5 border border-white/10 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                  <div className="w-5 h-5 rounded bg-navy-900/80 p-0.5 border border-white/10 flex-shrink-0 flex items-center justify-center overflow-hidden">
                     <img
                       src={p.iconUrl}
-                      alt=""
+                      alt={p.name}
                       className="w-full h-full object-contain"
                       onError={(e) => {
                         e.currentTarget.style.display = "none";
@@ -323,15 +786,28 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
                     />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="truncate font-medium">{p.name}</p>
-                    <p className="text-[10px] text-white/40 truncate font-mono">
+                    <p
+                      className={`font-semibold truncate ${
+                        isSelected ? "text-gold" : "text-ivory"
+                      }`}
+                    >
+                      {p.name}
+                    </p>
+                    <p className="text-[10px] text-ivory-muted/60 truncate font-mono">
                       {p.baseUrl ? p.baseUrl.replace(/^https?:\/\//, "") : ""}
                     </p>
                   </div>
-                  {isSelected && <span className="text-white text-xs">✓</span>}
+                  {isSelected && (
+                    <span className="text-gold font-bold text-xs">✓</span>
+                  )}
                 </button>
               );
             })}
+            {filtered.length === 0 && (
+              <p className="text-center text-xs text-ivory-muted py-4">
+                No matching platform
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -339,57 +815,7 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
   );
 }
 
-// ─── Apple TV Anime Card ──────────────────────────────────────────────────────
-
-function AnimeCard({ item, onClick }) {
-  const [imgLoaded, setImgLoaded] = useState(false);
-  const [imgError, setImgError] = useState(false);
-
-  return (
-    <div
-      onClick={onClick}
-      className="apple-card group"
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => e.key === "Enter" && onClick()}
-    >
-      {/* Background Image */}
-      {!imgError && item.thumbnail ? (
-        <img
-          src={item.thumbnail}
-          alt={item.title}
-          loading="lazy"
-          className={`w-full h-full object-cover transition-all duration-300 ${
-            imgLoaded ? "opacity-100 scale-100" : "opacity-0 scale-105"
-          }`}
-          onLoad={() => setImgLoaded(true)}
-          onError={() => setImgError(true)}
-        />
-      ) : (
-        <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center bg-zinc-900 text-white/40">
-          <span className="text-2xl mb-1">🎬</span>
-          <span className="text-xs line-clamp-2">{item.title}</span>
-        </div>
-      )}
-
-      {/* Episode / Status badge on top right */}
-      {item.episodeLabel && (
-        <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/70 backdrop-blur-md text-white border border-white/20">
-          {item.episodeLabel}
-        </div>
-      )}
-
-      {/* Bottom gradient and title */}
-      <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black via-black/70 to-transparent flex flex-col justify-end">
-        <h4 className="text-xs sm:text-sm font-semibold text-white line-clamp-2 leading-snug group-hover:text-white">
-          {item.title}
-        </h4>
-      </div>
-    </div>
-  );
-}
-
-// ─── Main Application ─────────────────────────────────────────────────────────
+// ─── Main App ─────────────────────────────────────────────────────────────────
 
 export default function App() {
   // ── Platform state ──────────────────────────────────────────────────────────
@@ -405,314 +831,457 @@ export default function App() {
         if (match) return match;
       }
     } catch (_) {}
-    return DEFAULT_PLATFORMS[0];
+    return DEFAULT_PLATFORMS[0]; // Default: AniKoto
   });
 
-  // ── URL Search Synchronization (?q=search_query) ────────────────────────────
-  const getUrlQuery = () => new URLSearchParams(window.location.search).get("q") || "";
-  const [searchParam, setSearchParam] = useState(getUrlQuery);
-  const [searchInput, setSearchInput] = useState(getUrlQuery);
-
-  // Sync with browser forward/back buttons
-  useEffect(() => {
-    const handlePopState = () => {
-      const query = getUrlQuery();
-      setSearchParam(query);
-      setSearchInput(query);
-      if (!query) {
-        setView("browse");
-      }
-    };
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
-
-  const updateSearchUrl = (query) => {
-    const trimmed = query.trim();
-    const url = new URL(window.location.href);
-    if (trimmed) {
-      url.searchParams.set("q", trimmed);
-    } else {
-      url.searchParams.delete("q");
-    }
-    window.history.pushState({}, "", `${url.pathname}${url.search}${url.hash}`);
-    setSearchParam(trimmed);
-  };
-
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    updateSearchUrl(searchInput);
-    setView("browse");
-  };
-
-  const handleClearSearch = () => {
-    setSearchInput("");
-    updateSearchUrl("");
-    setView("browse");
-  };
-
-  // ── Navigation & Views ──────────────────────────────────────────────────────
+  // ── View state ──────────────────────────────────────────────────────────────
+  const initialQuery = new URLSearchParams(window.location.search).get("q") || "";
   const [view, setView] = useState("browse"); // "browse" | "episodes" | "playing"
-  const [homeTab, setHomeTab] = useState("latest"); // "latest" | "popular"
+  const [episodesSheetOpen, setEpisodesSheetOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
+  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
+  const episodeSheetTouchStartY = useRef(null);
+  const episodeSheetIgnoreClickUntil = useRef(0);
 
-  // ── Catalog Data ───────────────────────────────────────────────────────────
-  const [catalogList, setCatalogList] = useState([]);
-  const [catalogPage, setCatalogPage] = useState(1);
+  // ── Data state ──────────────────────────────────────────────────────────────
+  const [animeList, setAnimeList] = useState([]);
+  const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [loadingCatalog, setLoadingCatalog] = useState(true);
+  const [loadingList, setLoadingList] = useState(Boolean(initialQuery));
+  const [popularAnime, setPopularAnime] = useState([]);
+  const [loadingPopular, setLoadingPopular] = useState(true);
+  const [popularError, setPopularError] = useState("");
 
-  // ── Featured Anime (for Apple TV Hero Spotlight) ────────────────────────────
-  const [featuredAnime, setFeaturedAnime] = useState(null);
-
-  // ── Selected Anime & Playback ───────────────────────────────────────────────
-  const [selectedAnime, setSelectedAnime] = useState(null);
-  const [episodeData, setEpisodeData] = useState(null);
+  const [selectedAnime, setSelectedAnime] = useState(null); // { title, url, thumbnail }
+  const [episodeData, setEpisodeData] = useState(null); // { episodes: [], totalEpisodes, ... }
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
-  const [activeEpisode, setActiveEpisode] = useState(null);
-  const [streamUrl, setStreamUrl] = useState(null);
-  const [subtitles, setSubtitles] = useState([]);
+
+  const [activeEpisode, setActiveEpisode] = useState(null); // { episode, url }
+  const [streamUrl, setStreamUrl] = useState(null); // proxied HLS URL
+  const [subtitles, setSubtitles] = useState([]); // available subtitle tracks
   const [loadingStream, setLoadingStream] = useState(false);
-  const [availableServers, setAvailableServers] = useState({ sub: [], dub: [] });
-  const [currentAudioType, setCurrentAudioType] = useState("sub");
-  const [currentServer, setCurrentServer] = useState(null);
-  const [errorToast, setErrorToast] = useState(null);
-  const [episodeSearch, setEpisodeSearch] = useState("");
+
+  // Audio type & server selection state
+  const [currentType, setCurrentType] = useState("sub"); // "sub" | "dub"
+  const [currentServer, setCurrentServer] = useState(""); // active server name
+  const [availableServers, setAvailableServers] = useState({
+    sub: [],
+    dub: [],
+  });
+  const [playbackTime, setPlaybackTime] = useState(0);
+
+  // ── Error state ─────────────────────────────────────────────────────────────
+  const [error, setError] = useState(null);
 
   const showError = useCallback((msg) => {
-    setErrorToast(msg);
-    setTimeout(() => setErrorToast(null), 5000);
+    setError(msg);
+    console.error("[AnimeX]", msg);
   }, []);
 
-  // ── Load Platforms from Worker on mount ──────────────────────────────────────
+  const handleEpisodeSheetTouchStart = (event) => {
+    episodeSheetTouchStartY.current = event.touches[0]?.clientY ?? null;
+  };
+
+  const handleEpisodeSheetTouchEnd = (event) => {
+    const startY = episodeSheetTouchStartY.current;
+    episodeSheetTouchStartY.current = null;
+    if (startY === null) return;
+
+    const distance = event.changedTouches[0].clientY - startY;
+    if (Math.abs(distance) < 40) return;
+    episodeSheetIgnoreClickUntil.current = Date.now() + 500;
+    if (distance < 0) setEpisodesSheetOpen(true);
+    else setEpisodesSheetOpen(false);
+  };
+
+  const toggleEpisodesSheet = () => {
+    if (Date.now() < episodeSheetIgnoreClickUntil.current) return;
+    setEpisodesSheetOpen((open) => !open);
+  };
+
+  const chooseSuggestion = (item) => {
+    setSearchQuery(item.title);
+    setDebouncedQuery(item.title);
+    setPage(1);
+    setView("browse");
+    const url = new URL(window.location.href);
+    url.searchParams.set("q", item.title);
+    window.history.pushState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  };
+
+  const submitSearch = (event) => {
+    event.preventDefault();
+    const query = searchQuery.trim();
+    setSearchQuery(query);
+    setDebouncedQuery(query);
+    setPage(1);
+    setView("browse");
+
+    const url = new URL(window.location.href);
+    if (query) url.searchParams.set("q", query);
+    else url.searchParams.delete("q");
+    window.history.pushState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  };
+
+  const clearSearchUrl = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("q");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  };
+
   useEffect(() => {
-    api.platforms()
+    const syncSearchFromUrl = () => {
+      const query = new URLSearchParams(window.location.search).get("q") || "";
+      setSearchQuery(query);
+      setDebouncedQuery(query);
+      setPage(1);
+      setView("browse");
+    };
+    window.addEventListener("popstate", syncSearchFromUrl);
+    return () => window.removeEventListener("popstate", syncSearchFromUrl);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingPopular(true);
+    setPopularError("");
+    api
+      .popular(1, selectedPlatform.name)
       .then((data) => {
+        if (!cancelled) setPopularAnime((data.items || []).slice(0, 6));
+      })
+      .catch((e) => {
+        if (!cancelled) setPopularError(e.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingPopular(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPlatform.name]);
+
+  // ── Fetch available platforms on mount ──────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .platforms()
+      .then((data) => {
+        if (cancelled) return;
         const list = Array.isArray(data) ? data : data.platforms || [];
         if (list.length > 0) {
           setPlatforms(list);
+          // If current selectedPlatform is in list, sync details
           setSelectedPlatform((curr) => {
-            const found = list.find((p) => p.name.toLowerCase() === curr.name.toLowerCase());
-            return found || curr;
+            const updated = list.find(
+              (p) => p.name.toLowerCase() === curr.name.toLowerCase()
+            );
+            return updated || curr;
           });
         }
       })
-      .catch((e) => console.warn("Notice: platforms fetch fallback to default", e.message));
+      .catch((e) => {
+        console.warn("[AnimeX] Platforms list load notice:", e.message);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // ── Fetch Catalog (Search or Browse Tabs) ───────────────────────────────────
+  // ── Switch platform handler ─────────────────────────────────────────────────
+  const handleSelectPlatform = useCallback(
+    (platform) => {
+      if (platform.name === selectedPlatform.name) return;
+      setSelectedPlatform(platform);
+      try {
+        localStorage.setItem("animex_platform", JSON.stringify(platform));
+      } catch (_) {}
+
+      // Reset state to browse newly selected platform
+      setView("browse");
+      setSelectedAnime(null);
+      setEpisodeData(null);
+      setActiveEpisode(null);
+      setStreamUrl(null);
+      setSubtitles([]);
+      setPlaybackTime(0);
+      setSearchQuery("");
+      setDebouncedQuery("");
+      setPage(1);
+      clearSearchUrl();
+      setEpisodesSheetOpen(false);
+    },
+    [selectedPlatform.name]
+  );
+
+  // ── Fetch anime list when debouncedQuery, page, or selectedPlatform changes ──
   useEffect(() => {
+    if (!debouncedQuery.trim()) {
+      setAnimeList([]);
+      setTotalPages(1);
+      setLoadingList(false);
+      return undefined;
+    }
+
     let cancelled = false;
-    setLoadingCatalog(true);
+    setLoadingList(true);
+    setAnimeList([]);
 
     const platformName = selectedPlatform.name;
+    const task = api.search(debouncedQuery, page, platformName);
 
-    // If URL has ?q=query, we search
-    if (searchParam) {
-      api.search(searchParam, catalogPage, platformName)
-        .then((data) => {
-          if (cancelled) return;
-          setCatalogList(data.items || []);
-          setTotalPages(data.totalPages || 1);
-        })
-        .catch((e) => {
-          if (!cancelled) showError(`Failed searching ${platformName}: ${e.message}`);
-        })
-        .finally(() => {
-          if (!cancelled) setLoadingCatalog(false);
-        });
-    } else {
-      // Home page: Browse Latest or Popular
-      const fetchPromise =
-        homeTab === "latest"
-          ? api.latest(catalogPage, platformName)
-          : api.popular(catalogPage, platformName);
-
-      fetchPromise
-        .then((data) => {
-          if (cancelled) return;
-          const items = data.items || [];
-          setCatalogList(items);
-          setTotalPages(data.totalPages || 1);
-          // Set featured anime from popular/latest items if not already set
-          if (items.length > 0 && (!featuredAnime || catalogPage === 1)) {
-            setFeaturedAnime(items[0]);
-          }
-        })
-        .catch((e) => {
-          if (!cancelled) showError(`Failed loading ${platformName} ${homeTab}: ${e.message}`);
-        })
-        .finally(() => {
-          if (!cancelled) setLoadingCatalog(false);
-        });
-    }
+    task
+      .then((data) => {
+        if (cancelled) return;
+        setAnimeList(data.items || []);
+        setTotalPages(data.totalPages || 1);
+      })
+      .catch((e) => {
+        if (!cancelled)
+          showError(`Failed to load anime from ${platformName}: ${e.message}`);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingList(false);
+      });
 
     return () => {
       cancelled = true;
     };
-  }, [searchParam, homeTab, catalogPage, selectedPlatform.name, showError]);
+  }, [debouncedQuery, page, selectedPlatform.name, showError]);
 
-  // ── Switch Platform ─────────────────────────────────────────────────────────
-  const handleSelectPlatform = (platform) => {
-    if (platform.name === selectedPlatform.name) return;
-    setSelectedPlatform(platform);
-    try {
-      localStorage.setItem("animex_platform", JSON.stringify(platform));
-    } catch (_) {}
+  // ── Select anime → load episodes ────────────────────────────────────────────
+  const handleAnimeClick = useCallback(
+    async (item) => {
+      if (selectedAnime?.url === item.url && view === "episodes") return;
+      setSelectedAnime(item);
+      setView("episodes");
+      setEpisodeData(null);
+      setActiveEpisode(null);
+      setStreamUrl(null);
+      setSubtitles([]);
+      setPlaybackTime(0);
+      setAvailableServers({ sub: [], dub: [] });
+      setCurrentServer("");
+      setEpisodesSheetOpen(false);
+      setLoadingEpisodes(true);
 
-    // Reset view
-    setView("browse");
-    setSelectedAnime(null);
-    setEpisodeData(null);
-    setActiveEpisode(null);
-    setStreamUrl(null);
-    setCatalogPage(1);
-    setFeaturedAnime(null);
-  };
-
-  // ── Anime Card Click ────────────────────────────────────────────────────────
-  const handleAnimeClick = async (anime) => {
-    setSelectedAnime(anime);
-    setView("episodes");
-    setLoadingEpisodes(true);
-    setEpisodeData(null);
-    setActiveEpisode(null);
-    setStreamUrl(null);
-    setEpisodeSearch("");
-
-    try {
-      const data = await api.episodes(anime.url, selectedPlatform.name);
-      setEpisodeData(data);
-    } catch (e) {
-      showError(`Could not load episodes from ${selectedPlatform.name}: ${e.message}`);
-    } finally {
-      setLoadingEpisodes(false);
-    }
-  };
-
-  // ── Episode Click (Extract Stream & Play) ───────────────────────────────────
-  const handleEpisodeClick = async (ep, audioType = "sub", serverName = null) => {
-    setActiveEpisode(ep);
-    setLoadingStream(true);
-    setView("playing");
-
-    try {
-      const res = await api.extract(ep.url, {
-        type: audioType,
-        server: serverName,
-        platform: selectedPlatform.name,
-      });
-
-      if (!res.streamUrl) {
-        throw new Error("No playable video stream returned from provider.");
+      try {
+        const data = await api.episodes(item.url, selectedPlatform.name);
+        setEpisodeData(data);
+      } catch (e) {
+        showError(
+          `Failed to load episodes from ${selectedPlatform.name}: ${e.message}`
+        );
+        setView("browse");
+      } finally {
+        setLoadingEpisodes(false);
       }
+    },
+    [selectedAnime, view, selectedPlatform.name, showError]
+  );
 
-      setStreamUrl(api.proxyHls(res.streamUrl));
-      setSubtitles(res.subtitles || []);
-      setCurrentAudioType(res.audioType || audioType);
-      setCurrentServer(res.server || serverName);
-      setAvailableServers({
-        sub: res.availableServers?.sub || [],
-        dub: res.availableServers?.dub || [],
-      });
-    } catch (e) {
-      showError(`Stream extraction failed: ${e.message}`);
-    } finally {
-      setLoadingStream(false);
+  // ── Select episode → extract & proxy stream ─────────────────────────────────
+  const handleEpisodeClick = useCallback(
+    async (
+      ep,
+      type = currentType,
+      server = "",
+      linkId = "",
+      keepTime = false
+    ) => {
+      const isDifferentEpisode = activeEpisode?.url !== ep.url;
+      if (!keepTime && isDifferentEpisode) {
+        setPlaybackTime(0);
+      }
+      setActiveEpisode(ep);
+      setEpisodesSheetOpen(false);
+      setLoadingStream(true);
+      setView("playing");
+
+      try {
+        const extracted = await api.extract(ep.url, {
+          type,
+          server,
+          linkId,
+          platform: selectedPlatform.name,
+        });
+        if (!extracted || !extracted.streamUrl) {
+          throw new Error("No stream found for this episode");
+        }
+        const proxied = api.proxyHls(extracted.streamUrl);
+        setStreamUrl(proxied);
+        setSubtitles(extracted.subtitles || []);
+        setCurrentType(extracted.type || type);
+        setCurrentServer(extracted.server || server || "");
+        if (
+          extracted.availableServers &&
+          (extracted.availableServers.sub?.length ||
+            extracted.availableServers.dub?.length)
+        ) {
+          setAvailableServers(extracted.availableServers);
+        }
+      } catch (e) {
+        showError(
+          `Failed to load stream from ${selectedPlatform.name}: ${e.message}`
+        );
+        if (isDifferentEpisode) {
+          setView("episodes");
+          setActiveEpisode(null);
+          setSubtitles([]);
+          setStreamUrl(null);
+        }
+      } finally {
+        setLoadingStream(false);
+      }
+    },
+    [activeEpisode, currentType, selectedPlatform.name, showError]
+  );
+
+  const handleSwitchType = useCallback(
+    (newType) => {
+      if (newType === currentType || !activeEpisode || loadingStream) return;
+      setCurrentType(newType);
+      handleEpisodeClick(activeEpisode, newType, "", "", true);
+    },
+    [currentType, activeEpisode, loadingStream, handleEpisodeClick]
+  );
+
+  const handleSwitchServer = useCallback(
+    (serverObj) => {
+      if (
+        serverObj.name.toLowerCase() === currentServer.toLowerCase() ||
+        !activeEpisode ||
+        loadingStream
+      )
+        return;
+      handleEpisodeClick(
+        activeEpisode,
+        currentType,
+        serverObj.name,
+        serverObj.linkId,
+        true
+      );
+    },
+    [
+      currentServer,
+      activeEpisode,
+      loadingStream,
+      currentType,
+      handleEpisodeClick,
+    ]
+  );
+
+  // ── Navigation helpers ───────────────────────────────────────────────────────
+  const goBack = useCallback(() => {
+    if (view === "playing") {
+      setView("episodes");
+      setEpisodesSheetOpen(false);
+      setStreamUrl(null);
+      setSubtitles([]);
+      setPlaybackTime(0);
+    } else {
+      setView("browse");
+      setSelectedAnime(null);
+      setEpisodeData(null);
+      setStreamUrl(null);
+      setSubtitles([]);
+      setActiveEpisode(null);
+      setPlaybackTime(0);
+      setAvailableServers({ sub: [], dub: [] });
+      setCurrentServer("");
     }
-  };
+  }, [view]);
 
-  // Filter episodes by search input
-  const filteredEpisodes = useMemo(() => {
-    if (!episodeData?.episodes) return [];
-    if (!episodeSearch.trim()) return episodeData.episodes;
-    return episodeData.episodes.filter(
-      (ep) =>
-        ep.name?.toLowerCase().includes(episodeSearch.toLowerCase()) ||
-        String(ep.episode)?.includes(episodeSearch)
-    );
-  }, [episodeData, episodeSearch]);
+  const closePlayer = useCallback(() => {
+    setView("episodes");
+    setEpisodesSheetOpen(false);
+    setStreamUrl(null);
+    setSubtitles([]);
+    setPlaybackTime(0);
+  }, []);
+
+  // ── Title for the browser tab ────────────────────────────────────────────────
+  useEffect(() => {
+    document.title = selectedAnime
+      ? `${selectedAnime.title} — ${selectedPlatform.name}`
+      : `${selectedPlatform.name} — AnimeX`;
+  }, [selectedAnime, selectedPlatform.name]);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col font-sans selection:bg-white/20">
-      {/* ════════════════════════════════════════════════════════════════════════
-         APPLE TV FROSTED GLASS NAVIGATION BAR
-         ════════════════════════════════════════════════════════════════════════ */}
-      <header className="apple-nav">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3 sm:gap-6">
-          {/* Brand Logo & Back to Home */}
-          <div className="flex items-center gap-3 flex-shrink-0">
-            {view !== "browse" && (
-              <button
-                onClick={() => {
-                  setView("browse");
-                  setStreamUrl(null);
-                }}
-                className="liquidGlass-wrapper w-9 h-9 border border-white/20"
-                title="Back to Catalog"
-                aria-label="Back to Catalog"
-              >
-                <div className="liquidGlass-effect" />
-                <div className="liquidGlass-shine" />
-                <div className="liquidGlass-constant" />
-                <div className="liquidGlass-text">
-                  <ChevronLeftIcon className="w-5 h-5 text-white" />
-                </div>
-              </button>
-            )}
-
-            <button
-              onClick={() => {
-                handleClearSearch();
-                setView("browse");
-                setStreamUrl(null);
-              }}
-              className="flex items-center gap-2 group text-left"
-            >
-              <div className="w-8 h-8 rounded-xl bg-white text-black font-black flex items-center justify-center text-sm tracking-tighter shadow-md">
-                AX
-              </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-bold tracking-tight text-white group-hover:text-white/80 transition-colors">
-                  AnimeX
-                </span>
-                <span className="text-[9px] uppercase tracking-widest text-white/40 font-mono">
-                  tvOS
-                </span>
-              </div>
-            </button>
-          </div>
-
-          {/* Central Apple TV Search Bar */}
-          <form
-            onSubmit={handleSearchSubmit}
-            className="flex-1 max-w-md relative"
+    <div className="app-shell min-h-screen flex flex-col">
+      {/* ── Navbar ── */}
+      <header className="glass-nav sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
+          {/* Top-Left Brand Logo (matches selected platform with AnimeX brand) */}
+          <button
+            onClick={() => {
+              setView("browse");
+              setSelectedAnime(null);
+              setSearchQuery("");
+              setDebouncedQuery("");
+              clearSearchUrl();
+              setEpisodesSheetOpen(false);
+            }}
+            className="flex items-center gap-2.5 flex-shrink-0 group"
           >
-            <div className="relative flex items-center">
-              <span className="absolute left-3.5 text-white/40 pointer-events-none">
-                <SearchIcon className="w-4 h-4" />
-              </span>
-              <input
-                type="search"
-                placeholder={`Search anime on ${selectedPlatform.name}...`}
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                className="apple-search-input pr-8"
-              />
-              {searchInput && (
-                <button
-                  type="button"
-                  onClick={handleClearSearch}
-                  className="absolute right-3 text-white/50 hover:text-white text-sm"
-                  aria-label="Clear Search"
-                >
-                  ✕
-                </button>
+            <div className="w-8 h-8 rounded-lg overflow-hidden bg-navy-800 border border-gold/30 flex items-center justify-center p-0.5 group-hover:scale-105 transition-transform">
+              {selectedPlatform?.iconUrl ? (
+                <img
+                  src={selectedPlatform.iconUrl}
+                  alt={selectedPlatform.name}
+                  className="w-full h-full object-contain"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
+              ) : (
+                <AnimeArtworkIcon className="h-5 w-5 text-ivory-muted" />
               )}
             </div>
-          </form>
+            <div className="flex flex-col text-left">
+              <span className="text-gradient-gold font-extrabold text-lg tracking-tight leading-none">
+                AnimeX
+              </span>
+              <span className="text-[10px] text-ivory-muted/70 font-mono leading-none mt-0.5">
+                {selectedPlatform?.name || "Anime"}
+              </span>
+            </div>
+          </button>
 
-          {/* Top Right: Selected Platform with Logo and Name */}
-          <div className="flex-shrink-0">
+          {/* Back breadcrumb */}
+          {view === "playing" && (
+            <button onClick={goBack} className="ios-back-button hidden sm:inline-flex">
+              <ChevronIcon className="h-4 w-4 rotate-90" />
+              <span>Episodes</span>
+            </button>
+          )}
+          {view === "episodes" && (
+            <button onClick={goBack} className="ios-back-button">
+              <ChevronIcon className="h-4 w-4 rotate-90" />
+              <span>Back</span>
+            </button>
+          )}
+
+          {/* Anime title in episodes/playing view */}
+          {view !== "browse" && selectedAnime && (
+            <div className="flex-1 ml-2 min-w-0">
+              <p className="text-ivory font-semibold text-sm truncate">
+                {selectedAnime.title}
+              </p>
+              {episodeData && (
+                <p className="text-gold text-xs font-mono truncate">
+                  {episodeData.totalEpisodes} episodes · {selectedPlatform.name}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* ── Top-Right Platform Selector (Logo + Name) ── */}
+          <div className="ml-auto flex-shrink-0">
             <PlatformSelector
               platforms={platforms}
               selectedPlatform={selectedPlatform}
@@ -722,405 +1291,403 @@ export default function App() {
         </div>
       </header>
 
-      {/* ════════════════════════════════════════════════════════════════════════
-         MAIN CONTENT AREA
-         ════════════════════════════════════════════════════════════════════════ */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 flex flex-col gap-8">
-        {/* ══════════════ VIEW: BROWSE / SEARCH RESULTS ══════════════ */}
+      {/* ── Main content ── */}
+      <main className={`main-content flex-1 max-w-7xl mx-auto w-full px-4 py-6 ${view === "playing" ? "main-playing" : ""}`}>
+        {/* ══════ BROWSE VIEW ══════ */}
         {view === "browse" && (
-          <>
-            {/* If NO search query: Apple TV Top Shelf Hero Banner */}
-            {!searchParam && featuredAnime && (
-              <section className="apple-hero animate-fade-in">
-                {featuredAnime.thumbnail && (
-                  <img
-                    src={featuredAnime.thumbnail}
-                    alt=""
-                    className="apple-hero-bg"
-                  />
-                )}
-                <div className="apple-hero-overlay" />
-
-                <div className="apple-hero-content">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-white/20 backdrop-blur-md text-white border border-white/20">
-                      Top Pick · {selectedPlatform.name}
-                    </span>
-                    {featuredAnime.episodeLabel && (
-                      <span className="text-xs text-white/70 font-medium">
-                        {featuredAnime.episodeLabel}
-                      </span>
-                    )}
-                  </div>
-
-                  <h1 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight mb-3 line-clamp-2">
-                    {featuredAnime.title}
-                  </h1>
-
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => handleAnimeClick(featuredAnime)}
-                      className="liquidGlass-wrapper px-5 py-2.5 h-11 border border-white/25 gap-2 font-semibold text-sm"
-                    >
-                      <div className="liquidGlass-effect" />
-                      <div className="liquidGlass-shine" />
-                      <div className="liquidGlass-constant" />
-                      <div className="liquidGlass-text flex items-center gap-2">
-                        <PlayMiniIcon className="w-4 h-4 text-white" />
-                        <span>Stream Now</span>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {/* Shelf Header & Category Switcher */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
-              <div>
-                <h2 className="apple-section-title">
-                  {searchParam ? (
-                    <>
-                      Results for <span className="text-white/60">“{searchParam}”</span>
-                    </>
-                  ) : homeTab === "latest" ? (
-                    "Latest Releases"
-                  ) : (
-                    "Top Popular Anime"
-                  )}
-                </h2>
-                <p className="text-xs text-white/40 mt-0.5">
-                  Streaming from {selectedPlatform.name}
+          !debouncedQuery ? (
+            <>
+              <section className="search-home animate-fade-in">
+                <div className="search-home-content">
+                <p className="eyebrow">ANIMEX · YOUR ANIME LIBRARY</p>
+                <h1>What are you<br className="sm:hidden" /> in the mood for?</h1>
+                <p className="search-home-copy">
+                  Find your next favorite on {selectedPlatform.name}.
                 </p>
+                <SearchBar
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  onSubmit={submitSearch}
+                  onChoose={chooseSuggestion}
+                  platform={selectedPlatform.name}
+                />
+                <p className="search-hint">Search results can be shared with a link.</p>
               </div>
-
-              {/* If on home (no searchParam), show tabs */}
-              {!searchParam ? (
-                <div className="flex items-center bg-white/5 p-1 rounded-full border border-white/10 self-start sm:self-auto">
-                  <button
-                    onClick={() => {
-                      setHomeTab("latest");
-                      setCatalogPage(1);
-                    }}
-                    className={`apple-tab ${homeTab === "latest" ? "active" : ""}`}
-                  >
-                    Latest Updates
-                  </button>
-                  <button
-                    onClick={() => {
-                      setHomeTab("popular");
-                      setCatalogPage(1);
-                    }}
-                    className={`apple-tab ${homeTab === "popular" ? "active" : ""}`}
-                  >
-                    Popular Hits
-                  </button>
+              </section>
+              <section className="home-recommendations animate-fade-in">
+                <div className="recommendations-heading">
+                  <div>
+                    <p className="eyebrow">PICKED FOR YOU</p>
+                    <h2>Popular anime</h2>
+                  </div>
+                  <span>{selectedPlatform.name}</span>
                 </div>
-              ) : (
-                <button
-                  onClick={handleClearSearch}
-                  className="apple-tab active self-start sm:self-auto"
-                >
-                  Clear search ✕
-                </button>
-              )}
+                {loadingPopular ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {Array.from({ length: 6 }).map((_, index) => (
+                      <SkeletonCard key={index} />
+                    ))}
+                  </div>
+                ) : popularAnime.length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {popularAnime.map((item, index) => (
+                      <AnimeCard
+                        key={`${item.url || item.link}-${index}`}
+                        item={item}
+                        isActive={selectedAnime?.url === item.url}
+                        onClick={() => handleAnimeClick(item)}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="recommendations-empty" role="status">
+                    {popularError
+                      ? `Popular anime could not be loaded: ${popularError}`
+                      : `No popular anime available from ${selectedPlatform.name} right now.`}
+                  </div>
+                )}
+              </section>
+            </>
+          ) : (
+          <div className="animate-fade-in">
+            <div className="results-search">
+              <SearchBar
+                value={searchQuery}
+                onChange={setSearchQuery}
+                onSubmit={submitSearch}
+                onChoose={chooseSuggestion}
+                platform={selectedPlatform.name}
+              />
+            </div>
+            <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
+              <h1 className="section-title mb-0">
+                Results for <span className="result-query">“{debouncedQuery}”</span>
+              </h1>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-ivory-muted font-mono">
+                  Source: <strong className="text-gold">{selectedPlatform.name}</strong>
+                </span>
+              </div>
             </div>
 
-            {/* Anime Grid */}
-            {loadingCatalog ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
-                {Array.from({ length: 12 }).map((_, i) => (
-                  <div key={i} className="apple-card skeleton" />
+            {loadingList ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                {Array.from({ length: 18 }).map((_, i) => (
+                  <SkeletonCard key={i} />
                 ))}
               </div>
-            ) : catalogList.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6 animate-fade-in">
-                {catalogList.map((item, idx) => (
-                  <AnimeCard
-                    key={`${item.url || item.link}-${idx}`}
-                    item={item}
-                    onClick={() => handleAnimeClick(item)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="glass p-12 text-center text-white/60 animate-fade-in">
-                <p className="text-lg font-medium text-white mb-2">No anime found</p>
-                <p className="text-sm">
-                  {searchParam
-                    ? `No matches for "${searchParam}" on ${selectedPlatform.name}. Try another query or switch source from the top right.`
-                    : `No items available on ${selectedPlatform.name} right now.`}
+            ) : animeList.length === 0 ? (
+              <div className="glass p-12 text-center animate-fade-in">
+                <SearchIcon className="mx-auto mb-4 h-10 w-10 text-ivory-muted" />
+                <p className="text-ivory font-semibold text-lg">
+                  No results found on {selectedPlatform.name}
                 </p>
-                {searchParam && (
+                <p className="text-ivory-muted text-sm mt-1">
+                  Try another search query or switch to another platform from the top right.
+                </p>
+                {debouncedQuery && (
                   <button
-                    onClick={handleClearSearch}
-                    className="apple-tab active mt-4"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setDebouncedQuery("");
+                      clearSearchUrl();
+                    }}
+                    className="btn-gold mt-4"
                   >
-                    Return to Catalog
+                    Clear search
                   </button>
                 )}
               </div>
-            )}
+            ) : (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 animate-slide-up">
+                  {animeList.map((item, i) => (
+                    <AnimeCard
+                      key={`${item.url || item.link}-${i}`}
+                      item={item}
+                      isActive={selectedAnime?.url === item.url}
+                      onClick={() => handleAnimeClick(item)}
+                    />
+                  ))}
+                </div>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-center gap-3 pt-4">
-                <button
-                  onClick={() => setCatalogPage((p) => Math.max(1, p - 1))}
-                  disabled={catalogPage <= 1}
-                  className="apple-tab disabled:opacity-30 disabled:pointer-events-none"
-                >
-                  Previous
-                </button>
-                <span className="text-xs font-mono text-white/50">
-                  Page {catalogPage} of {totalPages}
-                </span>
-                <button
-                  onClick={() => setCatalogPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={catalogPage >= totalPages}
-                  className="apple-tab disabled:opacity-30 disabled:pointer-events-none"
-                >
-                  Next
-                </button>
-              </div>
+                <Pagination
+                  page={page}
+                  totalPages={totalPages}
+                  onPrev={() => setPage((p) => Math.max(1, p - 1))}
+                  onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+                />
+              </>
             )}
-          </>
+          </div>
+          )
         )}
 
-        {/* ══════════════ VIEW: EPISODES & LIQUID GLASS PLAYER ══════════════ */}
+        {/* ══════ EPISODES VIEW ══════ */}
         {(view === "episodes" || view === "playing") && selectedAnime && (
-          <div className="animate-fade-in flex flex-col gap-6">
-            {/* Top Player Stage (when streaming) */}
+          <div className={`animate-fade-in ${view === "playing" ? "playing-layout" : ""}`}>
+            {/* ── Player (shown when streaming) ── */}
             {view === "playing" && (
-              <div className="w-full flex flex-col gap-3">
+              <div className="player-stage mb-6">
                 {loadingStream && !streamUrl ? (
-                  <div className="liquid-player-ctr vid-ctr flex items-center justify-center">
+                  <div className="player-wrapper flex items-center justify-center min-h-[320px]">
                     <div className="flex flex-col items-center gap-3">
-                      <div className="loader" />
-                      <p className="text-xs text-white/60">
-                        Connecting to stream on {selectedPlatform.name}…
+                      <div className="w-12 h-12 rounded-full border-4 border-gold/20 border-t-gold animate-spin" />
+                      <p className="text-ivory-muted text-sm">
+                        Extracting stream from {selectedPlatform.name}…
                       </p>
                     </div>
                   </div>
                 ) : streamUrl ? (
-                  <Player
-                    streamUrl={streamUrl}
-                    subtitles={subtitles}
-                    title={
-                      activeEpisode
-                        ? `${selectedAnime.title} · ${activeEpisode.name || `Episode ${activeEpisode.episode}`}`
-                        : selectedAnime.title
-                    }
-                    onClose={() => setView("episodes")}
-                    onError={showError}
-                  />
-                ) : null}
-
-                {/* Sub / Dub & Server Controls */}
-                {(availableServers.sub?.length > 0 || availableServers.dub?.length > 0) && (
-                  <div className="glass p-3 flex flex-wrap items-center justify-between gap-3">
-                    {/* Audio Selector (SUB / DUB) */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-white/50 uppercase font-semibold">
-                        Audio:
-                      </span>
-                      <div className="flex items-center bg-white/10 p-0.5 rounded-full border border-white/10">
-                        {availableServers.sub?.length > 0 && (
-                          <button
-                            onClick={() => {
-                              if (currentAudioType !== "sub" && activeEpisode) {
-                                handleEpisodeClick(activeEpisode, "sub", availableServers.sub[0]);
-                              }
-                            }}
-                            className={`audio-toggle-btn ${
-                              currentAudioType === "sub" ? "active" : "inactive"
-                            }`}
-                          >
-                            Sub
-                          </button>
-                        )}
-                        {availableServers.dub?.length > 0 && (
-                          <button
-                            onClick={() => {
-                              if (currentAudioType !== "dub" && activeEpisode) {
-                                handleEpisodeClick(activeEpisode, "dub", availableServers.dub[0]);
-                              }
-                            }}
-                            className={`audio-toggle-btn ${
-                              currentAudioType === "dub" ? "active" : "inactive"
-                            }`}
-                          >
-                            Dub
-                          </button>
-                        )}
-                      </div>
+                  <div className="space-y-3">
+                    <div className="relative">
+                      <Player
+                        streamUrl={streamUrl}
+                        subtitles={subtitles}
+                        initialTime={playbackTime}
+                        onTimeUpdate={(t) => setPlaybackTime(t)}
+                        title={
+                          activeEpisode
+                            ? `${selectedAnime.title} · EP ${activeEpisode.episode}`
+                            : selectedAnime.title
+                        }
+                        onClose={closePlayer}
+                        onError={showError}
+                      />
+                      {loadingStream && (
+                        <div className="absolute inset-0 bg-navy/60 backdrop-blur-sm flex items-center justify-center z-30 rounded-2xl">
+                          <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-navy-800/90 border border-gold/30">
+                            <div className="w-5 h-5 rounded-full border-2 border-gold/30 border-t-gold animate-spin" />
+                            <span className="text-xs font-semibold text-ivory">
+                              Switching stream…
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Server Switcher */}
-                    {availableServers[currentAudioType]?.length > 1 && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-white/50 uppercase font-semibold">
-                          Server:
-                        </span>
-                        <select
-                          value={currentServer || ""}
-                          onChange={(e) => {
-                            if (activeEpisode) {
-                              handleEpisodeClick(activeEpisode, currentAudioType, e.target.value);
-                            }
-                          }}
-                          className="bg-black/60 text-white text-xs rounded-xl px-2.5 py-1.5 border border-white/20 outline-none cursor-pointer"
-                        >
-                          {availableServers[currentAudioType].map((srv) => (
-                            <option key={srv} value={srv}>
-                              {srv}
-                            </option>
-                          ))}
-                        </select>
+                    {/* ── Sub/Dub & Server Controls ── */}
+                    {(availableServers.sub?.length > 0 ||
+                      availableServers.dub?.length > 0) && (
+                      <div className="glass px-4 py-3 flex flex-wrap items-center justify-between gap-3 animate-fade-in">
+                        {/* Audio Type Toggle (SUB / DUB) */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-ivory-muted/70">
+                            Audio:
+                          </span>
+                          <div className="flex items-center bg-navy-900/80 p-0.5 rounded-lg border border-white/10">
+                            <button
+                              onClick={() => handleSwitchType("sub")}
+                              disabled={
+                                loadingStream ||
+                                availableServers.sub?.length === 0
+                              }
+                              className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
+                                currentType === "sub"
+                                  ? "bg-gold text-navy shadow-sm"
+                                  : availableServers.sub?.length === 0
+                                  ? "opacity-30 cursor-not-allowed text-ivory-muted"
+                                  : "text-ivory-muted hover:text-ivory"
+                              }`}
+                            >
+                              SUB{" "}
+                              {availableServers.sub?.length > 0
+                                ? `(${availableServers.sub.length})`
+                                : ""}
+                            </button>
+                            <button
+                              onClick={() => handleSwitchType("dub")}
+                              disabled={
+                                loadingStream ||
+                                availableServers.dub?.length === 0
+                              }
+                              className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
+                                currentType === "dub"
+                                  ? "bg-gold text-navy shadow-sm"
+                                  : availableServers.dub?.length === 0
+                                  ? "opacity-30 cursor-not-allowed text-ivory-muted"
+                                  : "text-ivory-muted hover:text-ivory"
+                              }`}
+                            >
+                              DUB{" "}
+                              {availableServers.dub?.length > 0
+                                ? `(${availableServers.dub.length})`
+                                : ""}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Server Switcher */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-ivory-muted/70">
+                            Server:
+                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {(
+                              (currentType === "dub"
+                                ? availableServers.dub
+                                : availableServers.sub) || []
+                            ).map((srv) => {
+                              const isSelected =
+                                currentServer.toLowerCase() ===
+                                srv.name.toLowerCase();
+                              return (
+                                <button
+                                  key={srv.linkId || srv.name}
+                                  onClick={() => handleSwitchServer(srv)}
+                                  disabled={loadingStream || isSelected}
+                                  className={`px-2.5 py-1 text-xs rounded-lg border transition-all ${
+                                    isSelected
+                                      ? "bg-azure text-ivory border-gold/50 shadow-sm font-semibold"
+                                      : "bg-navy-800/60 text-ivory-muted border-white/10 hover:border-white/20 hover:text-ivory"
+                                  }`}
+                                >
+                                  {isSelected ? "● " : ""}
+                                  {srv.name}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
                       </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            )}
+
+            {/* ── Anime info header ── */}
+            <div className="anime-info-header glass p-5 mb-6 flex gap-5 items-start">
+              {/* Thumbnail */}
+              {selectedAnime.thumbnail && (
+                <img
+                  src={selectedAnime.thumbnail}
+                  alt={selectedAnime.title}
+                  className="w-20 h-28 object-cover rounded-xl flex-shrink-0 ring-1 ring-gold/20"
+                />
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <h2 className="text-xl font-bold text-ivory leading-tight">
+                    {selectedAnime.title}
+                  </h2>
+                  <span className="tag text-[10px]">
+                    {selectedPlatform.name}
+                  </span>
+                </div>
+                {episodeData?.description && (
+                  <p className="text-ivory-muted text-sm leading-relaxed line-clamp-3 mt-2">
+                    {episodeData.description}
+                  </p>
+                )}
+                {episodeData && (
+                  <div className="flex items-center gap-3 mt-3 flex-wrap">
+                    <span className="tag">
+                      {episodeData.totalEpisodes} Episodes
+                    </span>
+                    {episodeData.genres?.map((g) => (
+                      <span
+                        key={g}
+                        className="tag bg-white/5 text-ivory-muted border-white/10 text-[10px]"
+                      >
+                        {g}
+                      </span>
+                    ))}
+                    {activeEpisode && (
+                      <span className="tag bg-gold/20 text-gold border-gold/30">
+                        ▶ EP {activeEpisode.episode}
+                      </span>
                     )}
                   </div>
                 )}
               </div>
-            )}
+            </div>
 
-            {/* Anime Details & Episodes Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-              {/* Anime Information Card */}
-              <div className="glass p-5 flex flex-col sm:flex-row lg:flex-col gap-4">
-                {selectedAnime.thumbnail && (
-                  <img
-                    src={selectedAnime.thumbnail}
-                    alt=""
-                    className="w-32 sm:w-40 lg:w-full rounded-xl object-cover aspect-[2/3] border border-white/10 flex-shrink-0"
-                  />
-                )}
-                <div className="flex flex-col gap-2">
-                  <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">
-                    {selectedAnime.title}
-                  </h2>
-                  <p className="text-xs text-white/50 font-mono">
-                    Source: {selectedPlatform.name}
-                  </p>
-                  {episodeData?.description && (
-                    <p className="text-xs text-white/70 line-clamp-4 leading-relaxed mt-1">
-                      {episodeData.description}
-                    </p>
-                  )}
-                  {episodeData?.genre && (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {String(episodeData.genre)
-                        .split(",")
-                        .map((g, i) => (
-                          <span
-                            key={i}
-                            className="px-2 py-0.5 rounded-full text-[10px] bg-white/10 text-white/80 border border-white/10"
-                          >
-                            {g.trim()}
-                          </span>
-                        ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Episodes List Drawer */}
-              <div className="glass p-5 lg:col-span-2 flex flex-col gap-4">
-                <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3 flex-wrap">
-                  <h3 className="text-base font-bold text-white flex items-center gap-2">
-                    Episodes
-                    <span className="text-xs font-mono font-normal text-white/40">
-                      ({filteredEpisodes.length})
+            <section
+              className={`episode-sheet ${
+                view === "playing" ? "is-playing" : ""
+              } ${episodesSheetOpen ? "is-expanded" : ""}`}
+            >
+              <div
+                className="episode-sheet-handle"
+                onTouchStart={handleEpisodeSheetTouchStart}
+                onTouchEnd={handleEpisodeSheetTouchEnd}
+              >
+                <span className="episode-sheet-grabber" />
+                <button
+                  type="button"
+                  className="episode-sheet-toggle"
+                  onClick={toggleEpisodesSheet}
+                  aria-expanded={episodesSheetOpen}
+                  aria-label={
+                    episodesSheetOpen ? "Collapse episode list" : "Show episode list"
+                  }
+                >
+                  <span className="episode-sheet-heading">
+                    <span>Episodes</span>
+                    <span className="episode-sheet-count">
+                      {episodeData?.totalEpisodes ??
+                        episodeData?.episodes?.length ??
+                        0}
                     </span>
-                  </h3>
-
-                  {/* Filter episodes by number */}
-                  {episodeData?.episodes?.length > 10 && (
-                    <input
-                      type="text"
-                      placeholder="Find episode..."
-                      value={episodeSearch}
-                      onChange={(e) => setEpisodeSearch(e.target.value)}
-                      className="bg-white/10 border border-white/15 rounded-xl px-3 py-1 text-xs text-white placeholder-white/40 outline-none focus:border-white/30 w-36"
-                    />
-                  )}
-                </div>
+                  </span>
+                  <ChevronIcon
+                    className={`h-5 w-5 transition-transform ${
+                      episodesSheetOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+              </div>
+              <div className="episode-sheet-body">
+                <h3 className="section-title episode-list-title">Episodes</h3>
 
                 {loadingEpisodes ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-                    {Array.from({ length: 8 }).map((_, i) => (
-                      <div key={i} className="skeleton h-12 rounded-xl" />
+                  <div className="space-y-2">
+                    {Array.from({ length: 12 }).map((_, i) => (
+                      <div key={i} className="skeleton h-14 rounded-xl" />
                     ))}
                   </div>
-                ) : filteredEpisodes.length > 0 ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 max-h-[480px] overflow-y-auto no-scrollbar pr-1">
-                    {filteredEpisodes.map((ep, idx) => {
-                      const isCurrent = activeEpisode?.url === ep.url;
-                      return (
-                        <button
-                          key={ep.url || idx}
-                          onClick={() => handleEpisodeClick(ep)}
-                          className={`flex items-center gap-2 p-2.5 rounded-xl text-left text-xs transition-all border ${
-                            isCurrent
-                              ? "bg-white text-black font-bold border-white shadow-lg"
-                              : "bg-white/5 text-white/80 border-white/10 hover:bg-white/15 hover:text-white"
-                          }`}
-                        >
-                          <span
-                            className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] ${
-                              isCurrent ? "bg-black text-white" : "bg-white/10 text-white/70"
-                            }`}
-                          >
-                            {isCurrent ? "▶" : ep.episode || idx + 1}
-                          </span>
-                          <span className="truncate flex-1">
-                            {ep.name || `Episode ${ep.episode || idx + 1}`}
-                          </span>
-                        </button>
-                      );
-                    })}
+                ) : episodeData?.episodes?.length ? (
+                  <div className="episode-list-rows space-y-1.5 max-h-[60vh] overflow-y-auto pr-1 no-scrollbar">
+                    {episodeData.episodes.map((ep) => (
+                      <EpisodeRow
+                        key={ep.url}
+                        ep={ep}
+                        isActive={activeEpisode?.url === ep.url}
+                        onClick={() => handleEpisodeClick(ep)}
+                      />
+                    ))}
                   </div>
                 ) : (
-                  <div className="p-8 text-center text-white/40 text-xs">
-                    No episodes found for this anime on {selectedPlatform.name}.
+                  <div className="glass p-10 text-center">
+                    <p className="text-ivory-muted">
+                      No episodes found on {selectedPlatform.name} for this title.
+                    </p>
                   </div>
                 )}
               </div>
-            </div>
+            </section>
           </div>
         )}
       </main>
 
-      {/* ════════════════════════════════════════════════════════════════════════
-         APPLE TV MINIMALIST FOOTER
-         ════════════════════════════════════════════════════════════════════════ */}
-      <footer className="border-t border-white/10 py-6 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-white/40">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-white/60">AnimeX TV</span>
+      {/* ── Footer ── */}
+      <footer className="border-t border-white/5 mt-auto py-5">
+        <div className="max-w-7xl mx-auto px-4 flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2 text-ivory-muted text-xs">
+            <span>AnimeX · Multi-Platform Streaming</span>
             <span>·</span>
-            <span>Liquid Glass Architecture</span>
-            <span>·</span>
-            <span className="text-white/70">{selectedPlatform.name}</span>
+            <span className="text-gold font-semibold">{selectedPlatform.name}</span>
           </div>
-          <p className="font-mono text-[11px]">tvOS Dark Minimalist Edition</p>
+          <p className="text-ivory-muted/50 text-xs font-mono">
+            {new Date().getFullYear()}
+          </p>
         </div>
       </footer>
 
-      {/* ════════════════════════════════════════════════════════════════════════
-         ERROR NOTIFICATION TOAST
-         ════════════════════════════════════════════════════════════════════════ */}
-      {errorToast && (
-        <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 border border-white/20 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-fade-in max-w-sm">
-          <span className="text-red-400">⚠️</span>
-          <span className="text-xs flex-1">{errorToast}</span>
-          <button
-            onClick={() => setErrorToast(null)}
-            className="text-white/50 hover:text-white text-xs"
-          >
-            ✕
-          </button>
-        </div>
+      {/* ── Error toast ── */}
+      {error && (
+        <ErrorToast message={error} onDismiss={() => setError(null)} />
       )}
     </div>
   );
