@@ -2395,13 +2395,13 @@ export default function App() {
             <>
               <section className="search-home animate-fade-in">
                 <div className="search-home-content">
-                  <p className="eyebrow">ANIMEX · YOUR ANIME LIBRARY</p>
+                  <p className="eyebrow">WELCOME</p>
                   <h1>
                     What are you
-                    <br className="sm:hidden" /> in the mood for?
+                    <br className="sm:hidden" /> looking for?
                   </h1>
                   <p className="search-home-copy">
-                    Stream seamlessly on {selectedPlatform.name} and across 16+ anime extensions.
+                    Stream seamlessly on {selectedPlatform.name} and across 15+ anime extensions.
                   </p>
                   <SearchBar
                     value={searchQuery}
@@ -2457,7 +2457,6 @@ export default function App() {
                     </div>
                   )}
 
-                  <p className="search-hint">Search results can be shared with a link.</p>
                 </div>
               </section>
 
@@ -2754,16 +2753,7 @@ export default function App() {
 
       {/* ── Footer ── */}
       <footer className="border-t border-white/5 mt-auto py-5">
-        <div className="max-w-7xl mx-auto px-4 flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-2 text-ivory-muted text-xs">
-            <span>AnimeX · Multi-Platform Streaming</span>
-            <span>·</span>
-            <span className="text-gold font-semibold">{selectedPlatform.name}</span>
-          </div>
-          <p className="text-ivory-muted/50 text-xs font-mono">
-            {new Date().getFullYear()}
-          </p>
-        </div>
+       
       </footer>
 
       {/* ── Error toast ── */}
