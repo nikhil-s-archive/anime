@@ -16,8 +16,11 @@ import * as aniwave from "./aniwave.js";
 import * as oneanime from "./oneanime.js";
 import * as animeheaven from "./animeheaven.js";
 import * as desidubanime from "./desidubanime.js";
+import * as hindianime from "./hindianime.js";
 
 const modules = {
+  "hindianime.js": hindianime,
+  "hindianime": hindianime,
   "desidubanime.js": desidubanime,
   "desidubanime": desidubanime,
   "anikoto.js": anikoto,

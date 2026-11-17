@@ -969,7 +969,20 @@ export default function Player({
 
     patchState({ loading: true, hlsError: null, playing: false, hasEnded: false });
 
-    if (Hls.isSupported()) {
+    const isHls =
+      streamUrl.includes(".m3u8") || streamUrl.includes("/proxy/hls");
+
+    if (!isHls) {
+      video.src = streamUrl;
+      const onMetadata = () => {
+        patchState({ loading: false });
+        if (initialTimeRef.current > 0) {
+          video.currentTime = initialTimeRef.current;
+        }
+        video.play().catch(() => {});
+      };
+      video.addEventListener("loadedmetadata", onMetadata, { once: true });
+    } else if (Hls.isSupported()) {
       const hls = new Hls({
         maxLoadingDelay: 10,
         maxMaxBufferLength: 60,
@@ -1043,7 +1056,7 @@ export default function Player({
         { once: true }
       );
     } else {
-      const msg = "HLS is not supported in this browser.";
+      const msg = "Playback is not supported in this browser.";
       patchState({ hlsError: msg, loading: false });
       onError?.(msg);
     }

@@ -1,5 +1,27 @@
 [
   {
+    "name": "HindiAnime",
+    "id": 1948273615,
+    "baseUrl": "https://hindi-anime.com",
+    "lang": "hi",
+    "typeSource": "single",
+    "iconUrl": "https://hindi-anime.com/icon.svg",
+    "dateFormat": "",
+    "dateFormatLocale": "",
+    "isNsfw": false,
+    "hasCloudflare": false,
+    "sourceCodeUrl": "https://raw.githubusercontent.com/Mallyd11/mangayomi-anime-extensions/refs/heads/main/javascript/anime/src/all/hindianime.js",
+    "apiUrl": "https://hindi-anime.com/api",
+    "version": "1.0.0",
+    "isManga": false,
+    "itemType": 1,
+    "isFullData": false,
+    "appMinVerReq": "0.5.0",
+    "additionalParams": "",
+    "sourceCodeLanguage": 1,
+    "notes": "Hindi & regional dubbed anime streaming platform (Hindi, Tamil, Telugu, Malayalam)"
+  },
+  {
     "name": "DesiDubAnime",
     "id": 1827465920,
     "baseUrl": "https://www.desidubanime.me",

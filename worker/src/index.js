@@ -51,7 +51,7 @@ function errorResponse(msg, status = 500, detail = null) {
   return jsonResponse({ error: msg, detail }, status);
 }
 
-async function timedFetch(url, opts = {}, ms = 15000) {
+async function timedFetch(url, opts = {}, ms = 30000) {
   const ctrl = new AbortController();
   const id = setTimeout(() => ctrl.abort(), ms);
   try {
@@ -135,6 +135,17 @@ function getUpstreamReferer(urlStr, explicitReferer) {
   }
   if (u.includes("desidubanime")) {
     return "https://www.desidubanime.me/";
+  }
+  if (
+    u.includes("animeinfinity") ||
+    u.includes("hindi-anime") ||
+    u.includes("ravok") ||
+    u.includes("animesalt")
+  ) {
+    if (u.includes("player.animeinfinity")) return "https://archive.animeinfinity.me/";
+    if (u.includes("archive.animeinfinity")) return "https://cloud.hindi-anime.com/";
+    if (u.includes("cloud.hindi-anime.com")) return "https://hindi-anime.com/";
+    return "https://hindi-anime.com/";
   }
   return "https://anikototv.to/";
 }
@@ -466,7 +477,9 @@ export default {
           primary.headers?.Referer ||
           getUpstreamReferer(primary.url, primary.headers?.Referer);
 
-        const proxyUrl = `${origin}/proxy/hls?url=${encodeURIComponent(
+        const isPrimaryHls = (primary.url || "").includes(".m3u8");
+        const proxyEndpoint = isPrimaryHls ? "hls" : "ts";
+        const proxyUrl = `${origin}/proxy/${proxyEndpoint}?url=${encodeURIComponent(
           primary.url
         )}&referer=${encodeURIComponent(referer)}`;
 
@@ -517,9 +530,11 @@ export default {
           subtitles,
           streams: rawStreams.map((s) => {
             const sRef = s.headers?.Referer || referer;
+            const sHls = (s.url || "").includes(".m3u8");
+            const sEndpoint = sHls ? "hls" : "ts";
             return {
               ...s,
-              proxyUrl: `${origin}/proxy/hls?url=${encodeURIComponent(
+              proxyUrl: `${origin}/proxy/${sEndpoint}?url=${encodeURIComponent(
                 s.url
               )}&referer=${encodeURIComponent(sRef)}`,
             };

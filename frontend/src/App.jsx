@@ -16,6 +16,13 @@ const API_BASE = import.meta.env.VITE_API_BASE || "";
 // Default list of platforms from anime_index.json for instant rendering
 const DEFAULT_PLATFORMS = [
   {
+    name: "HindiAnime",
+    id: 1948273615,
+    baseUrl: "https://hindi-anime.com",
+    lang: "hi",
+    iconUrl: "https://hindi-anime.com/icon.svg",
+  },
+  {
     name: "DesiDubAnime",
     id: 1827465920,
     baseUrl: "https://www.desidubanime.me",
@@ -205,14 +212,18 @@ const api = {
     if (opts.platform) params.set("platform", opts.platform);
     return apiFetch(`/api/extract?${params.toString()}`);
   },
-  /** Build the proxied HLS manifest URL */
+  /** Build the proxied HLS/TS stream URL */
   proxyHls: (streamUrl) => {
     if (!streamUrl) return "";
-    if (streamUrl.includes("/proxy/hls?url=")) {
+    if (
+      streamUrl.includes("/proxy/hls?url=") ||
+      streamUrl.includes("/proxy/ts?url=")
+    ) {
       if (streamUrl.startsWith("http")) return streamUrl;
       return `${API_BASE}${streamUrl}`;
     }
-    return `${API_BASE}/proxy/hls?url=${encodeURIComponent(streamUrl)}`;
+    const isHls = streamUrl.includes(".m3u8");
+    return `${API_BASE}/proxy/${isHls ? "hls" : "ts"}?url=${encodeURIComponent(streamUrl)}`;
   },
 };
 

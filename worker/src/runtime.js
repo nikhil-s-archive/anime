@@ -84,7 +84,7 @@ const DEFAULT_UA =
 export class Client {
   async get(url, headers = {}) {
     const ctrl = new AbortController();
-    const timeout = setTimeout(() => ctrl.abort(), 20000);
+    const timeout = setTimeout(() => ctrl.abort(), 30000);
     try {
       const reqHeaders = { "User-Agent": DEFAULT_UA, ...headers };
       const res = await fetch(url, {
@@ -105,7 +105,7 @@ export class Client {
 
   async post(url, headers = {}, body = null) {
     const ctrl = new AbortController();
-    const timeout = setTimeout(() => ctrl.abort(), 20000);
+    const timeout = setTimeout(() => ctrl.abort(), 30000);
     try {
       let reqBody = body;
       if (
