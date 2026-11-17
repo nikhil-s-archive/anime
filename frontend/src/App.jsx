@@ -1500,6 +1500,7 @@ export default function App() {
   const [availableServers, setAvailableServers] = useState({
     sub: [],
     dub: [],
+    all: [],
   });
   const [playbackTime, setPlaybackTime] = useState(0);
 
@@ -1928,7 +1929,8 @@ export default function App() {
         if (
           extracted.availableServers &&
           (extracted.availableServers.sub?.length ||
-            extracted.availableServers.dub?.length)
+            extracted.availableServers.dub?.length ||
+            extracted.availableServers.all?.length)
         ) {
           setAvailableServers(extracted.availableServers);
         }
@@ -2611,15 +2613,29 @@ export default function App() {
                     </div>
 
                     {/* ── Sub/Dub & Server Controls ── */}
-                    {(availableServers.sub?.length > 0 ||
+                    {(availableServers.all?.length > 0 ||
+                      availableServers.sub?.length > 0 ||
                       availableServers.dub?.length > 0) && (
                       <div className="glass rounded-[24px] px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 animate-fade-in border border-white/12">
-                        {/* Audio Type Toggle (SUB / DUB) */}
+                        {/* Audio Type Toggle (ALL / SUB / DUB) */}
                         <div className="flex items-center gap-2.5">
                           <span className="text-[11px] font-bold uppercase tracking-wider text-ivory-muted/70">
                             Audio:
                           </span>
                           <div className="flex items-center bg-black/60 p-1 rounded-full border border-white/12 backdrop-blur-xl">
+                            {availableServers.all?.length > 0 && (
+                              <button
+                                onClick={() => handleSwitchType("all")}
+                                disabled={loadingStream}
+                                className={`px-3.5 py-1.5 text-xs font-bold rounded-full transition-all ${
+                                  currentType === "all"
+                                    ? "bg-white text-black shadow-md"
+                                    : "text-ivory-muted hover:text-white"
+                                }`}
+                              >
+                                ALL ({availableServers.all.length})
+                              </button>
+                            )}
                             <button
                               onClick={() => handleSwitchType("sub")}
                               disabled={
@@ -2668,9 +2684,11 @@ export default function App() {
                           </span>
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {(
-                              (currentType === "dub"
-                                ? availableServers.dub
-                                : availableServers.sub) || []
+                              (currentType === "all"
+                                ? (availableServers.all?.length ? availableServers.all : [...(availableServers.sub || []), ...(availableServers.dub || [])])
+                                : currentType === "dub"
+                                ? (availableServers.dub?.length ? availableServers.dub : availableServers.all || [])
+                                : (availableServers.sub?.length ? availableServers.sub : availableServers.all || [])) || []
                             ).map((srv) => {
                               const isSelected =
                                 currentServer.toLowerCase() ===

@@ -140,8 +140,10 @@ function getUpstreamReferer(urlStr, explicitReferer) {
     u.includes("animeinfinity") ||
     u.includes("hindi-anime") ||
     u.includes("ravok") ||
-    u.includes("animesalt")
+    u.includes("animesalt") ||
+    u.includes("as-cdn")
   ) {
+    if (u.includes("as-cdn") || u.includes("ravok")) return "https://ravok.buzz/";
     if (u.includes("player.animeinfinity")) return "https://archive.animeinfinity.me/";
     if (u.includes("archive.animeinfinity")) return "https://cloud.hindi-anime.com/";
     if (u.includes("cloud.hindi-anime.com")) return "https://hindi-anime.com/";
@@ -161,10 +163,15 @@ async function proxyHls(manifestUrl, workerOrigin, reqReferer) {
 
   const rawText = await res.text();
   const baseDir = manifestUrl.substring(0, manifestUrl.lastIndexOf("/") + 1);
+  const isMaster = rawText.includes("#EXT-X-STREAM-INF");
+  let nextIsVariant = false;
 
   const lines = rawText.split("\n").map((line) => {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) {
+      if (trimmed.startsWith("#EXT-X-STREAM-INF")) {
+        nextIsVariant = true;
+      }
       // Handle sub-playlists or keys inside tags like #EXT-X-MEDIA:URI="..."
       if (trimmed.includes('URI="')) {
         return trimmed.replace(/URI="([^"]+)"/g, (match, uri) => {
@@ -174,7 +181,8 @@ async function proxyHls(manifestUrl, workerOrigin, reqReferer) {
           } catch {
             abs = new URL(uri, baseDir).href;
           }
-          const endpoint = abs.includes(".m3u8") ? "hls" : "ts";
+          const isMediaSub = trimmed.startsWith("#EXT-X-MEDIA");
+          const endpoint = isMediaSub || abs.includes(".m3u8") ? "hls" : "ts";
           return `URI="${workerOrigin}/proxy/${endpoint}?url=${encodeURIComponent(abs)}&referer=${encodeURIComponent(referer)}"`;
         });
       }
@@ -188,10 +196,11 @@ async function proxyHls(manifestUrl, workerOrigin, reqReferer) {
       abs = new URL(trimmed, baseDir).href;
     }
 
-    if (trimmed.includes(".m3u8")) {
-      return `${workerOrigin}/proxy/hls?url=${encodeURIComponent(abs)}&referer=${encodeURIComponent(referer)}`;
-    }
-    return `${workerOrigin}/proxy/ts?url=${encodeURIComponent(abs)}&referer=${encodeURIComponent(referer)}`;
+    const isVariant = nextIsVariant || isMaster || trimmed.includes(".m3u8");
+    nextIsVariant = false;
+
+    const endpoint = isVariant ? "hls" : "ts";
+    return `${workerOrigin}/proxy/${endpoint}?url=${encodeURIComponent(abs)}&referer=${encodeURIComponent(referer)}`;
   });
 
   return new Response(lines.join("\n"), {
@@ -219,8 +228,24 @@ async function proxyTs(segmentUrl, reqReferer, clientRequest = null) {
     });
   }
 
+  const rawType = res.headers.get("Content-Type") || "";
+  let contentType = rawType;
+  if (
+    !rawType ||
+    rawType.includes("javascript") ||
+    rawType.includes("css") ||
+    rawType.includes("image") ||
+    rawType.includes("text/html")
+  ) {
+    contentType = segmentUrl.includes(".mkv")
+      ? "video/x-matroska"
+      : segmentUrl.includes(".mp4")
+      ? "video/mp4"
+      : "video/mp2t";
+  }
+
   const responseHeaders = {
-    "Content-Type": res.headers.get("Content-Type") || "video/mp2t",
+    "Content-Type": contentType,
     "Cache-Control": "public, max-age=3600",
     ...CORS_HEADERS,
   };
@@ -428,30 +453,45 @@ export default {
           throw new Error(`No streams found for episode on ${platform.name}`);
         }
 
-        // Build server buckets for sub & dub
+        // Build server buckets for sub, dub, & all
         const sub = [];
         const dub = [];
+        const all = [];
         const seenSubs = new Set();
         const seenDubs = new Set();
+        const seenAll = new Set();
 
         for (const s of rawStreams) {
           const q = (s.quality || "").toLowerCase();
           const isDub = q.includes("dub") || (s.url && s.url.includes("/dub"));
+          const isMulti =
+            q.includes("multi") || q.includes("dual") || q.includes("all");
           const serverName = s.quality || "Server";
           const linkId = s.url;
+          const srvObj = { name: serverName, linkId, quality: s.quality };
 
-          if (isDub) {
+          if (!seenAll.has(serverName)) {
+            seenAll.add(serverName);
+            all.push(srvObj);
+          }
+
+          if (isDub || isMulti) {
             if (!seenDubs.has(serverName)) {
               seenDubs.add(serverName);
-              dub.push({ name: serverName, linkId, quality: s.quality });
+              dub.push(srvObj);
             }
-          } else {
+          }
+          if (!isDub || isMulti) {
             if (!seenSubs.has(serverName)) {
               seenSubs.add(serverName);
-              sub.push({ name: serverName, linkId, quality: s.quality });
+              sub.push(srvObj);
             }
           }
         }
+
+        // Guarantee all servers are accessible if one category is empty
+        if (sub.length === 0) sub.push(...all);
+        if (dub.length === 0) dub.push(...all);
 
         // Select primary stream matching user preference
         let primary = null;
@@ -526,7 +566,7 @@ export default {
           quality: primary.quality || "Auto",
           server: primary.quality || "Server",
           type: isPrimaryDub ? "dub" : "sub",
-          availableServers: { sub, dub },
+          availableServers: { sub, dub, all },
           subtitles,
           streams: rawStreams.map((s) => {
             const sRef = s.headers?.Referer || referer;

@@ -50,6 +50,17 @@ function unpackDeanEdwards(packed) {
   }
 }
 
+function safeBase64Decode(str) {
+  try {
+    if (typeof Buffer !== "undefined") {
+      return Buffer.from(str, "base64").toString("utf-8");
+    }
+    return atob(str);
+  } catch {
+    return "";
+  }
+}
+
 class DefaultExtension extends MProvider {
   constructor() {
     super();
@@ -278,21 +289,30 @@ class DefaultExtension extends MProvider {
             if (href.startsWith("/")) {
               href = this.baseUrl + href;
             }
+            href = href.split("?")[0].replace(/\/$/, "") + "/";
             if (!href.startsWith(`${this.baseUrl}/watch/`) || seenEp.has(href)) {
               return;
             }
             seenEp.add(href);
 
             const rawText = cleanHtmlText($w(el).text());
+            if (rawText.toLowerCase() === "watch now" && seenEp.size > 1) {
+              return;
+            }
+
             const epMatch =
               href.match(/episode-(\d+(?:\.\d+)?)/i) ||
               rawText.match(/\b(?:Episode|Ep\.?|E)?\s*(\d+(?:\.\d+)?)\b/i);
             const num = epMatch ? epMatch[1] : "";
-            const cleanTitle = rawText.replace(/^\d+\s*/, "").trim();
+            const cleanTitle = rawText
+              .replace(/^(?:Episode|Ep\.?|E)?\s*\d+\s*[:\-]?\s*/i, "")
+              .trim();
 
             const name = num
-              ? `Episode ${num}${cleanTitle ? ": " + cleanTitle : ""}`
-              : rawText || "Episode";
+              ? `Episode ${num}${cleanTitle && cleanTitle.toLowerCase() !== "watch now" ? ": " + cleanTitle : ""}`
+              : rawText && rawText.toLowerCase() !== "watch now"
+              ? rawText
+              : "Episode 1";
 
             episodes.push({
               name,
@@ -311,8 +331,9 @@ class DefaultExtension extends MProvider {
           if (href.startsWith("/")) href = this.baseUrl + href;
           if (!href.startsWith(`${this.baseUrl}/watch/`)) return;
           const text = cleanHtmlText($(el).text());
+          if (text.toLowerCase() === "watch now" && episodes.length > 0) return;
           episodes.push({
-            name: text || "Episode",
+            name: text && text.toLowerCase() !== "watch now" ? text : "Episode 1",
             url: href,
             dateUpload: null,
           });
@@ -428,13 +449,14 @@ class DefaultExtension extends MProvider {
         if (!rawId || !rawId.includes(":")) return;
         const parts = rawId.split(":");
         try {
-          const rawName = Buffer.from(parts[0], "base64").toString("utf-8");
-          const embedUrl = Buffer.from(parts[1], "base64").toString("utf-8");
+          const rawName = safeBase64Decode(parts[0]);
+          const embedUrl = safeBase64Decode(parts[1]);
+          if (!embedUrl) return;
           const isSub = rawName.toLowerCase().includes("sub");
           const isDub = rawName.toLowerCase().includes("dub");
           const type = isSub && !isDub ? "Sub" : "Dub";
           const serverLabel =
-            $(el).text().trim() || rawName.replace(/sub|dub/gi, "");
+            $(el).text().trim() || rawName.replace(/sub|dub/gi, "").trim() || "Server";
           embedItems.push({
             name: serverLabel,
             type,
