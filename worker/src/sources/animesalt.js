@@ -356,7 +356,7 @@ class DefaultExtension extends MProvider {
         apiUrl,
         {
           "User-Agent": DEFAULT_UA,
-          Referer: embedUrl,
+          Referer: `https://ravok.buzz/video/${id}`,
           "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
           "X-Requested-With": "XMLHttpRequest",
         },
@@ -443,14 +443,14 @@ class DefaultExtension extends MProvider {
         });
       }
 
-      const streams = [];
-      const seenUrls = new Set();
+      // Collect base extracted streams
+      const baseStreams = [];
+      const seenBaseUrls = new Set();
 
       for (const entry of serverEntries) {
         let stream = null;
         let targetUrl = entry.iframeSrc;
 
-        // Parse embedded url parameter if present
         try {
           const parsed = new URL(entry.iframeSrc);
           const innerUrl = parsed.searchParams.get("url");
@@ -472,27 +472,165 @@ class DefaultExtension extends MProvider {
           };
         }
 
-        if (stream && stream.url && !seenUrls.has(stream.url)) {
-          seenUrls.add(stream.url);
-          const displayName = `${entry.name} (${entry.type})`;
+        if (stream && stream.url && !seenBaseUrls.has(stream.url)) {
+          seenBaseUrls.add(stream.url);
+          baseStreams.push({ entry, stream });
+        }
+      }
+
+      // Parse master audio tracks helper
+      function parseMasterAudioTracks(body) {
+        const lines = body.split("\n");
+        const tracks = [];
+        const seen = new Set();
+        for (const line of lines) {
+          if (line.includes("#EXT-X-MEDIA:TYPE=AUDIO")) {
+            const nameM = line.match(/NAME="([^"]+)"/);
+            const langM = line.match(/LANGUAGE="([^"]+)"/);
+            const rawName = nameM ? nameM[1] : "";
+            const lang = (langM ? langM[1] : "").toLowerCase();
+
+            let normalized = "Hindi";
+            if (lang === "ta" || lang === "tam" || /tamil/i.test(rawName)) normalized = "Tamil";
+            else if (lang === "te" || lang === "tel" || /telugu/i.test(rawName)) normalized = "Telugu";
+            else if (lang === "ml" || lang === "mal" || /malayalam/i.test(rawName)) normalized = "Malayalam";
+            else if (lang === "kn" || lang === "kan" || /kannada/i.test(rawName)) normalized = "Kannada";
+            else if (lang === "bn" || lang === "ben" || /bengali/i.test(rawName)) normalized = "Bengali";
+            else if (lang === "ja" || lang === "jpn" || /japan/i.test(rawName)) normalized = "Japanese";
+            else if (lang === "en" || lang === "eng" || /english/i.test(rawName)) normalized = "English";
+            else if (lang === "hi" || lang === "hin" || /original/i.test(rawName)) normalized = "Hindi";
+            else normalized = rawName || "Audio";
+
+            if (!seen.has(normalized)) {
+              seen.add(normalized);
+              tracks.push({
+                name: normalized,
+                rawName,
+                lang: lang || normalized.toLowerCase().slice(0, 2),
+              });
+            }
+          }
+        }
+        return tracks;
+      }
+
+      // Gather page language buttons
+      const pageLangButtons = [];
+      $("button[onclick*='loadMi']").each((_, el) => {
+        const title =
+          $(el).find(".server-button-title").text().trim() ||
+          $(el).text().trim();
+        if (
+          title &&
+          !title.toLowerCase().startsWith("multi") &&
+          !title.toLowerCase().startsWith("abyss") &&
+          title.length < 25
+        ) {
+          pageLangButtons.push(title);
+        }
+      });
+
+      const streams = [];
+      const seenQualities = new Set();
+
+      // 1. Process audio tracks from each base stream
+      for (const { entry, stream } of baseStreams) {
+        let audioTracks = [];
+        try {
+          const mRes = await this.client.get(stream.url, stream.headers);
+          if (mRes.statusCode === 200) {
+            audioTracks = parseMasterAudioTracks(mRes.body);
+          }
+        } catch (e) {
+          console.warn("[AnimeSalt parseMasterAudioTracks error]:", e.message);
+        }
+
+        const isNekomux = stream.url.includes("nekomux");
+        const serverPrefix = isNekomux ? "Multi 1" : "Multi 2";
+
+        // Add each language option as an explicit server
+        for (const track of audioTracks) {
+          const isSub = track.name === "Japanese";
+          const type = isSub ? "Sub" : "Dub";
+          const qualityName = `${track.name} (${type})`;
+
+          if (!seenQualities.has(qualityName)) {
+            seenQualities.add(qualityName);
+            streams.push({
+              url: `${stream.url}#audio=${encodeURIComponent(track.name)}`,
+              originalUrl: entry.iframeSrc,
+              quality: qualityName,
+              headers: stream.headers,
+              subtitles: stream.subtitles || [],
+              audioLang: track.lang,
+              audioName: track.name,
+            });
+          }
+        }
+
+        // Also add the multi-audio master server
+        const multiName = `${entry.name || serverPrefix} (Multi-Audio)`;
+        if (!seenQualities.has(multiName)) {
+          seenQualities.add(multiName);
           streams.push({
             url: stream.url,
             originalUrl: entry.iframeSrc,
-            quality: displayName,
+            quality: multiName,
             headers: stream.headers,
             subtitles: stream.subtitles || [],
           });
         }
       }
 
-      // Prioritize browser-compatible HLS (.m3u8) streams first
-      streams.sort((a, b) => {
-        const aHls = (a.url || "").includes(".m3u8");
-        const bHls = (b.url || "").includes(".m3u8");
-        if (aHls && !bHls) return -1;
-        if (!aHls && bHls) return 1;
-        return 0;
-      });
+      // 2. Ensure every language button found on the page is accessible
+      for (const pageLang of pageLangButtons) {
+        let normalized = pageLang;
+        if (/hindi/i.test(pageLang)) normalized = "Hindi";
+        else if (/tamil/i.test(pageLang)) normalized = "Tamil";
+        else if (/telugu/i.test(pageLang)) normalized = "Telugu";
+        else if (/malayalam/i.test(pageLang)) normalized = "Malayalam";
+        else if (/kannada/i.test(pageLang)) normalized = "Kannada";
+        else if (/japanese/i.test(pageLang)) normalized = "Japanese";
+        else if (/english/i.test(pageLang)) normalized = "English";
+
+        const isSub = normalized === "Japanese";
+        const type = isSub ? "Sub" : "Dub";
+        const qualityName = `${normalized} (${type})`;
+
+        if (!seenQualities.has(qualityName) && baseStreams.length > 0) {
+          seenQualities.add(qualityName);
+          const targetBase =
+            normalized === "Japanese" ||
+            normalized === "Telugu" ||
+            normalized === "Kannada"
+              ? baseStreams.find((b) => !b.stream.url.includes("nekomux")) ||
+                baseStreams[0]
+              : baseStreams.find((b) => b.stream.url.includes("nekomux")) ||
+                baseStreams[0];
+
+          streams.push({
+            url: `${targetBase.stream.url}#audio=${encodeURIComponent(normalized)}`,
+            originalUrl: targetBase.entry.iframeSrc,
+            quality: qualityName,
+            headers: targetBase.stream.headers,
+            subtitles: targetBase.stream.subtitles || [],
+            audioName: normalized,
+          });
+        }
+      }
+
+      // Fallback if no audio tracks or languages parsed
+      if (streams.length === 0 && baseStreams.length > 0) {
+        for (const { entry, stream } of baseStreams) {
+          streams.push({
+            url: stream.url,
+            originalUrl: entry.iframeSrc,
+            quality: `${entry.name} (${entry.type})`,
+            headers: stream.headers,
+            subtitles: stream.subtitles || [],
+          });
+        }
+      }
 
       return streams;
     } catch (e) {

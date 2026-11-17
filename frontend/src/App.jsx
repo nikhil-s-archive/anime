@@ -1505,6 +1505,7 @@ export default function App() {
   // Audio type & server selection state
   const [currentType, setCurrentType] = useState("sub"); // "sub" | "dub"
   const [currentServer, setCurrentServer] = useState(""); // active server name
+  const [preferredAudio, setPreferredAudio] = useState(null); // target audio language
   const [availableServers, setAvailableServers] = useState({
     sub: [],
     dub: [],
@@ -1934,6 +1935,7 @@ export default function App() {
         setSubtitles(extracted.subtitles || []);
         setCurrentType(extracted.type || type);
         setCurrentServer(extracted.server || server || "");
+        setPreferredAudio(extracted.preferredAudio || null);
         if (
           extracted.availableServers &&
           (extracted.availableServers.sub?.length ||
@@ -2597,6 +2599,8 @@ export default function App() {
                         streams={streams}
                         availableServers={availableServers}
                         currentType={currentType}
+                        currentServer={currentServer}
+                        preferredAudio={preferredAudio}
                         subtitles={subtitles}
                         initialTime={playbackTime}
                         onTimeUpdate={handleTimeUpdate}

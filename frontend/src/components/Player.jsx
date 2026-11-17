@@ -486,6 +486,8 @@ export default function Player({
   streams = [],
   availableServers = { sub: [], dub: [], all: [] },
   currentType = "sub",
+  currentServer = "",
+  preferredAudio = null,
   subtitles = [],
   title,
   initialTime = 0,
@@ -521,6 +523,8 @@ export default function Player({
     hlsError: null,
     levels: [],
     activeLevel: -1,
+    audioTracks: [],
+    activeAudioTrack: -1,
   });
 
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -1020,6 +1024,64 @@ export default function Player({
         patchState({ activeLevel: level });
       });
 
+      hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, (_, data) => {
+        const rawTracks = data.audioTracks || hls.audioTracks || [];
+        const formatLabel = (t, idx) => {
+          const l = (t.lang || "").toLowerCase();
+          const n = (t.name || "").trim();
+          const lMap = {
+            hi: "Hindi", hin: "Hindi",
+            ta: "Tamil", tam: "Tamil",
+            te: "Telugu", tel: "Telugu",
+            ml: "Malayalam", mal: "Malayalam",
+            kn: "Kannada", kan: "Kannada",
+            bn: "Bengali", ben: "Bengali",
+            ja: "Japanese", jpn: "Japanese",
+            en: "English", eng: "English",
+            es: "Spanish", fr: "French", de: "German"
+          };
+          const resolved = lMap[l];
+          if (resolved) {
+            if (n.toLowerCase() === "original" || !n) return `${resolved} (Original)`;
+            if (n.toLowerCase() !== resolved.toLowerCase()) return `${resolved} - ${n}`;
+            return resolved;
+          }
+          return n || `Audio ${idx + 1}`;
+        };
+
+        const formatted = rawTracks.map((t, idx) => ({
+          index: idx,
+          label: formatLabel(t, idx),
+          name: t.name,
+          lang: t.lang,
+          default: t.default,
+        }));
+
+        let chosenIndex = hls.audioTrack;
+        const targetLang = (preferredAudio || currentServer || "").toLowerCase();
+        if (targetLang && formatted.length > 0) {
+          const matched = formatted.find(
+            (t) =>
+              t.label.toLowerCase().includes(targetLang) ||
+              (t.name && t.name.toLowerCase().includes(targetLang)) ||
+              (t.lang && targetLang.includes(t.lang.toLowerCase()))
+          );
+          if (matched && matched.index !== hls.audioTrack) {
+            hls.audioTrack = matched.index;
+            chosenIndex = matched.index;
+          }
+        }
+
+        patchState({
+          audioTracks: formatted,
+          activeAudioTrack: chosenIndex >= 0 ? chosenIndex : 0,
+        });
+      });
+
+      hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_, { id }) => {
+        patchState({ activeAudioTrack: id });
+      });
+
       hls.on(Hls.Events.ERROR, (_, data) => {
         if (data.fatal) {
           switch (data.type) {
@@ -1328,13 +1390,23 @@ export default function Player({
     }
   }, []);
 
-  // Settings: Quality & Speed
+  // Settings: Quality, Audio Track & Speed
   const handleQualityChange = useCallback(
     (levelIndex) => {
       if (hlsRef.current) {
         hlsRef.current.currentLevel = levelIndex;
       }
       patchState({ activeLevel: levelIndex });
+    },
+    [patchState]
+  );
+
+  const handleAudioTrackChange = useCallback(
+    (trackIndex) => {
+      if (hlsRef.current) {
+        hlsRef.current.audioTrack = trackIndex;
+      }
+      patchState({ activeAudioTrack: trackIndex });
     },
     [patchState]
   );
@@ -1453,6 +1525,8 @@ export default function Player({
     hlsError,
     levels,
     activeLevel,
+    audioTracks = [],
+    activeAudioTrack = -1,
   } = playerState;
 
   const progressPct = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -1722,6 +1796,21 @@ export default function Player({
             />
           </div>
 
+          {/* Audio Language */}
+          {audioTracks.length > 1 && (
+            <div className="setting-item">
+              <span>Audio Language</span>
+              <GlassSelect
+                value={activeAudioTrack}
+                options={audioTracks.map((t) => ({
+                  label: t.label,
+                  value: t.index,
+                }))}
+                onChange={handleAudioTrackChange}
+              />
+            </div>
+          )}
+
           {/* Quality Levels */}
           {levels.length > 0 && (
             <div className="setting-item">
@@ -1794,48 +1883,50 @@ export default function Player({
             />
           </div>
 
-          {/* Subtitle Live Preview Box */}
-          <div className="mx-4 my-2.5 p-2.5 rounded-2xl bg-black/60 border border-white/10 shadow-inner">
-            <div className="flex justify-between items-center mb-1.5 px-0.5">
-              <span className="text-[10px] font-mono text-white/50 uppercase tracking-wider">
-                Subtitle Live Preview
-              </span>
-              <span className="text-[10px] font-mono text-cyan-400 capitalize">
-                {subtitlePosition} · {subtitleSize}
-              </span>
-            </div>
-            <div className="relative h-16 w-full rounded-xl bg-gradient-to-b from-neutral-900/90 to-black/95 border border-white/5 overflow-hidden flex flex-col justify-between p-1.5">
-              <div
-                className={`w-full flex justify-center h-full ${
-                  subtitlePosition === "top"
-                    ? "items-start"
-                    : subtitlePosition === "raised"
-                    ? "items-center"
-                    : "items-end"
-                }`}
-              >
-                <span
-                  className="px-2.5 py-0.5 rounded transition-all duration-150 text-center select-none"
-                  style={{
-                    fontSize:
-                      SUBTITLE_SIZES.find((s) => s.value === subtitleSize)
-                        ?.cssSize || "1.05rem",
-                    color:
-                      SUBTITLE_STYLES.find((s) => s.value === subtitleStyle)
-                        ?.color || "#ffffff",
-                    backgroundColor:
-                      SUBTITLE_STYLES.find((s) => s.value === subtitleStyle)?.bg ||
-                      "rgba(10, 11, 12, 0.85)",
-                    textShadow:
-                      SUBTITLE_STYLES.find((s) => s.value === subtitleStyle)
-                        ?.shadow || "none",
-                  }}
-                >
-                  Anime Subtitle Preview
+          {/* Subtitle Live Preview Box (compact, shown only when subtitles are active) */}
+          {activeSubtitle !== -1 && (
+            <div className="mx-3 my-1.5 p-2 rounded-xl bg-black/60 border border-white/10 shadow-inner">
+              <div className="flex justify-between items-center mb-1 px-0.5">
+                <span className="text-[9px] font-mono text-white/50 uppercase tracking-wider">
+                  Live Preview
+                </span>
+                <span className="text-[9px] font-mono text-cyan-400 capitalize">
+                  {subtitlePosition} · {subtitleSize}
                 </span>
               </div>
+              <div className="relative h-10 w-full rounded-lg bg-gradient-to-b from-neutral-900/90 to-black/95 border border-white/5 overflow-hidden flex flex-col justify-center p-1">
+                <div
+                  className={`w-full flex justify-center h-full ${
+                    subtitlePosition === "top"
+                      ? "items-start"
+                      : subtitlePosition === "raised"
+                      ? "items-center"
+                      : "items-end"
+                  }`}
+                >
+                  <span
+                    className="px-2 py-0.5 rounded transition-all duration-150 text-center select-none text-xs"
+                    style={{
+                      fontSize:
+                        SUBTITLE_SIZES.find((s) => s.value === subtitleSize)
+                          ?.cssSize || "0.9rem",
+                      color:
+                        SUBTITLE_STYLES.find((s) => s.value === subtitleStyle)
+                          ?.color || "#ffffff",
+                      backgroundColor:
+                        SUBTITLE_STYLES.find((s) => s.value === subtitleStyle)?.bg ||
+                        "rgba(10, 11, 12, 0.85)",
+                      textShadow:
+                        SUBTITLE_STYLES.find((s) => s.value === subtitleStyle)
+                          ?.shadow || "none",
+                    }}
+                  >
+                    Anime Subtitle Preview
+                  </span>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -2197,6 +2288,25 @@ export default function Player({
             {/* Right Controls */}
             <div className="r-ctrls">
               <LiquidGlass className="r-ctrls-btns">
+                {/* Audio Language Quick Switch */}
+                {audioTracks.length > 1 && (
+                  <button
+                    className="ctrl-btn flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-white/90 hover:text-white transition-all cursor-pointer"
+                    onClick={() => {
+                      const next = (activeAudioTrack + 1) % audioTracks.length;
+                      handleAudioTrackChange(next);
+                    }}
+                    title={`Audio: ${audioTracks[activeAudioTrack]?.label || "Audio"} (Click to switch language)`}
+                  >
+                    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current">
+                      <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                    </svg>
+                    <span className="hidden sm:inline">
+                      {audioTracks[activeAudioTrack]?.label?.split(" ")[0] || "Audio"}
+                    </span>
+                  </button>
+                )}
+
                 {/* Settings Toggle */}
                 <button
                   className="ctrl-btn settings-btn"

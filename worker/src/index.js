@@ -610,12 +610,20 @@ export default {
           .toLowerCase()
           .includes("dub");
 
+        const audioMatch = (primary.url || "").match(/#audio=([^&]+)/);
+        const resolvedAudio =
+          primary.audioName ||
+          (audioMatch ? decodeURIComponent(audioMatch[1]) : null) ||
+          primary.audioLang ||
+          null;
+
         return jsonResponse({
           streamUrl: proxyUrl,
           rawStreamUrl: primary.url,
           quality: primary.quality || "Auto",
           server: primary.quality || "Server",
           type: isPrimaryDub ? "dub" : "sub",
+          preferredAudio: resolvedAudio,
           availableServers: { sub, dub, all },
           subtitles,
           streams: rawStreams.map((s) => {
