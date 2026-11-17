@@ -23,13 +23,6 @@ const DEFAULT_PLATFORMS = [
     iconUrl:
       "https://www.google.com/s2/favicons?sz=256&domain=https://anikototv.to",
   },
-    {
-    "name": "DesiDubAnime",
-    "id": 482917356,
-    "lang": "hi",
-    "baseUrl": "https://www.desidubanime.me",
-    "iconUrl": "https://www.desidubanime.me/wp-content/uploads/2025/01/cropped-LogoM-270x270.png"
-    },
   {
     name: "ReAnime",
     id: 631942785,
