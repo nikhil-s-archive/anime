@@ -484,7 +484,7 @@ export default function Player({
   rawStreamUrl,
   downloadUrl,
   streams = [],
-  availableServers = { sub: [], dub: [] },
+  availableServers = { sub: [], dub: [], all: [] },
   currentType = "sub",
   subtitles = [],
   title,
@@ -1871,30 +1871,47 @@ export default function Player({
               </button>
             </div>
 
-            {/* Audio Type Selector (SUB / DUB) */}
-            {availableServers.sub?.length > 0 && availableServers.dub?.length > 0 && (
+            {/* Audio Type Selector (ALL / SUB / DUB) */}
+            {((availableServers.sub?.length > 0 && availableServers.dub?.length > 0) ||
+              availableServers.all?.length > 0) && (
               <div className="px-5 pt-3">
                 <div className="flex items-center bg-black/60 p-1 rounded-full border border-white/12">
-                  <button
-                    onClick={() => setDownloadAudioType("sub")}
-                    className={`flex-1 py-1.5 px-3 rounded-full text-xs font-bold transition-all ${
-                      downloadAudioType === "sub"
-                        ? "bg-white text-black shadow-md"
-                        : "text-white/60 hover:text-white"
-                    }`}
-                  >
-                    SUB ({availableServers.sub.length})
-                  </button>
-                  <button
-                    onClick={() => setDownloadAudioType("dub")}
-                    className={`flex-1 py-1.5 px-3 rounded-full text-xs font-bold transition-all ${
-                      downloadAudioType === "dub"
-                        ? "bg-white text-black shadow-md"
-                        : "text-white/60 hover:text-white"
-                    }`}
-                  >
-                    DUB ({availableServers.dub.length})
-                  </button>
+                  {availableServers.all?.length > 0 && (
+                    <button
+                      onClick={() => setDownloadAudioType("all")}
+                      className={`flex-1 py-1.5 px-3 rounded-full text-xs font-bold transition-all ${
+                        downloadAudioType === "all"
+                          ? "bg-white text-black shadow-md"
+                          : "text-white/60 hover:text-white"
+                      }`}
+                    >
+                      ALL ({availableServers.all.length})
+                    </button>
+                  )}
+                  {availableServers.sub?.length > 0 && (
+                    <button
+                      onClick={() => setDownloadAudioType("sub")}
+                      className={`flex-1 py-1.5 px-3 rounded-full text-xs font-bold transition-all ${
+                        downloadAudioType === "sub"
+                          ? "bg-white text-black shadow-md"
+                          : "text-white/60 hover:text-white"
+                      }`}
+                    >
+                      SUB ({availableServers.sub.length})
+                    </button>
+                  )}
+                  {availableServers.dub?.length > 0 && (
+                    <button
+                      onClick={() => setDownloadAudioType("dub")}
+                      className={`flex-1 py-1.5 px-3 rounded-full text-xs font-bold transition-all ${
+                        downloadAudioType === "dub"
+                          ? "bg-white text-black shadow-md"
+                          : "text-white/60 hover:text-white"
+                      }`}
+                    >
+                      DUB ({availableServers.dub.length})
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -1912,7 +1929,14 @@ export default function Player({
 
               {(() => {
                 const currentServers =
-                  (downloadAudioType === "dub"
+                  (downloadAudioType === "all"
+                    ? availableServers.all?.length
+                      ? availableServers.all
+                      : [
+                          ...(availableServers.sub || []),
+                          ...(availableServers.dub || []),
+                        ]
+                    : downloadAudioType === "dub"
                     ? availableServers.dub
                     : availableServers.sub) || [];
 

@@ -17,8 +17,11 @@ import * as oneanime from "./oneanime.js";
 import * as animeheaven from "./animeheaven.js";
 import * as desidubanime from "./desidubanime.js";
 import * as hindianime from "./hindianime.js";
+import * as animesalt from "./animesalt.js";
 
 const modules = {
+  "animesalt.js": animesalt,
+  "animesalt": animesalt,
   "hindianime.js": hindianime,
   "hindianime": hindianime,
   "desidubanime.js": desidubanime,

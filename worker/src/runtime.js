@@ -83,56 +83,70 @@ const DEFAULT_UA =
  */
 export class Client {
   async get(url, headers = {}) {
-    const ctrl = new AbortController();
-    const timeout = setTimeout(() => ctrl.abort(), 30000);
-    try {
-      const reqHeaders = { "User-Agent": DEFAULT_UA, ...headers };
-      const res = await fetch(url, {
-        headers: reqHeaders,
-        redirect: "follow",
-        signal: ctrl.signal,
-      });
-      const body = await res.text();
-      return {
-        body,
-        statusCode: res.status,
-        headers: Object.fromEntries(res.headers.entries()),
-      };
-    } finally {
-      clearTimeout(timeout);
+    let lastErr = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 30000);
+      try {
+        const reqHeaders = { "User-Agent": DEFAULT_UA, ...headers };
+        const res = await fetch(url, {
+          headers: reqHeaders,
+          redirect: "follow",
+          signal: ctrl.signal,
+        });
+        const body = await res.text();
+        return {
+          body,
+          statusCode: res.status,
+          headers: Object.fromEntries(res.headers.entries()),
+        };
+      } catch (err) {
+        lastErr = err;
+        await new Promise((r) => setTimeout(r, 500));
+      } finally {
+        clearTimeout(timeout);
+      }
     }
+    throw lastErr;
   }
 
   async post(url, headers = {}, body = null) {
-    const ctrl = new AbortController();
-    const timeout = setTimeout(() => ctrl.abort(), 30000);
-    try {
-      let reqBody = body;
-      if (
-        typeof body === "object" &&
-        body !== null &&
-        !(body instanceof FormData) &&
-        !(body instanceof URLSearchParams)
-      ) {
-        reqBody = JSON.stringify(body);
+    let lastErr = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 30000);
+      try {
+        let reqBody = body;
+        if (
+          typeof body === "object" &&
+          body !== null &&
+          !(body instanceof FormData) &&
+          !(body instanceof URLSearchParams)
+        ) {
+          reqBody = JSON.stringify(body);
+        }
+        const reqHeaders = { "User-Agent": DEFAULT_UA, ...headers };
+        const res = await fetch(url, {
+          method: "POST",
+          headers: reqHeaders,
+          body: reqBody,
+          redirect: "follow",
+          signal: ctrl.signal,
+        });
+        const resBody = await res.text();
+        return {
+          body: resBody,
+          statusCode: res.status,
+          headers: Object.fromEntries(res.headers.entries()),
+        };
+      } catch (err) {
+        lastErr = err;
+        await new Promise((r) => setTimeout(r, 500));
+      } finally {
+        clearTimeout(timeout);
       }
-      const reqHeaders = { "User-Agent": DEFAULT_UA, ...headers };
-      const res = await fetch(url, {
-        method: "POST",
-        headers: reqHeaders,
-        body: reqBody,
-        redirect: "follow",
-        signal: ctrl.signal,
-      });
-      const resBody = await res.text();
-      return {
-        body: resBody,
-        statusCode: res.status,
-        headers: Object.fromEntries(res.headers.entries()),
-      };
-    } finally {
-      clearTimeout(timeout);
     }
+    throw lastErr;
   }
 }
 

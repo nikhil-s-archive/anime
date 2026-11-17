@@ -16,6 +16,14 @@ const API_BASE = import.meta.env.VITE_API_BASE || "";
 // Default list of platforms from anime_index.json for instant rendering
 const DEFAULT_PLATFORMS = [
   {
+    name: "AnimeSalt",
+    id: 1748293012,
+    baseUrl: "https://animesalt.ro",
+    lang: "hi",
+    iconUrl:
+      "https://animesalt.ro/wp-content/uploads/2026/04/cropped-favicon-192x192.png",
+  },
+  {
     name: "HindiAnime",
     id: 1948273615,
     baseUrl: "https://hindi-anime.com",

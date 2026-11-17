@@ -457,41 +457,7 @@ class DefaultExtension extends MProvider {
       if (!idMatch) return null;
       const id = idMatch[1];
 
-      // Extract subtitles if present in embed HTML
-      const vtts = [];
-      try {
-        const pageRes = await this.client.get(embedUrl, {
-          "User-Agent": DEFAULT_UA,
-          Referer: this.baseUrl + "/",
-        });
-        if (pageRes.statusCode === 200) {
-          const html = pageRes.body;
-          const subMatch = html.match(
-            /playerjsSubtitle\s*=\s*["']\[([^\]]+)\]([^"']+)["']/
-          );
-          if (subMatch) {
-            vtts.push({ url: subMatch[2], lang: subMatch[1] || "en", label: subMatch[1] || "English" });
-          }
-          const tracksMatch = html.match(/"tracks"\s*:\s*(\[[^\]]+\])/);
-          if (tracksMatch) {
-            try {
-              const tracks = JSON.parse(tracksMatch[1]);
-              for (const tr of tracks) {
-                if (tr.kind === "captions" && tr.file) {
-                  vtts.push({
-                    url: tr.file.replace(/\\\//g, "/"),
-                    lang: tr.language || tr.label || "en",
-                    label: tr.label || "English",
-                    default: Boolean(tr.default),
-                  });
-                }
-              }
-            } catch {}
-          }
-        }
-      } catch {}
-
-      // Call ravok getVideo API to obtain the master HLS stream
+      // Call ravok getVideo API to obtain the master HLS stream directly
       const apiUrl = `https://ravok.buzz/player/index.php?data=${id}&do=getVideo`;
       const body = new URLSearchParams({ hash: id, r: this.baseUrl + "/" });
       const apiRes = await this.client.post(
@@ -516,7 +482,7 @@ class DefaultExtension extends MProvider {
                 Referer: "https://ravok.buzz/",
                 "User-Agent": DEFAULT_UA,
               },
-              subtitles: vtts,
+              subtitles: [],
             };
           }
         } catch {}
@@ -565,10 +531,10 @@ class DefaultExtension extends MProvider {
         } catch {}
       }
 
-      const streams = [];
-      for (const server of allServerResults) {
+      // Concurrently extract all servers
+      const streamPromises = allServerResults.map(async (server) => {
         const embed = server.embed || server.url;
-        if (!embed) continue;
+        if (!embed) return null;
 
         let stream = null;
         if (embed.includes("ravok.buzz")) {
@@ -581,31 +547,52 @@ class DefaultExtension extends MProvider {
             headers: { Referer: this.baseUrl + "/", "User-Agent": DEFAULT_UA },
             subtitles: [],
           };
-        } else if (server.fileId && server.source === "GoogleDrive") {
-          stream = {
-            url: `https://drive.google.com/uc?id=${server.fileId}&export=download`,
-            headers: { "User-Agent": DEFAULT_UA },
-            subtitles: [],
-          };
+        } else if (
+          (server.fileId && server.source === "GoogleDrive") ||
+          (embed && embed.includes("drive.google.com"))
+        ) {
+          const fileId =
+            server.fileId ||
+            (embed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || [])[1] ||
+            (embed.match(/[?&]id=([a-zA-Z0-9_-]+)/) || [])[1];
+          if (fileId) {
+            stream = {
+              url: `https://drive.google.com/uc?id=${fileId}&export=download`,
+              headers: { "User-Agent": DEFAULT_UA },
+              subtitles: [],
+            };
+          }
         }
 
-        if (stream) {
+        if (stream && stream.url) {
           const lang = server.languageLabel || server.audioLanguage || "Hindi";
           const sName = server.label || server.server || "Server";
-          const provider = server.source || server.sourceProvider || (embed.includes("ravok") ? "Ravok" : embed.includes("animeinfinity") ? "PlayZen" : "");
-          const displayName = provider && !sName.toLowerCase().includes(provider.toLowerCase())
-            ? `${sName} · ${provider} (${lang})`
-            : `${sName} (${lang})`;
+          const provider =
+            server.source ||
+            server.sourceProvider ||
+            (embed.includes("ravok")
+              ? "Ravok"
+              : embed.includes("animeinfinity")
+              ? "PlayZen"
+              : "");
+          const displayName =
+            provider && !sName.toLowerCase().includes(provider.toLowerCase())
+              ? `${sName} · ${provider} (${lang})`
+              : `${sName} (${lang})`;
 
-          streams.push({
+          return {
             url: stream.url,
             originalUrl: embed,
             quality: displayName,
             headers: stream.headers,
             subtitles: stream.subtitles || [],
-          });
+          };
         }
-      }
+        return null;
+      });
+
+      const resolved = await Promise.all(streamPromises);
+      const streams = resolved.filter(Boolean);
 
       // Prioritize browser-compatible HLS (.m3u8) streams first so video plays instantly
       streams.sort((a, b) => {

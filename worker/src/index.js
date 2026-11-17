@@ -52,13 +52,20 @@ function errorResponse(msg, status = 500, detail = null) {
 }
 
 async function timedFetch(url, opts = {}, ms = 30000) {
-  const ctrl = new AbortController();
-  const id = setTimeout(() => ctrl.abort(), ms);
-  try {
-    return await fetch(url, { ...opts, signal: ctrl.signal });
-  } finally {
-    clearTimeout(id);
+  let lastErr = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const ctrl = new AbortController();
+    const id = setTimeout(() => ctrl.abort(), ms);
+    try {
+      return await fetch(url, { ...opts, signal: ctrl.signal });
+    } catch (err) {
+      lastErr = err;
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 400));
+    } finally {
+      clearTimeout(id);
+    }
   }
+  throw lastErr;
 }
 
 function formatListResponse(result, page, platform) {
@@ -127,6 +134,12 @@ function getUpstreamReferer(urlStr, explicitReferer) {
     return "https://vidmoly.org/";
   }
   if (
+    u.includes("nekomux") ||
+    u.includes("play.nekomux")
+  ) {
+    return "https://player.nekomux.com/";
+  }
+  if (
     u.includes("dramiyos") ||
     u.includes("acek-cdn") ||
     u.includes("morencius")
@@ -147,6 +160,7 @@ function getUpstreamReferer(urlStr, explicitReferer) {
     if (u.includes("player.animeinfinity")) return "https://archive.animeinfinity.me/";
     if (u.includes("archive.animeinfinity")) return "https://cloud.hindi-anime.com/";
     if (u.includes("cloud.hindi-anime.com")) return "https://hindi-anime.com/";
+    if (u.includes("animesalt")) return "https://animesalt.ro/";
     return "https://hindi-anime.com/";
   }
   return "https://anikototv.to/";
@@ -155,7 +169,8 @@ function getUpstreamReferer(urlStr, explicitReferer) {
 // ─── HLS Reverse Proxy ────────────────────────────────────────────────────────
 
 async function proxyHls(manifestUrl, workerOrigin, reqReferer) {
-  const referer = getUpstreamReferer(manifestUrl, reqReferer);
+  const cleanRef = (reqReferer || "").replace(/["']+$/, "").trim();
+  const referer = getUpstreamReferer(manifestUrl, cleanRef);
   const res = await timedFetch(manifestUrl, {
     headers: { "User-Agent": UA, Referer: referer },
   });
@@ -213,7 +228,8 @@ async function proxyHls(manifestUrl, workerOrigin, reqReferer) {
 }
 
 async function proxyTs(segmentUrl, reqReferer, clientRequest = null) {
-  const referer = getUpstreamReferer(segmentUrl, reqReferer);
+  const cleanRef = (reqReferer || "").replace(/["']+$/, "").trim();
+  const referer = getUpstreamReferer(segmentUrl, cleanRef);
   const headers = { "User-Agent": UA, Referer: referer };
   if (clientRequest) {
     const range = clientRequest.headers.get("Range");
@@ -463,9 +479,28 @@ export default {
 
         for (const s of rawStreams) {
           const q = (s.quality || "").toLowerCase();
-          const isDub = q.includes("dub") || (s.url && s.url.includes("/dub"));
+          const u = (s.url || "").toLowerCase();
+          const isDub =
+            q.includes("dub") ||
+            q.includes("hindi") ||
+            q.includes("tamil") ||
+            q.includes("telugu") ||
+            q.includes("malayalam") ||
+            q.includes("bengali") ||
+            q.includes("kannada") ||
+            u.includes("/dub");
+          const isSub =
+            q.includes("sub") ||
+            q.includes("jap") ||
+            q.includes("eng") ||
+            (!q.includes("dub") && !q.includes("hindi") && !q.includes("tamil") && !q.includes("telugu"));
           const isMulti =
-            q.includes("multi") || q.includes("dual") || q.includes("all");
+            q.includes("multi") ||
+            q.includes("dual") ||
+            q.includes("all") ||
+            q.includes("ravok") ||
+            q.includes("nekomux") ||
+            q.includes("infinity");
           const serverName = s.quality || "Server";
           const linkId = s.url;
           const srvObj = { name: serverName, linkId, quality: s.quality };
@@ -481,7 +516,7 @@ export default {
               dub.push(srvObj);
             }
           }
-          if (!isDub || isMulti) {
+          if (isSub || isMulti) {
             if (!seenSubs.has(serverName)) {
               seenSubs.add(serverName);
               sub.push(srvObj);
@@ -506,11 +541,26 @@ export default {
         }
         if (!primary) {
           const isDubPref = preferredType === "dub";
-          const primaryGroup = rawStreams.filter((s) => {
-            const isDub = (s.quality || "").toLowerCase().includes("dub");
+          let candidates = rawStreams.filter((s) => {
+            const q = (s.quality || "").toLowerCase();
+            const isDub =
+              q.includes("dub") ||
+              q.includes("hindi") ||
+              q.includes("tamil") ||
+              q.includes("telugu") ||
+              q.includes("multi");
             return isDubPref ? isDub : !isDub;
           });
-          primary = primaryGroup[0] || rawStreams[0];
+          if (candidates.length === 0) candidates = rawStreams;
+          // Sort candidates so that playable HLS (.m3u8, Ravok, Nekomux) is chosen first
+          candidates.sort((a, b) => {
+            const aHls = (a.url || "").includes(".m3u8");
+            const bHls = (b.url || "").includes(".m3u8");
+            if (aHls && !bHls) return -1;
+            if (!aHls && bHls) return 1;
+            return 0;
+          });
+          primary = candidates[0] || rawStreams[0];
         }
 
         const referer =

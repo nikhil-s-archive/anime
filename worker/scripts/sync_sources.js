@@ -11,6 +11,28 @@ const INDEX_URL =
 
 const CUSTOM_SOURCES = [
   {
+    name: "AnimeSalt",
+    id: 1748293012,
+    baseUrl: "https://animesalt.ro",
+    lang: "hi",
+    typeSource: "single",
+    iconUrl: "https://animesalt.ro/wp-content/uploads/2026/04/cropped-favicon-192x192.png",
+    dateFormat: "",
+    dateFormatLocale: "",
+    isNsfw: false,
+    hasCloudflare: false,
+    sourceCodeUrl: "https://raw.githubusercontent.com/Mallyd11/mangayomi-anime-extensions/refs/heads/main/javascript/anime/src/all/animesalt.js",
+    apiUrl: "https://animesalt.ro",
+    version: "1.0.0",
+    isManga: false,
+    itemType: 1,
+    isFullData: false,
+    appMinVerReq: "0.5.0",
+    additionalParams: "",
+    sourceCodeLanguage: 1,
+    notes: "Watch Anime Online in Hindi, English, Tamil, Telugu, Malayalam & Japanese Dubbed/Subbed",
+  },
+  {
     name: "HindiAnime",
     id: 1948273615,
     baseUrl: "https://hindi-anime.com",
