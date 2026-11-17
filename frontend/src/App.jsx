@@ -13,8 +13,16 @@ import Player from "./components/Player.jsx";
 /** Set VITE_API_BASE in your .env for production, e.g. https://animex.worker.dev */
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
-// Default list of 17 platforms from anime_index.json for instant rendering
+// Default list of platforms from anime_index.json for instant rendering
 const DEFAULT_PLATFORMS = [
+  {
+    name: "DesiDubAnime",
+    id: 1827465920,
+    baseUrl: "https://www.desidubanime.me",
+    lang: "hi",
+    iconUrl:
+      "https://www.desidubanime.me/wp-content/uploads/2025/01/Logoo.png",
+  },
   {
     name: "AniKoto",
     id: 1356478902,

@@ -120,6 +120,22 @@ function getUpstreamReferer(urlStr, explicitReferer) {
   if (u.includes("settlar.io")) {
     return "https://embed.settlar.io/";
   }
+  if (u.includes("streamruby") || u.includes("nuvorel")) {
+    return "https://nuvorel.top/";
+  }
+  if (u.includes("vmpx") || u.includes("vidmoly") || u.includes("vmget")) {
+    return "https://vidmoly.org/";
+  }
+  if (
+    u.includes("dramiyos") ||
+    u.includes("acek-cdn") ||
+    u.includes("morencius")
+  ) {
+    return "https://morencius.com/";
+  }
+  if (u.includes("desidubanime")) {
+    return "https://www.desidubanime.me/";
+  }
   return "https://anikototv.to/";
 }
 

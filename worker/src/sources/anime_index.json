@@ -1,5 +1,27 @@
 [
   {
+    "name": "DesiDubAnime",
+    "id": 1827465920,
+    "baseUrl": "https://www.desidubanime.me",
+    "lang": "hi",
+    "typeSource": "single",
+    "iconUrl": "https://www.desidubanime.me/wp-content/uploads/2025/01/Logoo.png",
+    "dateFormat": "",
+    "dateFormatLocale": "",
+    "isNsfw": false,
+    "hasCloudflare": false,
+    "sourceCodeUrl": "https://raw.githubusercontent.com/Mallyd11/mangayomi-anime-extensions/refs/heads/main/javascript/anime/src/all/desidubanime.js",
+    "apiUrl": "https://www.desidubanime.me/wp-json",
+    "version": "1.0.0",
+    "isManga": false,
+    "itemType": 1,
+    "isFullData": false,
+    "appMinVerReq": "0.5.0",
+    "additionalParams": "",
+    "sourceCodeLanguage": 1,
+    "notes": "Indian regional dubbed anime streaming platform (Hindi, Tamil, Telugu, Malayalam, Bengali, etc.)"
+  },
+  {
     "name": "AniKoto",
     "id": 1356478902,
     "baseUrl": "https://anikototv.to",

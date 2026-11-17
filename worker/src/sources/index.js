@@ -15,8 +15,11 @@ import * as miruro from "./miruro.js";
 import * as aniwave from "./aniwave.js";
 import * as oneanime from "./oneanime.js";
 import * as animeheaven from "./animeheaven.js";
+import * as desidubanime from "./desidubanime.js";
 
 const modules = {
+  "desidubanime.js": desidubanime,
+  "desidubanime": desidubanime,
   "anikoto.js": anikoto,
   "reanime.js": reanime,
   "senshi.js": senshi,
