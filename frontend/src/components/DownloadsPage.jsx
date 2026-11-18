@@ -85,6 +85,31 @@ function ListIcon({ className = "h-4 w-4" }) {
   );
 }
 
+function SortIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg aria-hidden="true" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 6h18M6 12h12m-9 6h6" />
+    </svg>
+  );
+}
+
+function VideoIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg aria-hidden="true" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="23 7 16 12 23 17 23 7" />
+      <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+    </svg>
+  );
+}
+
+function CheckIcon({ className = "h-3.5 w-3.5" }) {
+  return (
+    <svg aria-hidden="true" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
 export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline }) {
   const [downloadQueue, setDownloadQueue] = useState([]);
   const [savedDownloads, setSavedDownloads] = useState([]);
@@ -100,11 +125,30 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
       return "grid";
     }
   });
+  const [sortBy, setSortBy] = useState(() => {
+    try {
+      return localStorage.getItem("animex_downloads_sort_by") || "anime-asc";
+    } catch (_) {
+      return "anime-asc";
+    }
+  });
+
+  // Batch selection states
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [packagingProgress, setPackagingProgress] = useState(null);
 
   const handleViewModeChange = (mode) => {
     setViewMode(mode);
     try {
       localStorage.setItem("animex_downloads_view_mode", mode);
+    } catch (_) {}
+  };
+
+  const handleSortChange = (newSort) => {
+    setSortBy(newSort);
+    try {
+      localStorage.setItem("animex_downloads_sort_by", newSort);
     } catch (_) {}
   };
 
@@ -169,7 +213,7 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
   }, [savedDownloads]);
 
   const filteredItems = useMemo(() => {
-    return savedDownloads.filter((it) => {
+    const list = savedDownloads.filter((it) => {
       if (selectedAnimeFilter !== "all" && it.animeTitle !== selectedAnimeFilter) {
         return false;
       }
@@ -182,7 +226,44 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
       }
       return true;
     });
-  }, [savedDownloads, selectedAnimeFilter, searchFilter]);
+
+    list.sort((a, b) => {
+      if (sortBy === "anime-asc") {
+        const titleComp = (a.animeTitle || "").localeCompare(b.animeTitle || "", undefined, {
+          sensitivity: "base",
+          numeric: true,
+        });
+        if (titleComp !== 0) return titleComp;
+        const epA = Number(a.episodeNumber) || 0;
+        const epB = Number(b.episodeNumber) || 0;
+        if (epA !== epB) return epA - epB;
+        return (a.episodeTitle || "").localeCompare(b.episodeTitle || "", undefined, { numeric: true });
+      }
+      if (sortBy === "anime-desc") {
+        const titleComp = (b.animeTitle || "").localeCompare(a.animeTitle || "", undefined, {
+          sensitivity: "base",
+          numeric: true,
+        });
+        if (titleComp !== 0) return titleComp;
+        const epA = Number(a.episodeNumber) || 0;
+        const epB = Number(b.episodeNumber) || 0;
+        if (epA !== epB) return epB - epA;
+        return (b.episodeTitle || "").localeCompare(a.episodeTitle || "", undefined, { numeric: true });
+      }
+      if (sortBy === "newest") {
+        return (b.createdAt || 0) - (a.createdAt || 0);
+      }
+      if (sortBy === "oldest") {
+        return (a.createdAt || 0) - (b.createdAt || 0);
+      }
+      if (sortBy === "size") {
+        return (b.totalSize || 0) - (a.totalSize || 0);
+      }
+      return 0;
+    });
+
+    return list;
+  }, [savedDownloads, selectedAnimeFilter, searchFilter, sortBy]);
 
   const handleDelete = async (id, title) => {
     if (window.confirm(`Delete "${title}" from offline downloads?`)) {
@@ -197,6 +278,72 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
       await refreshSaved();
     }
   };
+
+  const toggleSelectItem = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === filteredItems.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredItems.map((it) => it.id)));
+    }
+  };
+
+  const handleDownloadBatchZip = async (itemsToExport = null) => {
+    const list = itemsToExport || filteredItems.filter((it) => selectedIds.has(it.id));
+    if (!list || list.length === 0) return;
+
+    try {
+      setPackagingProgress({
+        current: 0,
+        total: list.length,
+        percent: 0,
+        title: list[0]?.animeTitle || "Anime",
+        episode: list[0]?.episodeTitle || "",
+      });
+
+      await downloadManager.exportMultipleAsZip(list, (prog) => {
+        setPackagingProgress(prog);
+      });
+    } catch (e) {
+      alert("Failed to export batch ZIP: " + e.message);
+    } finally {
+      setTimeout(() => setPackagingProgress(null), 1200);
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    const list = filteredItems.filter((it) => selectedIds.has(it.id));
+    if (list.length === 0) return;
+    if (window.confirm(`Delete ${list.length} selected downloaded episodes from local storage?`)) {
+      for (const it of list) {
+        await deleteDownload(it.id);
+      }
+      setSelectedIds(new Set());
+      setIsSelecting(false);
+      await refreshSaved();
+    }
+  };
+
+  const selectedTotalSize = useMemo(() => {
+    let sum = 0;
+    savedDownloads.forEach((it) => {
+      if (selectedIds.has(it.id)) {
+        sum += it.totalSize || 0;
+      }
+    });
+    return sum;
+  }, [savedDownloads, selectedIds]);
 
   return (
     <div className="downloads-page max-w-7xl mx-auto w-full px-2 sm:px-4 py-4 animate-fade-in text-ivory">
@@ -417,10 +564,10 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
             )}
           </div>
 
-          {/* Right side: Anime Groups Chips & View Toggle */}
-          <div className="flex items-center gap-2 justify-between sm:justify-end flex-wrap">
+          {/* Right side: Controls (Chips + Sort + View Toggle) */}
+          <div className="flex items-center gap-2 justify-between sm:justify-end flex-wrap w-full sm:w-auto">
             {animeGroups.length > 1 && (
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none max-w-full">
                 <button
                   type="button"
                   onClick={() => setSelectedAnimeFilter("all")}
@@ -449,34 +596,86 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
               </div>
             )}
 
-            {/* View Mode Toggle Button */}
-            <div className="flex items-center bg-white/[0.04] p-1 rounded-xl border border-white/10 ml-auto sm:ml-0">
+            <div className="flex items-center gap-2 ml-auto sm:ml-0 flex-wrap">
+              {/* Batch Select Toggle */}
               <button
                 type="button"
-                onClick={() => handleViewModeChange("grid")}
-                title="Grid view"
-                aria-label="Grid view"
-                className={`p-1.5 rounded-lg transition-all ${
-                  viewMode === "grid"
-                    ? "bg-white text-black shadow-sm font-bold"
-                    : "text-white/50 hover:text-white"
+                onClick={() => {
+                  const nextSelecting = !isSelecting;
+                  setIsSelecting(nextSelecting);
+                  if (!nextSelecting) setSelectedIds(new Set());
+                }}
+                className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  isSelecting
+                    ? "bg-cyan-500 text-black border-cyan-400 font-bold shadow-md shadow-cyan-500/20"
+                    : "bg-white/[0.04] text-white/80 hover:text-white border-white/10 hover:bg-white/10"
                 }`}
+                title="Select multiple episodes to download as ZIP"
               >
-                <GridIcon className="h-4 w-4" />
+                <CheckIcon className="h-3.5 w-3.5" />
+                <span>{isSelecting ? "Done" : "Select"}</span>
               </button>
-              <button
-                type="button"
-                onClick={() => handleViewModeChange("list")}
-                title="List view"
-                aria-label="List view"
-                className={`p-1.5 rounded-lg transition-all ${
-                  viewMode === "list"
-                    ? "bg-white text-black shadow-sm font-bold"
-                    : "text-white/50 hover:text-white"
-                }`}
-              >
-                <ListIcon className="h-4 w-4" />
-              </button>
+
+              {/* ZIP All shortcut when multiple episodes */}
+              {filteredItems.length > 1 && !isSelecting && (
+                <button
+                  type="button"
+                  onClick={() => handleDownloadBatchZip(filteredItems)}
+                  className="px-3 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 hover:text-cyan-200 border border-cyan-500/30 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"
+                  title={`Download all ${filteredItems.length} episodes in a single ZIP`}
+                >
+                  <DownloadIcon className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">ZIP All ({filteredItems.length})</span>
+                  <span className="sm:hidden">ZIP All</span>
+                </button>
+              )}
+
+              {/* Sort Dropdown */}
+              <div className="flex items-center gap-1 bg-white/[0.04] px-2.5 py-1.5 rounded-xl border border-white/10 text-xs">
+                <SortIcon className="h-3.5 w-3.5 text-white/60 shrink-0" />
+                <select
+                  value={sortBy}
+                  onChange={(e) => handleSortChange(e.target.value)}
+                  className="bg-transparent text-white font-semibold focus:outline-none cursor-pointer text-xs"
+                  title="Sort downloaded anime"
+                >
+                  <option value="anime-asc" className="bg-[#18181b] text-white">Anime Name (A–Z)</option>
+                  <option value="anime-desc" className="bg-[#18181b] text-white">Anime Name (Z–A)</option>
+                  <option value="newest" className="bg-[#18181b] text-white">Recently Downloaded</option>
+                  <option value="oldest" className="bg-[#18181b] text-white">Oldest First</option>
+                  <option value="size" className="bg-[#18181b] text-white">File Size (Largest)</option>
+                </select>
+              </div>
+
+              {/* View Mode Toggle Button */}
+              <div className="flex items-center bg-white/[0.04] p-1 rounded-xl border border-white/10 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleViewModeChange("grid")}
+                  title="Grid view"
+                  aria-label="Grid view"
+                  className={`p-1.5 rounded-lg transition-all ${
+                    viewMode === "grid"
+                      ? "bg-white text-black shadow-sm font-bold"
+                      : "text-white/50 hover:text-white"
+                  }`}
+                >
+                  <GridIcon className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleViewModeChange("list")}
+                  title="List view"
+                  aria-label="List view"
+                  className={`p-1.5 rounded-lg transition-all ${
+                    viewMode === "list"
+                      ? "bg-white text-black shadow-sm font-bold"
+                      : "text-white/50 hover:text-white"
+                  }`}
+                >
+                  <ListIcon className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -494,12 +693,37 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
             {filteredItems.map((item) => {
               const thumbSrc = thumbnailUrls[item.id] || item.thumbnail;
               const hasSubs = Array.isArray(item.subtitles) && item.subtitles.length > 0;
+              const isSelected = selectedIds.has(item.id);
 
               return (
                 <div
                   key={item.id}
-                  className="group relative rounded-2xl bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 hover:border-cyan-500/30 overflow-hidden flex flex-col transition-all duration-300 shadow-lg hover:shadow-cyan-500/5"
+                  onClick={isSelecting ? () => toggleSelectItem(item.id) : undefined}
+                  className={`group relative rounded-2xl bg-white/[0.03] hover:bg-white/[0.05] border overflow-hidden flex flex-col transition-all duration-300 shadow-lg hover:shadow-cyan-500/5 ${
+                    isSelected
+                      ? "border-cyan-400 ring-2 ring-cyan-400/50 bg-cyan-950/20 shadow-cyan-500/10"
+                      : "border-white/10 hover:border-cyan-500/30"
+                  } ${isSelecting ? "cursor-pointer" : ""}`}
                 >
+                  {/* Selection Checkbox */}
+                  {isSelecting && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleSelectItem(item.id);
+                      }}
+                      className={`absolute top-2.5 left-2.5 z-20 w-6 h-6 rounded-lg flex items-center justify-center transition-all ${
+                        isSelected
+                          ? "bg-cyan-400 text-black shadow-md shadow-cyan-500/40"
+                          : "bg-black/75 border border-white/30 text-transparent hover:border-white"
+                      }`}
+                      title={isSelected ? "Deselect" : "Select for batch ZIP"}
+                    >
+                      <CheckIcon className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+
                   {/* Poster / Thumbnail Header */}
                   <div className="relative aspect-video w-full overflow-hidden bg-black/50">
                     {thumbSrc ? (
@@ -518,17 +742,19 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
 
                     {/* Play Button Overlay */}
-                    <button
-                      type="button"
-                      onClick={() => onPlayOffline(item)}
-                      className="absolute inset-0 m-auto w-13 h-13 rounded-full bg-cyan-500/90 hover:bg-cyan-400 text-black flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.6)] transform group-hover:scale-110 transition-all z-10"
-                      title="Play Offline Video"
-                    >
-                      <PlayIcon className="h-6 w-6 ml-0.5" />
-                    </button>
+                    {!isSelecting && (
+                      <button
+                        type="button"
+                        onClick={() => onPlayOffline(item)}
+                        className="absolute inset-0 m-auto w-13 h-13 rounded-full bg-cyan-500/90 hover:bg-cyan-400 text-black flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.6)] transform group-hover:scale-110 transition-all z-10"
+                        title="Play Offline Video"
+                      >
+                        <PlayIcon className="h-6 w-6 ml-0.5" />
+                      </button>
+                    )}
 
                     {/* Badges on poster */}
-                    <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap">
+                    <div className={`absolute top-2.5 ${isSelecting ? "left-11" : "left-2.5"} flex items-center gap-1.5 flex-wrap transition-all`}>
                       <span className="text-[10px] font-black tracking-wider uppercase px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-md text-cyan-300 border border-cyan-400/30">
                         {item.quality || "Standard"}
                       </span>
@@ -581,15 +807,27 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
                         Play Offline
                       </button>
 
-                      {/* Save to Device */}
+                      {/* Save to Device (Video + Subs in ZIP if subs present, else MP4) */}
                       <button
                         type="button"
                         onClick={() => downloadManager.saveToDevice(item)}
                         className="p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-white/80 hover:text-white transition-all border border-white/10"
-                        title="Export video file (.ts/.mp4) to device downloads"
+                        title={hasSubs ? "Save to device: Video & Subtitles (.zip)" : "Save video (.mp4) to device downloads"}
                       >
                         <DownloadIcon className="h-4 w-4" />
                       </button>
+
+                      {/* Video Only if subs exist */}
+                      {hasSubs && (
+                        <button
+                          type="button"
+                          onClick={() => downloadManager.saveToDevice(item, { videoOnly: true })}
+                          className="p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-cyan-300/80 hover:text-cyan-200 transition-all border border-white/10 hidden sm:flex items-center justify-center"
+                          title="Save video only (.mp4) without subtitles"
+                        >
+                          <VideoIcon className="h-4 w-4" />
+                        </button>
+                      )}
 
                       {/* Export Subtitles if available */}
                       {hasSubs && (
@@ -619,19 +857,44 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
             })}
           </div>
         ) : (
-          /* ── List View ── */
-          <div className="flex flex-col gap-3">
+          /* ── List View (Mobile-Optimized Horizontal Row) ── */
+          <div className="flex flex-col gap-2.5 sm:gap-3">
             {filteredItems.map((item) => {
               const thumbSrc = thumbnailUrls[item.id] || item.thumbnail;
               const hasSubs = Array.isArray(item.subtitles) && item.subtitles.length > 0;
+              const isSelected = selectedIds.has(item.id);
 
               return (
                 <div
                   key={item.id}
-                  className="group relative rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 hover:border-cyan-500/30 p-3 sm:p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 transition-all duration-300 shadow-md hover:shadow-cyan-500/5"
+                  onClick={isSelecting ? () => toggleSelectItem(item.id) : undefined}
+                  className={`group relative rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border p-2 sm:p-3.5 flex flex-row items-center gap-2.5 sm:gap-4 transition-all duration-300 shadow-md hover:shadow-cyan-500/5 ${
+                    isSelected
+                      ? "border-cyan-400 ring-2 ring-cyan-400/50 bg-cyan-950/20 shadow-cyan-500/10"
+                      : "border-white/10 hover:border-cyan-500/30"
+                  } ${isSelecting ? "cursor-pointer" : ""}`}
                 >
-                  {/* Left: 16:9 Thumbnail with Overlay */}
-                  <div className="relative w-full sm:w-48 md:w-56 aspect-video rounded-xl overflow-hidden bg-black/50 shrink-0">
+                  {/* Selection Checkbox in List View */}
+                  {isSelecting && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleSelectItem(item.id);
+                      }}
+                      className={`shrink-0 w-6 h-6 rounded-lg flex items-center justify-center transition-all ${
+                        isSelected
+                          ? "bg-cyan-400 text-black shadow-md shadow-cyan-500/40"
+                          : "bg-white/10 border border-white/30 text-transparent hover:border-white"
+                      }`}
+                      title={isSelected ? "Deselect" : "Select for batch ZIP"}
+                    >
+                      <CheckIcon className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+
+                  {/* Left: Compact Thumbnail with Overlay */}
+                  <div className="relative w-24 xs:w-28 sm:w-44 md:w-52 aspect-video rounded-xl overflow-hidden bg-black/50 shrink-0">
                     {thumbSrc ? (
                       <img
                         src={thumbSrc}
@@ -640,104 +903,122 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-white/20">
-                        <DownloadIcon className="h-8 w-8" />
+                        <DownloadIcon className="h-6 w-6 sm:h-8 sm:w-8" />
                       </div>
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
 
                     {/* Quick Play Button */}
-                    <button
-                      type="button"
-                      onClick={() => onPlayOffline(item)}
-                      className="absolute inset-0 m-auto w-10 h-10 rounded-full bg-cyan-500/90 hover:bg-cyan-400 text-black flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.6)] transform group-hover:scale-110 transition-all z-10"
-                      title="Play Offline Video"
-                    >
-                      <PlayIcon className="h-5 w-5 ml-0.5" />
-                    </button>
+                    {!isSelecting && (
+                      <button
+                        type="button"
+                        onClick={() => onPlayOffline(item)}
+                        className="absolute inset-0 m-auto w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-cyan-500/90 hover:bg-cyan-400 text-black flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.6)] transform group-hover:scale-110 transition-all z-10"
+                        title="Play Offline Video"
+                      >
+                        <PlayIcon className="h-4 w-4 sm:h-5 sm:w-5 ml-0.5" />
+                      </button>
+                    )}
 
                     {/* Badges on thumbnail */}
-                    <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
-                      <span className="text-[9px] font-black tracking-wider uppercase px-1.5 py-0.5 rounded bg-black/75 backdrop-blur-md text-cyan-300 border border-cyan-400/30">
-                        {item.quality || "Standard"}
+                    <div className="absolute top-1 left-1 flex items-center gap-1">
+                      <span className="text-[8px] sm:text-[9px] font-black tracking-wider uppercase px-1 py-0.2 rounded bg-black/75 backdrop-blur-md text-cyan-300 border border-cyan-400/30">
+                        {item.quality || "Std"}
                       </span>
                       {hasSubs && (
-                        <span className="text-[9px] font-semibold flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-black/75 backdrop-blur-md text-emerald-300 border border-emerald-400/30">
-                          <SubtitleIcon className="h-2.5 w-2.5" />
+                        <span className="text-[8px] sm:text-[9px] font-semibold flex items-center gap-0.5 px-1 py-0.2 rounded bg-black/75 backdrop-blur-md text-emerald-300 border border-emerald-400/30">
+                          <SubtitleIcon className="h-2 w-2 sm:h-2.5 sm:w-2.5" />
                           Sub
                         </span>
                       )}
                     </div>
 
                     {item.duration > 0 && (
-                      <span className="absolute bottom-1.5 right-1.5 text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/75 backdrop-blur-md text-white/90">
-                        {Math.floor(item.duration / 60)} min
+                      <span className="absolute bottom-1 right-1 text-[8px] sm:text-[10px] font-mono px-1 py-0.2 rounded bg-black/75 backdrop-blur-md text-white/90">
+                        {Math.floor(item.duration / 60)}m
                       </span>
                     )}
                   </div>
 
                   {/* Middle: Details */}
-                  <div className="flex-1 min-w-0 w-full sm:w-auto">
-                    <div className="flex items-center gap-2 flex-wrap mb-1 text-[11px] font-mono">
+                  <div className="flex-1 min-w-0 flex flex-col justify-center py-0.5">
+                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap mb-0.5 text-[9px] sm:text-[11px] font-mono">
                       {item.platform && (
-                        <span className="px-2 py-0.5 rounded bg-white/10 text-white/70">
+                        <span className="px-1.5 py-0.2 rounded bg-white/10 text-white/70">
                           {item.platform}
                         </span>
                       )}
                       <span className="text-cyan-300 font-semibold">
                         {formatBytes(item.totalSize || 0)}
                       </span>
-                      <span className="text-white/30">•</span>
-                      <span className="text-white/40">
+                      <span className="text-white/30 hidden xs:inline">•</span>
+                      <span className="text-white/40 hidden xs:inline">
                         {new Date(item.createdAt || Date.now()).toLocaleDateString()}
                       </span>
                     </div>
 
-                    <h3 className="font-bold text-sm sm:text-base text-white truncate group-hover:text-cyan-300 transition-colors">
+                    <h3 className="font-bold text-xs sm:text-base text-white truncate group-hover:text-cyan-300 transition-colors">
                       {item.animeTitle}
                     </h3>
-                    <p className="text-xs text-ivory-muted truncate mt-0.5">
+                    <p className="text-[11px] sm:text-xs text-ivory-muted truncate mt-0.5">
                       {item.episodeTitle || `Episode ${item.episodeNumber}`}
                     </p>
 
                     {hasSubs && (
-                      <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-emerald-400/80">
-                        <SubtitleIcon className="h-3 w-3" />
+                      <div className="mt-1 flex items-center gap-1 text-[10px] sm:text-[11px] text-emerald-400/80">
+                        <SubtitleIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                         <span>Subtitles included ({item.subtitles.length} {item.subtitles.length === 1 ? "track" : "tracks"})</span>
                       </div>
                     )}
                   </div>
 
                   {/* Right: Actions */}
-                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end pt-2 sm:pt-0 border-t sm:border-t-0 border-white/5 shrink-0">
+                  <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                     <button
                       type="button"
                       onClick={() => onPlayOffline(item)}
-                      className="flex items-center justify-center gap-1.5 py-2 px-3.5 rounded-xl bg-white text-black hover:bg-cyan-300 font-bold text-xs transition-all shadow-md"
+                      className="flex items-center justify-center gap-1.5 py-2 px-2.5 sm:px-3.5 rounded-xl bg-white text-black hover:bg-cyan-300 font-bold text-xs transition-all shadow-md"
+                      title="Play Offline Video"
                     >
                       <PlayIcon className="h-3.5 w-3.5" />
-                      <span>Play</span>
+                      <span className="hidden sm:inline">Play</span>
                     </button>
 
+                    {/* Download (Video + Subs in ZIP if subs present, else MP4) */}
                     <button
                       type="button"
                       onClick={() => downloadManager.saveToDevice(item)}
                       className="p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-white/80 hover:text-white transition-all border border-white/10"
-                      title="Export video file (.ts/.mp4) to device downloads"
+                      title={hasSubs ? "Save to device: Video & Subtitles (.zip)" : "Save video (.mp4) to device downloads"}
                     >
                       <DownloadIcon className="h-4 w-4" />
                     </button>
 
+                    {/* Video Only if subs exist */}
+                    {hasSubs && (
+                      <button
+                        type="button"
+                        onClick={() => downloadManager.saveToDevice(item, { videoOnly: true })}
+                        className="p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-cyan-300/80 hover:text-cyan-200 transition-all border border-white/10 hidden md:flex items-center justify-center"
+                        title="Save video only (.mp4) without subtitles"
+                      >
+                        <VideoIcon className="h-4 w-4" />
+                      </button>
+                    )}
+
+                    {/* Subtitle export if subs exist */}
                     {hasSubs && (
                       <button
                         type="button"
                         onClick={() => downloadManager.saveSubtitleToDevice(item, 0)}
-                        className="p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-emerald-300/80 hover:text-emerald-200 transition-all border border-white/10"
+                        className="p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-emerald-300/80 hover:text-emerald-200 transition-all border border-white/10 hidden xs:flex items-center justify-center"
                         title="Export subtitle file (.srt) to device downloads"
                       >
                         <SubtitleIcon className="h-4 w-4" />
                       </button>
                     )}
 
+                    {/* Delete from DB */}
                     <button
                       type="button"
                       onClick={() => handleDelete(item.id, `${item.animeTitle} - ${item.episodeTitle}`)}
@@ -793,6 +1074,104 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
               Browse Anime to Download
             </button>
           )}
+        </div>
+      )}
+
+      {/* ── Floating Batch Action Bar ── */}
+      {isSelecting && (
+        <div className="fixed bottom-4 left-4 right-4 z-40 max-w-xl mx-auto animate-slide-up">
+          <div className="bg-[#18181b]/95 backdrop-blur-2xl border border-cyan-500/40 rounded-2xl p-3 sm:p-3.5 shadow-[0_10px_35px_rgba(0,0,0,0.8)] flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <button
+                type="button"
+                onClick={handleSelectAll}
+                className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white shrink-0 transition-colors"
+              >
+                {selectedIds.size === filteredItems.length && filteredItems.length > 0
+                  ? "Deselect All"
+                  : "Select All"}
+              </button>
+              <div className="truncate text-xs">
+                <span className="font-bold text-white">
+                  {selectedIds.size}
+                </span>
+                <span className="text-white/60"> of {filteredItems.length} selected</span>
+                {selectedTotalSize > 0 && (
+                  <span className="text-cyan-300 font-mono hidden sm:inline ml-1.5 font-semibold">
+                    ({formatBytes(selectedTotalSize)})
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Batch Download ZIP Button */}
+              <button
+                type="button"
+                disabled={selectedIds.size === 0}
+                onClick={() => handleDownloadBatchZip()}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-md ${
+                  selectedIds.size > 0
+                    ? "bg-cyan-400 hover:bg-cyan-300 text-black shadow-cyan-500/30 cursor-pointer"
+                    : "bg-white/10 text-white/30 cursor-not-allowed"
+                }`}
+                title="Download selected episodes in a single ZIP"
+              >
+                <DownloadIcon className="h-4 w-4" />
+                <span>Download ZIP ({selectedIds.size})</span>
+              </button>
+
+              {/* Delete Selected */}
+              {selectedIds.size > 0 && (
+                <button
+                  type="button"
+                  onClick={handleDeleteSelected}
+                  className="p-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 transition-all"
+                  title="Delete selected episodes"
+                >
+                  <TrashIcon className="h-4 w-4" />
+                </button>
+              )}
+
+              {/* Close selection mode */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSelecting(false);
+                  setSelectedIds(new Set());
+                }}
+                className="p-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+                title="Exit selection"
+              >
+                <CloseIcon className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Packaging ZIP Progress Modal ── */}
+      {packagingProgress && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-fade-in">
+          <div className="bg-[#18181b] border border-cyan-500/30 rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl">
+            <div className="w-14 h-14 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(6,182,212,0.4)]">
+              <DownloadIcon className="h-7 w-7 animate-bounce" />
+            </div>
+            <h4 className="font-bold text-base text-white mb-1">Packaging ZIP Archive</h4>
+            <p className="text-xs text-ivory-muted truncate mb-4">
+              {packagingProgress.title} {packagingProgress.episode ? `• ${packagingProgress.episode}` : ""}
+            </p>
+            <div className="w-full h-2.5 rounded-full bg-white/10 overflow-hidden mb-2 relative">
+              <div
+                className="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 rounded-full transition-all duration-300 shadow-[0_0_10px_rgba(6,182,212,0.8)]"
+                style={{ width: `${packagingProgress.percent}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-[11px] font-mono text-white/60">
+              <span>Episode {packagingProgress.current} of {packagingProgress.total}</span>
+              <span className="font-bold text-cyan-300">{packagingProgress.percent}%</span>
+            </div>
+          </div>
         </div>
       )}
     </div>

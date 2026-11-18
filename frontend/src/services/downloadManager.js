@@ -423,16 +423,20 @@ class DownloadManager {
 
   /**
    * Export / save a downloaded episode to the user's computer/device disk.
+   * If subtitles are present and videoOnly is false, bundles video and subtitles
+   * together into a .zip file. This ensures both video and subtitle download
+   * in a single user gesture on iOS Safari without browser popup/multi-download drops.
+   * If videoOnly is true or no subtitles exist, downloads the video file directly.
    */
-  async saveToDevice(downloadItem) {
+  async saveToDevice(downloadItem, { videoOnly = false } = {}) {
     if (!downloadItem) return;
 
     let videoBlob;
-    let extension = "ts";
+    let extension = "mp4";
 
     if (downloadItem.isHls && Array.isArray(downloadItem.segments)) {
-      videoBlob = new Blob(downloadItem.segments, { type: "video/mp2t" });
-      extension = "ts";
+      videoBlob = new Blob(downloadItem.segments, { type: "video/mp4" });
+      extension = "mp4";
     } else if (downloadItem.videoBlob) {
       videoBlob = downloadItem.videoBlob;
       extension = "mp4";
@@ -450,9 +454,49 @@ class DownloadManager {
       ? `-${downloadItem.quality.replace(/[/\\?%*:|"<>]/g, "_")}`
       : "";
 
-    const filename = `${safeTitle} - ${safeEpisode}${cleanQuality}.${extension}`;
+    const baseName = `${safeTitle} - ${safeEpisode}${cleanQuality}`;
+    const hasSubs =
+      Array.isArray(downloadItem.subtitles) && downloadItem.subtitles.length > 0;
 
-    const url = URL.createObjectURL(videoBlob);
+    // Bundle video and subtitle(s) together in a .zip file if subtitles exist and not videoOnly
+    if (hasSubs && !videoOnly) {
+      try {
+        const videoBuffer = await videoBlob.arrayBuffer();
+        const zipFiles = [
+          {
+            name: `${baseName}.${extension}`,
+            data: new Uint8Array(videoBuffer),
+          },
+        ];
+
+        downloadItem.subtitles.forEach((sub, idx) => {
+          const srtContent = vttToSrt(sub.content || "");
+          if (srtContent.trim().length > 0) {
+            const langCode = sub.lang || (idx === 0 ? "en" : `sub${idx + 1}`);
+            zipFiles.push({
+              name: `${baseName}.${langCode}.srt`,
+              data: srtContent,
+            });
+          }
+        });
+
+        const zipBlob = createZipBlob(zipFiles);
+        this.triggerDownloadBlob(zipBlob, `${baseName}.zip`);
+        return;
+      } catch (e) {
+        console.warn("Failed to create zip bundle, falling back to direct video download:", e);
+      }
+    }
+
+    // Direct video download
+    this.triggerDownloadBlob(videoBlob, `${baseName}.${extension}`);
+  }
+
+  /**
+   * Helper to trigger a single file download reliably across browsers, including iOS Safari.
+   */
+  triggerDownloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.style.display = "none";
     a.href = url;
@@ -460,14 +504,11 @@ class DownloadManager {
     document.body.appendChild(a);
     a.click();
     setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 5000);
-
-    // Also download primary subtitle if available
-    if (downloadItem.subtitles && downloadItem.subtitles.length > 0) {
-      this.saveSubtitleToDevice(downloadItem, 0, `${safeTitle} - ${safeEpisode}${cleanQuality}`);
-    }
+      try {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (_) {}
+    }, 8000);
   }
 
   /**
@@ -484,25 +525,107 @@ class DownloadManager {
     const sub = downloadItem.subtitles[subIndex];
     const srtContent = vttToSrt(sub.content || "");
     const blob = new Blob([srtContent], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
 
     const safeName =
       baseName ||
-      `${downloadItem.animeTitle} - ${downloadItem.episodeTitle}`.replace(
+      `${downloadItem.animeTitle || "anime"} - ${downloadItem.episodeTitle || "episode"}`.replace(
         /[/\\?%*:|"<>]/g,
         "-"
       );
 
-    const a = document.createElement("a");
-    a.style.display = "none";
-    a.href = url;
-    a.download = `${safeName}.${sub.lang || "en"}.srt`;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 5000);
+    this.triggerDownloadBlob(blob, `${safeName}.${sub.lang || "en"}.srt`);
+  }
+
+  /**
+   * Export / save multiple downloaded episodes at once bundled into a single ZIP archive.
+   * Includes video files (.mp4) and any subtitle tracks (.srt) organized cleanly.
+   * @param {Array<object>} items - List of downloaded episode items
+   * @param {function({ current: number, total: number, percent: number, title: string, episode: string })} [onProgress]
+   */
+  async exportMultipleAsZip(items, onProgress = null) {
+    if (!Array.isArray(items) || items.length === 0) return;
+
+    const zipFiles = [];
+    const total = items.length;
+
+    // Check if all items belong to the same anime
+    const firstAnime = items[0]?.animeTitle || "Anime";
+    const sameAnime = items.every((it) => (it.animeTitle || "Anime") === firstAnime);
+
+    for (let i = 0; i < total; i++) {
+      const item = items[i];
+      if (onProgress) {
+        onProgress({
+          current: i + 1,
+          total,
+          percent: Math.round(((i + 1) / total) * 100),
+          title: item.animeTitle || "Anime",
+          episode: item.episodeTitle || `Episode ${item.episodeNumber || i + 1}`,
+        });
+      }
+
+      let videoBlob;
+      let extension = "mp4";
+
+      if (item.isHls && Array.isArray(item.segments)) {
+        videoBlob = new Blob(item.segments, { type: "video/mp4" });
+        extension = "mp4";
+      } else if (item.videoBlob) {
+        videoBlob = item.videoBlob;
+        extension = "mp4";
+      } else {
+        continue;
+      }
+
+      const safeAnime = (item.animeTitle || "Anime")
+        .replace(/[/\\?%*:|"<>]/g, "-")
+        .trim();
+      const safeEpisode = (item.episodeTitle || `Episode ${item.episodeNumber || i + 1}`)
+        .replace(/[/\\?%*:|"<>]/g, "-")
+        .trim();
+      const cleanQuality = item.quality
+        ? `-${item.quality.replace(/[/\\?%*:|"<>]/g, "_")}`
+        : "";
+
+      const folderPrefix = sameAnime ? "" : `${safeAnime}/`;
+      const videoFilename = `${folderPrefix}${safeAnime} - ${safeEpisode}${cleanQuality}.${extension}`;
+
+      try {
+        const videoBuffer = await videoBlob.arrayBuffer();
+        zipFiles.push({
+          name: videoFilename,
+          data: new Uint8Array(videoBuffer),
+        });
+
+        if (Array.isArray(item.subtitles)) {
+          item.subtitles.forEach((sub, subIdx) => {
+            const srtContent = vttToSrt(sub.content || "");
+            if (srtContent.trim().length > 0) {
+              const langCode = sub.lang || (subIdx === 0 ? "en" : `sub${subIdx + 1}`);
+              const subFilename = `${folderPrefix}${safeAnime} - ${safeEpisode}${cleanQuality}.${langCode}.srt`;
+              zipFiles.push({
+                name: subFilename,
+                data: srtContent,
+              });
+            }
+          });
+        }
+      } catch (err) {
+        console.error("Error packaging episode for batch zip:", err);
+      }
+    }
+
+    if (zipFiles.length === 0) {
+      throw new Error("No video files could be packaged into ZIP.");
+    }
+
+    const zipBlob = createZipBlob(zipFiles);
+    const safeTitle = (items[0]?.animeTitle || "AnimeX").replace(/[/\\?%*:|"<>]/g, "-").trim();
+    const zipName = sameAnime
+      ? `${safeTitle} - Batch (${items.length} Episodes).zip`
+      : `AnimeX - Batch (${items.length} Episodes).zip`;
+
+    this.triggerDownloadBlob(zipBlob, zipName);
   }
 }
 
@@ -512,6 +635,132 @@ function formatSpeed(bytesPerSec) {
     return `${Math.round(bytesPerSec / 1024)} KB/s`;
   }
   return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
+}
+
+// ─── Pure JavaScript Stored ZIP Generator (No external dependencies) ─────────
+const crcTable = (() => {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) {
+      c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    }
+    table[n] = c;
+  }
+  return table;
+})();
+
+function computeCrc32(uint8arr) {
+  let crc = 0 ^ (-1);
+  for (let i = 0; i < uint8arr.length; i++) {
+    crc = (crc >>> 8) ^ crcTable[(crc ^ uint8arr[i]) & 0xFF];
+  }
+  return (crc ^ (-1)) >>> 0;
+}
+
+/**
+ * Creates a standard ZIP Blob with Stored (uncompressed) files.
+ * Compatible with all desktop & mobile operating systems, including iOS Safari and iOS Files.
+ * @param {Array<{ name: string, data: Uint8Array | ArrayBuffer | string }>} files
+ * @returns {Blob}
+ */
+export function createZipBlob(files) {
+  const textEncoder = new TextEncoder();
+  const fileRecords = [];
+  let currentOffset = 0;
+
+  for (const file of files) {
+    let dataBytes;
+    if (typeof file.data === "string") {
+      dataBytes = textEncoder.encode(file.data);
+    } else if (file.data instanceof Uint8Array) {
+      dataBytes = file.data;
+    } else if (file.data instanceof ArrayBuffer) {
+      dataBytes = new Uint8Array(file.data);
+    } else {
+      dataBytes = new Uint8Array(0);
+    }
+
+    const nameBytes = textEncoder.encode(file.name);
+    const crc = computeCrc32(dataBytes);
+    const size = dataBytes.byteLength;
+
+    // Local Header (30 bytes)
+    const localHeader = new Uint8Array(30);
+    const lv = new DataView(localHeader.buffer);
+    lv.setUint32(0, 0x04034b50, true); // signature
+    lv.setUint16(4, 20, true);         // version needed (2.0)
+    lv.setUint16(6, 0, true);          // flags
+    lv.setUint16(8, 0, true);          // compression 0 (stored)
+    lv.setUint16(10, 0, true);         // time
+    lv.setUint16(12, 0, true);         // date
+    lv.setUint32(14, crc, true);       // crc32
+    lv.setUint32(18, size, true);      // compressed size
+    lv.setUint32(22, size, true);      // uncompressed size
+    lv.setUint16(26, nameBytes.length, true); // filename length
+    lv.setUint16(28, 0, true);         // extra field length
+
+    // Central Directory Header (46 bytes)
+    const cdHeader = new Uint8Array(46);
+    const cv = new DataView(cdHeader.buffer);
+    cv.setUint32(0, 0x02014b50, true); // signature
+    cv.setUint16(4, 20, true);         // version made by
+    cv.setUint16(6, 20, true);         // version needed
+    cv.setUint16(8, 0, true);          // flags
+    cv.setUint16(10, 0, true);         // compression 0 (stored)
+    cv.setUint16(12, 0, true);         // time
+    cv.setUint16(14, 0, true);         // date
+    cv.setUint32(16, crc, true);       // crc32
+    cv.setUint32(20, size, true);      // compressed size
+    cv.setUint32(24, size, true);      // uncompressed size
+    cv.setUint16(28, nameBytes.length, true); // filename length
+    cv.setUint16(30, 0, true);         // extra length
+    cv.setUint16(32, 0, true);         // comment length
+    cv.setUint16(34, 0, true);         // disk number start
+    cv.setUint16(36, 0, true);         // internal attributes
+    cv.setUint32(38, 0, true);         // external attributes
+    cv.setUint32(42, currentOffset, true); // offset of local header
+
+    fileRecords.push({
+      localHeader,
+      nameBytes,
+      dataBytes,
+      cdHeader,
+      size,
+    });
+
+    currentOffset += localHeader.length + nameBytes.length + dataBytes.length;
+  }
+
+  const blobParts = [];
+  // 1. Write local headers + names + data
+  for (const rec of fileRecords) {
+    blobParts.push(rec.localHeader, rec.nameBytes, rec.dataBytes);
+  }
+
+  // 2. Write central directory
+  const cdOffset = currentOffset;
+  let cdSize = 0;
+  for (const rec of fileRecords) {
+    blobParts.push(rec.cdHeader, rec.nameBytes);
+    cdSize += rec.cdHeader.length + rec.nameBytes.length;
+  }
+
+  // 3. Write End of Central Directory (22 bytes)
+  const eocd = new Uint8Array(22);
+  const ev = new DataView(eocd.buffer);
+  ev.setUint32(0, 0x06054b50, true); // signature
+  ev.setUint16(4, 0, true);          // disk number
+  ev.setUint16(6, 0, true);          // start disk
+  ev.setUint16(8, fileRecords.length, true);  // entries on disk
+  ev.setUint16(10, fileRecords.length, true); // total entries
+  ev.setUint32(12, cdSize, true);    // size of central directory
+  ev.setUint32(16, cdOffset, true);  // offset of central directory
+  ev.setUint16(20, 0, true);         // comment length
+
+  blobParts.push(eocd);
+
+  return new Blob(blobParts, { type: "application/zip" });
 }
 
 function vttToSrt(vttText) {
