@@ -150,14 +150,34 @@ export class Client {
   }
 }
 
+const prefsStore = new Map();
+
+export function setPreference(key, value) {
+  if (value === undefined || value === null) {
+    prefsStore.delete(key);
+  } else {
+    prefsStore.set(key, String(value));
+  }
+}
+
+export function clearPreferences() {
+  prefsStore.clear();
+}
+
 /**
- * Preferences storage dummy (defaults used).
+ * Preferences storage implementation.
  */
 export class SharedPreferences {
   get(key) {
-    return null;
+    return prefsStore.get(key) || null;
   }
-  set(key, val) {}
+  set(key, val) {
+    if (val === undefined || val === null) {
+      prefsStore.delete(key);
+    } else {
+      prefsStore.set(key, String(val));
+    }
+  }
 }
 
 /**

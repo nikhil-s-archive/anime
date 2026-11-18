@@ -1547,7 +1547,7 @@ export default function App() {
     window.history.replaceState({}, "", "/");
   };
 
-  // ── Fetch available platforms on mount ──────────────────────────────────────
+  // ── Fetch available platforms on mount (strictly only those listed in App.jsx) ──
   useEffect(() => {
     let cancelled = false;
     api
@@ -1556,9 +1556,18 @@ export default function App() {
         if (cancelled) return;
         const list = Array.isArray(data) ? data : data.platforms || [];
         if (list.length > 0) {
-          setPlatforms(list);
+          // Strictly keep only platforms explicitly listed in DEFAULT_PLATFORMS
+          const allowedList = DEFAULT_PLATFORMS.map((def) => {
+            const remote = list.find(
+              (p) =>
+                p.name.toLowerCase() === def.name.toLowerCase() ||
+                p.id === def.id
+            );
+            return remote ? { ...def, ...remote } : def;
+          });
+          setPlatforms(allowedList);
           setSelectedPlatform((curr) => {
-            const updated = list.find(
+            const updated = allowedList.find(
               (p) => p.name.toLowerCase() === curr.name.toLowerCase()
             );
             return updated || curr;
@@ -1866,13 +1875,81 @@ export default function App() {
     ]
   );
 
+  const isDubQualityOrUrl = (s) => {
+    if (!s) return false;
+    const q = (s.quality || s.name || "").toLowerCase();
+    const u = (s.url || s.linkId || s.proxyUrl || "").toLowerCase();
+    return (
+      q.includes("dub") ||
+      q.includes("hindi") ||
+      q.includes("tamil") ||
+      q.includes("telugu") ||
+      q.includes("malayalam") ||
+      q.includes("bengali") ||
+      q.includes("kannada") ||
+      q.includes("multi") ||
+      q.includes("dual") ||
+      u.includes("/dub") ||
+      u.includes("audio=dub") ||
+      u.includes("dub=1")
+    );
+  };
+
+  const isSubQualityOrUrl = (s) => {
+    if (!s) return false;
+    const q = (s.quality || s.name || "").toLowerCase();
+    const u = (s.url || s.linkId || s.proxyUrl || "").toLowerCase();
+    if (q.includes("sub") || q.includes("jap") || q.includes("eng") || u.includes("/sub")) return true;
+    if (q.includes("multi") || q.includes("dual")) return true;
+    const isDubOnly =
+      (q.includes("dub") || q.includes("hindi") || q.includes("tamil") || q.includes("telugu")) &&
+      !q.includes("sub") &&
+      !q.includes("multi");
+    return !isDubOnly;
+  };
+
   const handleSwitchType = useCallback(
     (newType) => {
       if (newType === currentType || !activeEpisode || loadingStream) return;
       setCurrentType(newType);
-      handleEpisodeClick(activeEpisode, newType, "", "", true);
+
+      // Check if target stream is already available in current `streams`
+      const targetServers =
+        newType === "dub"
+          ? availableServers.dub
+          : newType === "sub"
+          ? availableServers.sub
+          : availableServers.all;
+
+      const firstTargetServer = targetServers?.[0];
+
+      if (firstTargetServer && streams.length > 0) {
+        const localMatched = streams.find(
+          (s) =>
+            (firstTargetServer.linkId && s.url === firstTargetServer.linkId) ||
+            (s.quality &&
+              firstTargetServer.name &&
+              s.quality.toLowerCase() === firstTargetServer.name.toLowerCase()) ||
+            (newType === "dub" && isDubQualityOrUrl(s)) ||
+            (newType === "sub" && isSubQualityOrUrl(s))
+        );
+        if (localMatched && localMatched.proxyUrl) {
+          setStreamUrl(localMatched.proxyUrl);
+          setRawStreamUrl(localMatched.url || localMatched.originalUrl || null);
+          setCurrentServer(firstTargetServer.name || localMatched.quality || "Server");
+          return;
+        }
+      }
+
+      handleEpisodeClick(
+        activeEpisode,
+        newType,
+        firstTargetServer?.name || "",
+        firstTargetServer?.linkId || "",
+        true
+      );
     },
-    [currentType, activeEpisode, loadingStream, handleEpisodeClick]
+    [currentType, activeEpisode, loadingStream, availableServers, streams, handleEpisodeClick]
   );
 
   const handleSwitchServer = useCallback(
@@ -1883,6 +1960,21 @@ export default function App() {
         loadingStream
       )
         return;
+
+      const localMatched = streams.find(
+        (s) =>
+          (serverObj.linkId && s.url === serverObj.linkId) ||
+          (s.quality &&
+            serverObj.name &&
+            s.quality.toLowerCase() === serverObj.name.toLowerCase())
+      );
+      if (localMatched && localMatched.proxyUrl) {
+        setStreamUrl(localMatched.proxyUrl);
+        setRawStreamUrl(localMatched.url || localMatched.originalUrl || null);
+        setCurrentServer(serverObj.name);
+        return;
+      }
+
       handleEpisodeClick(
         activeEpisode,
         currentType,
@@ -1895,6 +1987,7 @@ export default function App() {
       currentServer,
       activeEpisode,
       loadingStream,
+      streams,
       currentType,
       handleEpisodeClick,
     ]
@@ -2509,6 +2602,8 @@ export default function App() {
                         }
                         onClose={closePlayer}
                         onError={showError}
+                        onSwitchType={handleSwitchType}
+                        onSwitchServer={handleSwitchServer}
                       />
                       {loadingStream && (
                         <div className="absolute inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-30 rounded-[28px]">
@@ -2525,7 +2620,8 @@ export default function App() {
                     {/* ── Sub/Dub & Server Controls ── */}
                     {(availableServers.all?.length > 0 ||
                       availableServers.sub?.length > 0 ||
-                      availableServers.dub?.length > 0) && (
+                      availableServers.dub?.length > 0 ||
+                      activeEpisode?.badge?.toLowerCase().includes("dub")) && (
                       <div className="glass rounded-[24px] px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 animate-fade-in border border-white/12">
                         {/* Audio Type Toggle (ALL / SUB / DUB) */}
                         <div className="flex items-center gap-2.5">
@@ -2569,12 +2665,14 @@ export default function App() {
                               onClick={() => handleSwitchType("dub")}
                               disabled={
                                 loadingStream ||
-                                availableServers.dub?.length === 0
+                                (availableServers.dub?.length === 0 &&
+                                  !activeEpisode?.badge?.toLowerCase().includes("dub"))
                               }
                               className={`px-3.5 py-1.5 text-xs font-bold rounded-full transition-all ${
                                 currentType === "dub"
                                   ? "bg-white text-black shadow-md"
-                                  : availableServers.dub?.length === 0
+                                  : availableServers.dub?.length === 0 &&
+                                    !activeEpisode?.badge?.toLowerCase().includes("dub")
                                   ? "opacity-30 cursor-not-allowed text-ivory-muted"
                                   : "text-ivory-muted hover:text-white"
                               }`}

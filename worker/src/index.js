@@ -21,6 +21,7 @@ import {
   findPlatform,
   createPlatformExtension,
 } from "./sources/index.js";
+import { setPreference, clearPreferences } from "./runtime.js";
 
 // ─── Headers & CORS ───────────────────────────────────────────────────────────
 
@@ -458,6 +459,31 @@ export default {
         const preferredServer = searchParams.get("server") || "";
         const targetLinkId = searchParams.get("linkId") || "";
 
+        // Set extension audio preference before getVideoList is invoked
+        const isDubPref = preferredType === "dub";
+        clearPreferences();
+        if (isDubPref) {
+          setPreference("hianime_pref_audio", "dub");
+          setPreference("anikoto_pref_audio", "dub_sub");
+          setPreference("justanime_pref_audio", "dub");
+          setPreference("aniwave_pref_audio", "dub");
+          setPreference("allwish_pref_audio", "dub_sub");
+          setPreference("myronix_pref_audio", "dub");
+          setPreference("reanime_audio_pref", "dub_sub");
+          setPreference("oneanime_pref_audio", "dub_sub");
+          setPreference("anidap_audio_pref", "dub");
+        } else {
+          setPreference("hianime_pref_audio", "sub");
+          setPreference("anikoto_pref_audio", "sub_dub");
+          setPreference("justanime_pref_audio", "sub");
+          setPreference("aniwave_pref_audio", "sub");
+          setPreference("allwish_pref_audio", "sub_dub");
+          setPreference("myronix_pref_audio", "sub");
+          setPreference("reanime_audio_pref", "sub_dub");
+          setPreference("oneanime_pref_audio", "sub_dub");
+          setPreference("anidap_audio_pref", "sub");
+        }
+
         let rawStreams = [];
         try {
           rawStreams = (await ext.getVideoList(targetUrl)) || [];
@@ -469,6 +495,37 @@ export default {
           throw new Error(`No streams found for episode on ${platform.name}`);
         }
 
+        const checkIsDub = (s) => {
+          const q = (s.quality || "").toLowerCase();
+          const u = (s.url || "").toLowerCase();
+          return (
+            q.includes("dub") ||
+            q.includes("hindi") ||
+            q.includes("tamil") ||
+            q.includes("telugu") ||
+            q.includes("malayalam") ||
+            q.includes("bengali") ||
+            q.includes("kannada") ||
+            q.includes("multi") ||
+            q.includes("dual") ||
+            u.includes("/dub") ||
+            u.includes("audio=dub") ||
+            u.includes("dub=1")
+          );
+        };
+
+        const checkIsSub = (s) => {
+          const q = (s.quality || "").toLowerCase();
+          const u = (s.url || "").toLowerCase();
+          if (q.includes("sub") || q.includes("jap") || q.includes("eng") || u.includes("/sub")) return true;
+          if (q.includes("multi") || q.includes("dual")) return true;
+          const isDubOnly =
+            (q.includes("dub") || q.includes("hindi") || q.includes("tamil") || q.includes("telugu")) &&
+            !q.includes("sub") &&
+            !q.includes("multi");
+          return !isDubOnly;
+        };
+
         // Build server buckets for sub, dub, & all
         const sub = [];
         const dub = [];
@@ -479,21 +536,8 @@ export default {
 
         for (const s of rawStreams) {
           const q = (s.quality || "").toLowerCase();
-          const u = (s.url || "").toLowerCase();
-          const isDub =
-            q.includes("dub") ||
-            q.includes("hindi") ||
-            q.includes("tamil") ||
-            q.includes("telugu") ||
-            q.includes("malayalam") ||
-            q.includes("bengali") ||
-            q.includes("kannada") ||
-            u.includes("/dub");
-          const isSub =
-            q.includes("sub") ||
-            q.includes("jap") ||
-            q.includes("eng") ||
-            (!q.includes("dub") && !q.includes("hindi") && !q.includes("tamil") && !q.includes("telugu"));
+          const isDub = checkIsDub(s);
+          const isSub = checkIsSub(s);
           const isMulti =
             q.includes("multi") ||
             q.includes("dual") ||
@@ -524,9 +568,9 @@ export default {
           }
         }
 
-        // Guarantee all servers are accessible if one category is empty
-        if (sub.length === 0) sub.push(...all);
-        if (dub.length === 0) dub.push(...all);
+        // Guarantee sub has accessible servers if it was empty but streams exist
+        if (sub.length === 0 && all.length > 0) sub.push(...all);
+        // Do NOT populate dub with sub streams if dub is empty so the UI accurately represents dub availability
 
         // Select primary stream matching user preference
         let primary = null;
@@ -540,17 +584,9 @@ export default {
           );
         }
         if (!primary) {
-          const isDubPref = preferredType === "dub";
-          let candidates = rawStreams.filter((s) => {
-            const q = (s.quality || "").toLowerCase();
-            const isDub =
-              q.includes("dub") ||
-              q.includes("hindi") ||
-              q.includes("tamil") ||
-              q.includes("telugu") ||
-              q.includes("multi");
-            return isDubPref ? isDub : !isDub;
-          });
+          let candidates = rawStreams.filter((s) =>
+            isDubPref ? checkIsDub(s) : checkIsSub(s)
+          );
           if (candidates.length === 0) candidates = rawStreams;
           // Sort candidates so that playable HLS (.m3u8, Ravok, Nekomux) is chosen first
           candidates.sort((a, b) => {
@@ -606,9 +642,7 @@ export default {
           subtitles.push(subtitle);
         }
 
-        const isPrimaryDub = (primary.quality || "")
-          .toLowerCase()
-          .includes("dub");
+        const isPrimaryDub = checkIsDub(primary);
 
         const audioMatch = (primary.url || "").match(/#audio=([^&]+)/);
         const resolvedAudio =
@@ -622,7 +656,7 @@ export default {
           rawStreamUrl: primary.url,
           quality: primary.quality || "Auto",
           server: primary.quality || "Server",
-          type: isPrimaryDub ? "dub" : "sub",
+          type: isPrimaryDub ? "dub" : (preferredType === "all" ? "all" : "sub"),
           preferredAudio: resolvedAudio,
           availableServers: { sub, dub, all },
           subtitles,

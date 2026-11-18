@@ -495,6 +495,8 @@ export default function Player({
   onClose,
   onDownload,
   onError,
+  onSwitchType,
+  onSwitchServer,
 }) {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
@@ -505,9 +507,11 @@ export default function Player({
   const settingsPanelRef = useRef(null);
   const controlsTimerRef = useRef(null);
   const initialTimeRef = useRef(initialTime);
+  const lastPlaybackPosRef = useRef(initialTime || 0);
 
   useEffect(() => {
     initialTimeRef.current = initialTime;
+    lastPlaybackPosRef.current = initialTime || 0;
   }, [initialTime]);
 
   const [playerState, setPlayerState] = useState({
@@ -976,13 +980,23 @@ export default function Player({
     const isHls =
       streamUrl.includes(".m3u8") || streamUrl.includes("/proxy/hls");
 
+    const applyResumeTime = () => {
+      const resumeTime =
+        lastPlaybackPosRef.current > 0
+          ? lastPlaybackPosRef.current
+          : initialTimeRef.current;
+      if (resumeTime > 0 && Math.abs(video.currentTime - resumeTime) > 0.5) {
+        try {
+          video.currentTime = resumeTime;
+        } catch (_) {}
+      }
+    };
+
     if (!isHls) {
       video.src = streamUrl;
       const onMetadata = () => {
         patchState({ loading: false });
-        if (initialTimeRef.current > 0) {
-          video.currentTime = initialTimeRef.current;
-        }
+        applyResumeTime();
         video.play().catch(() => {});
       };
       video.addEventListener("loadedmetadata", onMetadata, { once: true });
@@ -1014,9 +1028,7 @@ export default function Player({
           })),
           activeLevel: -1,
         });
-        if (initialTimeRef.current > 0) {
-          video.currentTime = initialTimeRef.current;
-        }
+        applyResumeTime();
         video.play().catch(() => {});
       });
 
@@ -1059,17 +1071,30 @@ export default function Player({
 
         let chosenIndex = hls.audioTrack;
         const targetLang = (preferredAudio || currentServer || "").toLowerCase();
+        let matched = null;
         if (targetLang && formatted.length > 0) {
-          const matched = formatted.find(
+          matched = formatted.find(
             (t) =>
               t.label.toLowerCase().includes(targetLang) ||
               (t.name && t.name.toLowerCase().includes(targetLang)) ||
               (t.lang && targetLang.includes(t.lang.toLowerCase()))
           );
-          if (matched && matched.index !== hls.audioTrack) {
-            hls.audioTrack = matched.index;
-            chosenIndex = matched.index;
+        }
+        if (!matched && formatted.length > 1) {
+          if (currentType === "dub") {
+            matched =
+              formatted.find((t) => /en|eng|english/i.test(t.lang || "") || /english/i.test(t.label || "") || /english/i.test(t.name || "")) ||
+              formatted.find((t) => /hi|hin|hindi/i.test(t.lang || "") || /hindi/i.test(t.label || "") || /hindi/i.test(t.name || "")) ||
+              formatted.find((t) => t.lang !== "ja" && t.lang !== "jpn" && !/japanese|original/i.test(t.label || "") && !/original/i.test(t.name || ""));
+          } else if (currentType === "sub") {
+            matched =
+              formatted.find((t) => /ja|jpn|japanese/i.test(t.lang || "") || /japanese|original/i.test(t.label || "") || /original/i.test(t.name || "")) ||
+              formatted[0];
           }
+        }
+        if (matched && matched.index !== hls.audioTrack) {
+          hls.audioTrack = matched.index;
+          chosenIndex = matched.index;
         }
 
         patchState({
@@ -1146,6 +1171,7 @@ export default function Player({
       ratechange: () => patchState({ playbackRate: video.playbackRate }),
       timeupdate: () => {
         if (!seeking) {
+          lastPlaybackPosRef.current = video.currentTime;
           patchState({ currentTime: video.currentTime });
           onTimeUpdate?.(video.currentTime);
         }
@@ -1162,6 +1188,53 @@ export default function Player({
       );
     };
   }, [seeking, patchState, onTimeUpdate]);
+
+  // Synchronize HLS audio track with currentType ("sub" vs "dub")
+  useEffect(() => {
+    if (
+      !hlsRef.current ||
+      !playerState.audioTracks ||
+      playerState.audioTracks.length <= 1
+    )
+      return;
+    const hls = hlsRef.current;
+    const tracks = playerState.audioTracks;
+    let targetTrack = null;
+    if (currentType === "dub") {
+      targetTrack =
+        tracks.find(
+          (t) =>
+            /en|eng|english/i.test(t.lang || "") ||
+            /english/i.test(t.label || "") ||
+            /english/i.test(t.name || "")
+        ) ||
+        tracks.find(
+          (t) =>
+            /hi|hin|hindi/i.test(t.lang || "") ||
+            /hindi/i.test(t.label || "") ||
+            /hindi/i.test(t.name || "")
+        ) ||
+        tracks.find(
+          (t) =>
+            t.lang !== "ja" &&
+            t.lang !== "jpn" &&
+            !/japanese|original/i.test(t.label || "") &&
+            !/original/i.test(t.name || "")
+        );
+    } else if (currentType === "sub") {
+      targetTrack =
+        tracks.find(
+          (t) =>
+            /ja|jpn|japanese/i.test(t.lang || "") ||
+            /japanese|original/i.test(t.label || "") ||
+            /original/i.test(t.name || "")
+        ) || tracks[0];
+    }
+    if (targetTrack && targetTrack.index !== hls.audioTrack) {
+      hls.audioTrack = targetTrack.index;
+      patchState({ activeAudioTrack: targetTrack.index });
+    }
+  }, [currentType, playerState.audioTracks, patchState]);
 
   // ── Auto-hide Controls ───────────────────────────────────────────────────
   const showControls = useCallback(() => {
@@ -1795,6 +1868,62 @@ export default function Player({
               onChange={handleSpeedChange}
             />
           </div>
+
+          {/* Audio Type (SUB / DUB) */}
+          {(availableServers.sub?.length > 0 || availableServers.dub?.length > 0) && (
+            <div className="setting-item">
+              <span>Audio Type</span>
+              <div className="flex items-center gap-1.5 bg-black/40 p-1 rounded-full border border-white/10">
+                {availableServers.sub?.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onSwitchType && onSwitchType("sub")}
+                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                      currentType === "sub"
+                        ? "bg-white text-black shadow-sm"
+                        : "text-white/60 hover:text-white"
+                    }`}
+                  >
+                    SUB ({availableServers.sub.length})
+                  </button>
+                )}
+                {availableServers.dub?.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onSwitchType && onSwitchType("dub")}
+                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                      currentType === "dub"
+                        ? "bg-white text-black shadow-sm"
+                        : "text-white/60 hover:text-white"
+                    }`}
+                  >
+                    DUB ({availableServers.dub.length})
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Server Switcher */}
+          {((currentType === "dub" ? (availableServers.dub?.length ? availableServers.dub : availableServers.all || []) : (availableServers.sub?.length ? availableServers.sub : availableServers.all || [])) || []).length > 1 && (
+            <div className="setting-item">
+              <span>Server</span>
+              <GlassSelect
+                value={currentServer}
+                options={(
+                  (currentType === "dub" ? (availableServers.dub?.length ? availableServers.dub : availableServers.all || []) : (availableServers.sub?.length ? availableServers.sub : availableServers.all || [])) || []
+                ).map((s) => ({
+                  label: s.name,
+                  value: s.name,
+                }))}
+                onChange={(val) => {
+                  const srvList = (currentType === "dub" ? (availableServers.dub?.length ? availableServers.dub : availableServers.all || []) : (availableServers.sub?.length ? availableServers.sub : availableServers.all || [])) || [];
+                  const found = srvList.find((s) => s.name === val);
+                  if (found && onSwitchServer) onSwitchServer(found);
+                }}
+              />
+            </div>
+          )}
 
           {/* Audio Language */}
           {audioTracks.length > 1 && (
