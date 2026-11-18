@@ -16,6 +16,30 @@ const API_BASE = import.meta.env.VITE_API_BASE || "";
 // Default list of platforms from anime_index.json for instant rendering
 const DEFAULT_PLATFORMS = [
   {
+    name: "HiAnime",
+    id: 1183439094,
+    baseUrl: "https://hianime.at",
+    lang: "en",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://hianime.at",
+  },
+  {
+    name: "AniKoto",
+    id: 1356478902,
+    baseUrl: "https://anikototv.to",
+    lang: "en",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://anikototv.to",
+  },
+  {
+    name: "JustAnime",
+    id: 892345671,
+    baseUrl: "https://justanime.to",
+    lang: "en",
+    iconUrl:
+      "https://www.google.com/s2/favicons?sz=256&domain=https://justanime.to",
+  },
+  {
     name: "AnimeSalt",
     id: 1748293012,
     baseUrl: "https://animesalt.ro",
@@ -29,132 +53,6 @@ const DEFAULT_PLATFORMS = [
     baseUrl: "https://hindi-anime.com",
     lang: "hi",
     iconUrl: "https://hindi-anime.com/icon.svg",
-  },
-  {
-    name: "DesiDubAnime",
-    id: 1827465920,
-    baseUrl: "https://www.desidubanime.me",
-    lang: "hi",
-    iconUrl:
-      "https://www.desidubanime.me/wp-content/uploads/2025/01/Logoo.png",
-  },
-  {
-    name: "AniKoto",
-    id: 1356478902,
-    baseUrl: "https://anikototv.to",
-    lang: "en",
-    iconUrl:
-      "https://www.google.com/s2/favicons?sz=256&domain=https://anikototv.to",
-  },
-  {
-    name: "ReAnime",
-    id: 631942785,
-    baseUrl: "https://reanime.cz",
-    lang: "en",
-    iconUrl:
-      "https://www.google.com/s2/favicons?sz=256&domain=https://reanime.cz",
-  },
-  {
-    name: "Senshi",
-    id: 728461935,
-    baseUrl: "https://senshi.to",
-    lang: "en",
-    iconUrl:
-      "https://www.google.com/s2/favicons?sz=256&domain=https://senshi.to",
-  },
-  {
-    name: "MyroniX",
-    id: 347219856,
-    baseUrl: "https://myronix.strangled.net",
-    lang: "en",
-    iconUrl: "https://myronix.strangled.net/images/axolotl.png",
-  },
-  {
-    name: "AllWish",
-    id: -228451656,
-    baseUrl: "https://all-wish.me",
-    lang: "en",
-    iconUrl:
-      "https://www.google.com/s2/favicons?sz=256&domain=https://all-wish.me",
-  },
-  {
-    name: "JustAnime",
-    id: 892345671,
-    baseUrl: "https://justanime.to",
-    lang: "en",
-    iconUrl:
-      "https://www.google.com/s2/favicons?sz=256&domain=https://justanime.to",
-  },
-  {
-    name: "HiAnime",
-    id: 1183439094,
-    baseUrl: "https://hianime.at",
-    lang: "en",
-    iconUrl:
-      "https://www.google.com/s2/favicons?sz=256&domain=https://hianime.at",
-  },
-  {
-    name: "AnimeParadise",
-    id: 419768715,
-    baseUrl: "https://animeparadise.moe",
-    lang: "en",
-    iconUrl:
-      "https://www.google.com/s2/favicons?sz=128&domain=https://animeparadise.moe",
-  },
-  {
-    name: "Playback Diagnostic",
-    id: 918273645,
-    baseUrl: "https://example.invalid",
-    lang: "en",
-    iconUrl:
-      "https://www.google.com/s2/favicons?sz=256&domain=https://apple.com",
-  },
-  {
-    name: "AniPM",
-    id: 1742685193,
-    baseUrl: "https://ani.pm",
-    lang: "en",
-    iconUrl: "https://ani.pm/apple-touch-icon.png",
-  },
-  {
-    name: "Anidap",
-    id: 543219876,
-    baseUrl: "https://anidap.lol",
-    lang: "en",
-    iconUrl:
-      "https://www.google.com/s2/favicons?sz=256&domain=https://anidap.lol",
-  },
-  {
-    name: "Miruro",
-    id: 617345892,
-    baseUrl: "https://www.miruro.to",
-    lang: "en",
-    iconUrl:
-      "https://www.google.com/s2/favicons?sz=256&domain=https://www.miruro.to",
-  },
-  {
-    name: "AniWave",
-    id: -367725331,
-    baseUrl: "https://aniwaves.ru",
-    lang: "en",
-    iconUrl:
-      "https://www.google.com/s2/favicons?sz=256&domain=https://aniwaves.ru",
-  },
-  {
-    name: "1Anime",
-    id: 384756102,
-    baseUrl: "https://1anime.app",
-    lang: "en",
-    iconUrl:
-      "https://www.google.com/s2/favicons?sz=256&domain=https://1anime.app",
-  },
-  {
-    name: "AnimeHeaven",
-    id: -1744325818,
-    baseUrl: "https://animeheaven.me",
-    lang: "en",
-    iconUrl:
-      "https://www.google.com/s2/favicons?sz=256&domain=https://animeheaven.me",
   },
   {
     name: "Anichi",
