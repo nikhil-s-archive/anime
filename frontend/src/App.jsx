@@ -7,6 +7,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import Player from "./components/Player.jsx";
+import DownloadsPage from "./components/DownloadsPage.jsx";
+import { downloadManager } from "./services/downloadManager.js";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -170,6 +172,9 @@ function parsePath(pathname = window.location.pathname) {
   }
   if (parts[0].toLowerCase() === "home") {
     return { type: "home" };
+  }
+  if (parts[0].toLowerCase() === "downloads") {
+    return { type: "downloads" };
   }
   if (parts.length === 1) {
     return {
@@ -1375,10 +1380,41 @@ export default function App() {
     if (initialRoute.type === "episode") return "playing";
     if (initialRoute.type === "anime") return "episodes";
     if (initialRoute.type === "home") return "home";
+    if (initialRoute.type === "downloads") return "downloads";
     return "browse";
   });
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
+
+  // ── Network status & Download queue state ───────────────────────────────────
+  const [isOffline, setIsOffline] = useState(() =>
+    typeof navigator !== "undefined" ? !navigator.onLine : false
+  );
+  const [activeDownloadsCount, setActiveDownloadsCount] = useState(0);
+
+  useEffect(() => {
+    const onOnline = () => setIsOffline(false);
+    const onOffline = () => setIsOffline(true);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    return downloadManager.subscribe((queue) => {
+      const active = queue.filter(
+        (t) => t.status === "downloading" || t.status === "queued"
+      ).length;
+      setActiveDownloadsCount(active);
+    });
+  }, []);
+
+  // Offline playback state & object URL cleanup ref
+  const [isOfflinePlayback, setIsOfflinePlayback] = useState(false);
+  const offlineUrlsRef = useRef([]);
 
   // ── Home feed state (/home) ─────────────────────────────────────────────────
   const [homePopular, setHomePopular] = useState([]);
@@ -1426,6 +1462,109 @@ export default function App() {
     setError(msg);
     console.error("[AnimeX]", msg);
   }, []);
+
+  // Play an episode from offline IndexedDB storage
+  const handlePlayOffline = useCallback(
+    (downloadItem) => {
+      if (!downloadItem) return;
+
+      // Clean up previous offline blob URLs
+      offlineUrlsRef.current.forEach((u) => {
+        try {
+          URL.revokeObjectURL(u.replace(/#.*$/, ""));
+        } catch (_) {}
+      });
+      offlineUrlsRef.current = [];
+
+      let playableUrl = "";
+      let isHlsItem = Boolean(downloadItem.isHls);
+
+      if (
+        isHlsItem &&
+        Array.isArray(downloadItem.segments) &&
+        downloadItem.segments.length > 0
+      ) {
+        const segmentUrls = downloadItem.segments.map((b) => {
+          const u = URL.createObjectURL(b);
+          offlineUrlsRef.current.push(u);
+          return u;
+        });
+
+        const maxDur = Math.ceil(
+          Math.max(...(downloadItem.segmentDurations || [4]))
+        );
+        const lines = [
+          "#EXTM3U",
+          "#EXT-X-VERSION:3",
+          `#EXT-X-TARGETDURATION:${maxDur || 6}`,
+          "#EXT-X-MEDIA-SEQUENCE:0",
+        ];
+
+        for (let i = 0; i < segmentUrls.length; i++) {
+          const dur = downloadItem.segmentDurations?.[i] || 4.0;
+          lines.push(`#EXTINF:${Number(dur).toFixed(3)},`);
+          lines.push(segmentUrls[i]);
+        }
+        lines.push("#EXT-X-ENDLIST");
+
+        const playlistBlob = new Blob([lines.join("\n")], {
+          type: "application/vnd.apple.mpegurl",
+        });
+        const plUrl = URL.createObjectURL(playlistBlob) + "#offline.m3u8";
+        offlineUrlsRef.current.push(plUrl);
+        playableUrl = plUrl;
+      } else if (downloadItem.videoBlob) {
+        const vUrl = URL.createObjectURL(downloadItem.videoBlob);
+        offlineUrlsRef.current.push(vUrl);
+        playableUrl = vUrl;
+        isHlsItem = false;
+      }
+
+      if (!playableUrl) {
+        showError("Could not initialize offline playback for this item.");
+        return;
+      }
+
+      const offlineSubs = Array.isArray(downloadItem.subtitles)
+        ? downloadItem.subtitles.map((sub) => ({
+            label: sub.label || "English",
+            lang: sub.lang || "en",
+            content: sub.content,
+            default: Boolean(sub.default),
+          }))
+        : [];
+
+      setSelectedAnime({
+        title: downloadItem.animeTitle,
+        thumbnail: downloadItem.thumbnail || "",
+        url: downloadItem.id,
+      });
+      setActiveEpisode({
+        episode: downloadItem.episodeNumber || 1,
+        label: downloadItem.episodeTitle,
+        url: downloadItem.id,
+      });
+      setStreamUrl(playableUrl);
+      setRawStreamUrl(playableUrl);
+      setSubtitles(offlineSubs);
+      setCurrentType(downloadItem.audioType || "sub");
+      setCurrentServer(downloadItem.quality || "Offline");
+      setAvailableServers({
+        sub: [],
+        dub: [],
+        all: [{ name: downloadItem.quality || "Offline", linkId: "offline" }],
+      });
+      setPlaybackTime(0);
+      setIsOfflinePlayback(true);
+      setView("playing");
+      window.history.pushState(
+        {},
+        "",
+        `/downloads?play=${encodeURIComponent(downloadItem.id)}`
+      );
+    },
+    [showError]
+  );
 
   // ── Fetch Home Feed (/home) when view is home or platform changes ──────────
   useEffect(() => {
@@ -2165,6 +2304,16 @@ export default function App() {
         return;
       }
 
+      if (route.type === "downloads") {
+        setView("downloads");
+        setSelectedAnime(null);
+        setEpisodeData(null);
+        setActiveEpisode(null);
+        setStreamUrl(null);
+        setSubtitles([]);
+        return;
+      }
+
       if (route.type === "landing") {
         setSearchQuery(q);
         setDebouncedQuery(q);
@@ -2273,22 +2422,43 @@ export default function App() {
 
   // ── Navigation helpers ───────────────────────────────────────────────────────
   const closePlayer = useCallback(() => {
-    setView("episodes");
+    if (isOfflinePlayback) {
+      offlineUrlsRef.current.forEach((u) => {
+        try {
+          URL.revokeObjectURL(u.replace(/#.*$/, ""));
+        } catch (_) {}
+      });
+      offlineUrlsRef.current = [];
+      setIsOfflinePlayback(false);
+      setView("downloads");
+      window.history.pushState({}, "", "/downloads");
+    } else {
+      setView("episodes");
+    }
     setStreamUrl(null);
     setRawStreamUrl(null);
     setStreams([]);
     setSubtitles([]);
     setPlaybackTime(0);
-  }, []);
+  }, [isOfflinePlayback]);
 
   const goBack = useCallback(() => {
     if (view === "playing") {
+      if (isOfflinePlayback) {
+        closePlayer();
+        return;
+      }
       if (selectedAnime) {
         const platformSlug = toSlug(selectedPlatform.name);
         const animeSlug = toSlug(selectedAnime.title);
         window.history.pushState({}, "", `/${platformSlug}/${animeSlug}`);
       }
       closePlayer();
+    } else if (view === "downloads") {
+      window.history.pushState({}, "", "/home");
+      setView("home");
+      setSelectedAnime(null);
+      setEpisodeData(null);
     } else {
       if (debouncedQuery) {
         window.history.pushState(
@@ -2349,7 +2519,7 @@ export default function App() {
             {view === "playing" && (
               <button onClick={goBack} className="ios-back-button">
                 <ChevronIcon className="h-4 w-4 rotate-90" />
-                <span>Episodes</span>
+                <span>{isOfflinePlayback ? "Downloads" : "Episodes"}</span>
               </button>
             )}
             {view === "episodes" && (
@@ -2359,7 +2529,7 @@ export default function App() {
               </button>
             )}
 
-            {/* Navigation Tabs (Home / Search) */}
+            {/* Navigation Tabs (Home / Search / Downloads) */}
             <nav className="flex items-center bg-black/40 p-1 rounded-full border border-white/10 backdrop-blur-xl">
               <button
                 type="button"
@@ -2399,10 +2569,63 @@ export default function App() {
               >
                 Search
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setView("downloads");
+                  setSelectedAnime(null);
+                  window.history.pushState({}, "", "/downloads");
+                }}
+                className={`px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all flex items-center gap-1.5 ${
+                  view === "downloads"
+                    ? "bg-white text-black shadow-md font-bold"
+                    : "text-ivory-muted hover:text-white"
+                }`}
+              >
+                <span>Downloads</span>
+                {activeDownloadsCount > 0 && (
+                  <span className="w-4 h-4 rounded-full bg-cyan-400 text-black text-[10px] font-black flex items-center justify-center animate-pulse">
+                    {activeDownloadsCount}
+                  </span>
+                )}
+                {isOffline && (
+                  <span
+                    className="w-1.5 h-1.5 rounded-full bg-amber-400"
+                    title="Offline Mode"
+                  />
+                )}
+              </button>
             </nav>
           </div>
         </div>
       </header>
+
+      {/* ── Offline Alert Banner ── */}
+      {isOffline && (
+        <div className="bg-amber-500/15 border-b border-amber-500/25 px-4 py-2.5 backdrop-blur-md">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 text-xs">
+            <div className="flex items-center gap-2 text-amber-200">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+              <span className="font-semibold">You are offline.</span>
+              <span className="hidden sm:inline text-amber-200/80">
+                You can still access and watch all your downloaded anime with subtitles.
+              </span>
+            </div>
+            {view !== "downloads" && (
+              <button
+                type="button"
+                onClick={() => {
+                  setView("downloads");
+                  window.history.pushState({}, "", "/downloads");
+                }}
+                className="px-3 py-1 bg-amber-400 hover:bg-amber-300 text-black font-bold text-xs rounded-lg transition-colors shrink-0 shadow-sm"
+              >
+                Go to Downloads
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Main content ── */}
       <main className={`main-content flex-1 max-w-7xl mx-auto w-full px-4 py-6 ${view === "playing" ? "main-playing" : ""}`}>
@@ -2573,6 +2796,19 @@ export default function App() {
           )
         )}
 
+        {/* ══════ DOWNLOADS & OFFLINE VIEW (/downloads) ══════ */}
+        {view === "downloads" && (
+          <DownloadsPage
+            isOffline={isOffline}
+            onPlayOffline={handlePlayOffline}
+            onNavigateHome={() => {
+              setView("home");
+              setSelectedAnime(null);
+              window.history.pushState({}, "", "/home");
+            }}
+          />
+        )}
+
         {/* ══════ EPISODES VIEW ══════ */}
         {(view === "episodes" || view === "playing") && selectedAnime && (
           <div className={`animate-fade-in ${view === "playing" ? "playing-layout" : ""}`}>
@@ -2603,15 +2839,31 @@ export default function App() {
                         subtitles={subtitles}
                         initialTime={playbackTime}
                         onTimeUpdate={handleTimeUpdate}
+                        isOfflinePlayer={isOfflinePlayback}
                         title={
                           activeEpisode
-                            ? `${selectedAnime.title} · EP ${activeEpisode.episode}`
+                            ? `${selectedAnime.title} · ${activeEpisode.label || `EP ${activeEpisode.episode}`}`
                             : selectedAnime.title
                         }
                         onClose={closePlayer}
                         onError={showError}
                         onSwitchType={handleSwitchType}
                         onSwitchServer={handleSwitchServer}
+                        onDownload={(targetProxyUrl, qualityName, audioType) => {
+                          downloadManager.startDownload({
+                            streamUrl: targetProxyUrl || streamUrl,
+                            animeTitle: selectedAnime?.title || "Anime",
+                            episodeTitle:
+                              activeEpisode?.label ||
+                              `Episode ${activeEpisode?.episode || 1}`,
+                            episodeNumber: activeEpisode?.episode || 1,
+                            thumbnail: selectedAnime?.thumbnail || "",
+                            platform: selectedPlatform?.name || "AnimeX",
+                            quality: qualityName || currentServer || "Default",
+                            audioType: audioType || currentType || "sub",
+                            subtitles: subtitles || [],
+                          });
+                        }}
                       />
                       {loadingStream && (
                         <div className="absolute inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-30 rounded-[28px]">
@@ -2626,10 +2878,11 @@ export default function App() {
                     </div>
 
                     {/* ── Sub/Dub & Server Controls ── */}
-                    {(availableServers.all?.length > 0 ||
-                      availableServers.sub?.length > 0 ||
-                      availableServers.dub?.length > 0 ||
-                      activeEpisode?.badge?.toLowerCase().includes("dub")) && (
+                    {!isOfflinePlayback &&
+                      (availableServers.all?.length > 0 ||
+                        availableServers.sub?.length > 0 ||
+                        availableServers.dub?.length > 0 ||
+                        activeEpisode?.badge?.toLowerCase().includes("dub")) && (
                       <div className="glass rounded-[24px] px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 animate-fade-in border border-white/12">
                         {/* Audio Type Toggle (ALL / SUB / DUB) */}
                         <div className="flex items-center gap-2.5">
@@ -2731,64 +2984,68 @@ export default function App() {
                     )}
 
                     {/* ── Episode Grid Inline (directly below server switcher) ── */}
-                    <EpisodeGrid
-                      episodes={episodeData?.episodes || []}
-                      activeEpisode={activeEpisode}
-                      onSelectEpisode={handleEpisodeClick}
-                      loading={loadingEpisodes}
-                      platformName={selectedPlatform.name}
-                    />
+                    {!isOfflinePlayback && (
+                      <EpisodeGrid
+                        episodes={episodeData?.episodes || []}
+                        activeEpisode={activeEpisode}
+                        onSelectEpisode={handleEpisodeClick}
+                        loading={loadingEpisodes}
+                        platformName={selectedPlatform.name}
+                      />
+                    )}
                   </div>
                 ) : null}
               </div>
             )}
 
             {/* ── Anime info header ── */}
-            <div className="anime-info-header glass rounded-[28px] p-6 mb-6 flex gap-5 items-start border border-white/12">
-              {/* Thumbnail */}
-              {selectedAnime.thumbnail && (
-                <img
-                  src={selectedAnime.thumbnail}
-                  alt={selectedAnime.title}
-                  className="w-24 h-34 object-cover rounded-2xl flex-shrink-0 ring-1 ring-white/15 shadow-2xl"
-                />
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <h2 className="text-xl font-bold text-white leading-tight">
-                    {selectedAnime.title}
-                  </h2>
-                  <span className="tag text-[10px]">
-                    {selectedPlatform.name}
-                  </span>
-                </div>
-                {episodeData?.description && (
-                  <p className="text-ivory-muted text-sm leading-relaxed line-clamp-3 mt-2">
-                    {episodeData.description}
-                  </p>
+            {!isOfflinePlayback && (
+              <div className="anime-info-header glass rounded-[28px] p-6 mb-6 flex gap-5 items-start border border-white/12">
+                {/* Thumbnail */}
+                {selectedAnime.thumbnail && (
+                  <img
+                    src={selectedAnime.thumbnail}
+                    alt={selectedAnime.title}
+                    className="w-24 h-34 object-cover rounded-2xl flex-shrink-0 ring-1 ring-white/15 shadow-2xl"
+                  />
                 )}
-                {episodeData && (
-                  <div className="flex items-center gap-3 mt-3 flex-wrap">
-                    <span className="tag">
-                      {episodeData.totalEpisodes} Episodes
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <h2 className="text-xl font-bold text-white leading-tight">
+                      {selectedAnime.title}
+                    </h2>
+                    <span className="tag text-[10px]">
+                      {selectedPlatform.name}
                     </span>
-                    {episodeData.genres?.map((g) => (
-                      <span
-                        key={g}
-                        className="tag bg-white/5 text-ivory-muted border-white/10 text-[10px]"
-                      >
-                        {g}
-                      </span>
-                    ))}
-                    {activeEpisode && (
-                      <span className="tag bg-white/20 text-white border-white/30 backdrop-blur-md">
-                        ▶ EP {activeEpisode.episode}
-                      </span>
-                    )}
                   </div>
-                )}
+                  {episodeData?.description && (
+                    <p className="text-ivory-muted text-sm leading-relaxed line-clamp-3 mt-2">
+                      {episodeData.description}
+                    </p>
+                  )}
+                  {episodeData && (
+                    <div className="flex items-center gap-3 mt-3 flex-wrap">
+                      <span className="tag">
+                        {episodeData.totalEpisodes} Episodes
+                      </span>
+                      {episodeData.genres?.map((g) => (
+                        <span
+                          key={g}
+                          className="tag bg-white/5 text-ivory-muted border-white/10 text-[10px]"
+                        >
+                          {g}
+                        </span>
+                      ))}
+                      {activeEpisode && (
+                        <span className="tag bg-white/20 text-white border-white/30 backdrop-blur-md">
+                          ▶ EP {activeEpisode.episode}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* ── Episode Grid (when viewing anime details before playing) ── */}
             {view === "episodes" && (

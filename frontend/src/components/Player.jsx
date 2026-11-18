@@ -497,6 +497,7 @@ export default function Player({
   onError,
   onSwitchType,
   onSwitchServer,
+  isOfflinePlayer = false,
 }) {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
@@ -717,12 +718,14 @@ export default function Player({
     [subtitles, activeSubtitle]
   );
 
-  // Trigger file download directly to device (never opens a new tab or page)
+  // Trigger file download directly to device or download queue
   const triggerDownload = useCallback(
     async (targetProxyUrl, qualityName = "") => {
       if (onDownload) {
-        onDownload(targetProxyUrl, qualityName);
+        onDownload(targetProxyUrl, qualityName, downloadAudioType);
+        setDownloadToast(`Added to Download Queue (${qualityName || "Video"})`);
         setDownloadModalOpen(false);
+        setTimeout(() => setDownloadToast(false), 3500);
         return;
       }
 
@@ -978,7 +981,9 @@ export default function Player({
     patchState({ loading: true, hlsError: null, playing: false, hasEnded: false });
 
     const isHls =
-      streamUrl.includes(".m3u8") || streamUrl.includes("/proxy/hls");
+      streamUrl.includes(".m3u8") ||
+      streamUrl.includes("/proxy/hls") ||
+      streamUrl.includes("#offline");
 
     const applyResumeTime = () => {
       const resumeTime =
