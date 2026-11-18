@@ -2330,7 +2330,7 @@ export default function App() {
                     <br className="sm:hidden" /> looking for?
                   </h1>
                   <p className="search-home-copy">
-                    Stream seamlessly on {selectedPlatform.name} and across 15+ anime extensions.
+                    Stream seamlessly on {selectedPlatform.name}.
                   </p>
                   <SearchBar
                     value={searchQuery}
