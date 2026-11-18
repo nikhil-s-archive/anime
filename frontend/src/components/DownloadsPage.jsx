@@ -61,6 +61,30 @@ function WifiOffIcon({ className = "h-5 w-5" }) {
   );
 }
 
+function GridIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg aria-hidden="true" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+    </svg>
+  );
+}
+
+function ListIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg aria-hidden="true" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="8" y1="6" x2="21" y2="6" />
+      <line x1="8" y1="12" x2="21" y2="12" />
+      <line x1="8" y1="18" x2="21" y2="18" />
+      <line x1="3" y1="6" x2="3.01" y2="6" />
+      <line x1="3" y1="12" x2="3.01" y2="12" />
+      <line x1="3" y1="18" x2="3.01" y2="18" />
+    </svg>
+  );
+}
+
 export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline }) {
   const [downloadQueue, setDownloadQueue] = useState([]);
   const [savedDownloads, setSavedDownloads] = useState([]);
@@ -69,6 +93,20 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
   const [selectedAnimeFilter, setSelectedAnimeFilter] = useState("all");
   const [storageInfo, setStorageInfo] = useState({ usage: 0, formattedUsage: "0 B" });
   const [thumbnailUrls, setThumbnailUrls] = useState({});
+  const [viewMode, setViewMode] = useState(() => {
+    try {
+      return localStorage.getItem("animex_downloads_view_mode") || "grid";
+    } catch (_) {
+      return "grid";
+    }
+  });
+
+  const handleViewModeChange = (mode) => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem("animex_downloads_view_mode", mode);
+    } catch (_) {}
+  };
 
   // 1. Subscribe to active download queue
   useEffect(() => {
@@ -191,7 +229,7 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
         </div>
 
         {/* Storage info & Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap justify-end">
           <div className="px-3.5 py-1.5 rounded-xl bg-white/[0.04] border border-white/10 text-right">
             <span className="block text-[10px] uppercase tracking-wider text-ivory-muted font-mono">
               Offline Storage
@@ -199,6 +237,36 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
             <span className="text-sm font-bold text-white font-mono">
               {storageInfo.formattedUsage}
             </span>
+          </div>
+
+          {/* Grid / List View Toggle */}
+          <div className="flex items-center bg-white/[0.04] p-1 rounded-xl border border-white/10">
+            <button
+              type="button"
+              onClick={() => handleViewModeChange("grid")}
+              title="Grid View"
+              aria-label="Grid View"
+              className={`p-1.5 rounded-lg transition-all ${
+                viewMode === "grid"
+                  ? "bg-white text-black shadow-sm font-bold"
+                  : "text-white/50 hover:text-white"
+              }`}
+            >
+              <GridIcon className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleViewModeChange("list")}
+              title="List View"
+              aria-label="List View"
+              className={`p-1.5 rounded-lg transition-all ${
+                viewMode === "list"
+                  ? "bg-white text-black shadow-sm font-bold"
+                  : "text-white/50 hover:text-white"
+              }`}
+            >
+              <ListIcon className="h-4 w-4" />
+            </button>
           </div>
 
           {savedDownloads.length > 0 && (
@@ -349,138 +417,307 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
             )}
           </div>
 
-          {/* Anime Groups Chips */}
-          {animeGroups.length > 1 && (
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
-              <button
-                type="button"
-                onClick={() => setSelectedAnimeFilter("all")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                  selectedAnimeFilter === "all"
-                    ? "bg-white text-black font-bold shadow-md"
-                    : "bg-white/[0.04] text-white/60 hover:text-white hover:bg-white/10"
-                }`}
-              >
-                All ({savedDownloads.length})
-              </button>
-              {animeGroups.map(({ title, count }) => (
+          {/* Right side: Anime Groups Chips & View Toggle */}
+          <div className="flex items-center gap-2 justify-between sm:justify-end flex-wrap">
+            {animeGroups.length > 1 && (
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
                 <button
-                  key={title}
                   type="button"
-                  onClick={() => setSelectedAnimeFilter(title)}
+                  onClick={() => setSelectedAnimeFilter("all")}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                    selectedAnimeFilter === title
+                    selectedAnimeFilter === "all"
                       ? "bg-white text-black font-bold shadow-md"
                       : "bg-white/[0.04] text-white/60 hover:text-white hover:bg-white/10"
                   }`}
                 >
-                  {title} ({count})
+                  All ({savedDownloads.length})
                 </button>
-              ))}
+                {animeGroups.map(({ title, count }) => (
+                  <button
+                    key={title}
+                    type="button"
+                    onClick={() => setSelectedAnimeFilter(title)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                      selectedAnimeFilter === title
+                        ? "bg-white text-black font-bold shadow-md"
+                        : "bg-white/[0.04] text-white/60 hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    {title} ({count})
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* View Mode Toggle Button */}
+            <div className="flex items-center bg-white/[0.04] p-1 rounded-xl border border-white/10 ml-auto sm:ml-0">
+              <button
+                type="button"
+                onClick={() => handleViewModeChange("grid")}
+                title="Grid view"
+                aria-label="Grid view"
+                className={`p-1.5 rounded-lg transition-all ${
+                  viewMode === "grid"
+                    ? "bg-white text-black shadow-sm font-bold"
+                    : "text-white/50 hover:text-white"
+                }`}
+              >
+                <GridIcon className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleViewModeChange("list")}
+                title="List view"
+                aria-label="List view"
+                className={`p-1.5 rounded-lg transition-all ${
+                  viewMode === "list"
+                    ? "bg-white text-black shadow-sm font-bold"
+                    : "text-white/50 hover:text-white"
+                }`}
+              >
+                <ListIcon className="h-4 w-4" />
+              </button>
             </div>
-          )}
+          </div>
         </div>
       )}
 
-      {/* ── Downloaded Items Grid ── */}
+      {/* ── Downloaded Items (Grid or List View) ── */}
       {loading ? (
         <div className="py-20 flex flex-col items-center justify-center text-ivory-muted gap-3">
           <div className="w-8 h-8 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
           <p className="text-xs">Loading offline library…</p>
         </div>
       ) : filteredItems.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredItems.map((item) => {
-            const thumbSrc = thumbnailUrls[item.id] || item.thumbnail;
-            const hasSubs = Array.isArray(item.subtitles) && item.subtitles.length > 0;
+        viewMode === "grid" ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredItems.map((item) => {
+              const thumbSrc = thumbnailUrls[item.id] || item.thumbnail;
+              const hasSubs = Array.isArray(item.subtitles) && item.subtitles.length > 0;
 
-            return (
-              <div
-                key={item.id}
-                className="group relative rounded-2xl bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 hover:border-cyan-500/30 overflow-hidden flex flex-col transition-all duration-300 shadow-lg hover:shadow-cyan-500/5"
-              >
-                {/* Poster / Thumbnail Header */}
-                <div className="relative aspect-video w-full overflow-hidden bg-black/50">
-                  {thumbSrc ? (
-                    <img
-                      src={thumbSrc}
-                      alt={item.animeTitle}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-white/20">
-                      <DownloadIcon className="h-10 w-10" />
+              return (
+                <div
+                  key={item.id}
+                  className="group relative rounded-2xl bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 hover:border-cyan-500/30 overflow-hidden flex flex-col transition-all duration-300 shadow-lg hover:shadow-cyan-500/5"
+                >
+                  {/* Poster / Thumbnail Header */}
+                  <div className="relative aspect-video w-full overflow-hidden bg-black/50">
+                    {thumbSrc ? (
+                      <img
+                        src={thumbSrc}
+                        alt={item.animeTitle}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-white/20">
+                        <DownloadIcon className="h-10 w-10" />
+                      </div>
+                    )}
+
+                    {/* Gradient overlays */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+
+                    {/* Play Button Overlay */}
+                    <button
+                      type="button"
+                      onClick={() => onPlayOffline(item)}
+                      className="absolute inset-0 m-auto w-13 h-13 rounded-full bg-cyan-500/90 hover:bg-cyan-400 text-black flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.6)] transform group-hover:scale-110 transition-all z-10"
+                      title="Play Offline Video"
+                    >
+                      <PlayIcon className="h-6 w-6 ml-0.5" />
+                    </button>
+
+                    {/* Badges on poster */}
+                    <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] font-black tracking-wider uppercase px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-md text-cyan-300 border border-cyan-400/30">
+                        {item.quality || "Standard"}
+                      </span>
+                      {hasSubs && (
+                        <span className="text-[10px] font-semibold flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-md text-emerald-300 border border-emerald-400/30">
+                          <SubtitleIcon className="h-3 w-3" />
+                          Subtitles ({item.subtitles.length})
+                        </span>
+                      )}
                     </div>
-                  )}
 
-                  {/* Gradient overlays */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                    {item.platform && (
+                      <span className="absolute top-2.5 right-2.5 text-[10px] font-mono px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-md text-white/60">
+                        {item.platform}
+                      </span>
+                    )}
 
-                  {/* Play Button Overlay */}
-                  <button
-                    type="button"
-                    onClick={() => onPlayOffline(item)}
-                    className="absolute inset-0 m-auto w-13 h-13 rounded-full bg-cyan-500/90 hover:bg-cyan-400 text-black flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.6)] transform group-hover:scale-110 transition-all z-10"
-                    title="Play Offline Video"
-                  >
-                    <PlayIcon className="h-6 w-6 ml-0.5" />
-                  </button>
+                    {/* Duration and size label */}
+                    <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-[11px] font-mono text-white/80">
+                      <span>{formatBytes(item.totalSize || 0)}</span>
+                      {item.duration > 0 && (
+                        <span>{Math.floor(item.duration / 60)} min</span>
+                      )}
+                    </div>
+                  </div>
 
-                  {/* Badges on poster */}
-                  <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[10px] font-black tracking-wider uppercase px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-md text-cyan-300 border border-cyan-400/30">
-                      {item.quality || "Standard"}
-                    </span>
-                    {hasSubs && (
-                      <span className="text-[10px] font-semibold flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-md text-emerald-300 border border-emerald-400/30">
-                        <SubtitleIcon className="h-3 w-3" />
-                        Subtitles ({item.subtitles.length})
+                  {/* Details & Actions Body */}
+                  <div className="p-3.5 flex-1 flex flex-col justify-between gap-3">
+                    <div>
+                      <h3 className="font-bold text-sm text-white line-clamp-1 group-hover:text-cyan-300 transition-colors">
+                        {item.animeTitle}
+                      </h3>
+                      <p className="text-xs text-ivory-muted line-clamp-1 mt-0.5">
+                        {item.episodeTitle || `Episode ${item.episodeNumber}`}
+                      </p>
+                      <p className="text-[10px] font-mono text-white/40 mt-1">
+                        Downloaded on {new Date(item.createdAt || Date.now()).toLocaleDateString()}
+                      </p>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                      {/* Primary Play Button */}
+                      <button
+                        type="button"
+                        onClick={() => onPlayOffline(item)}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-white text-black hover:bg-cyan-300 font-bold text-xs transition-all shadow-md"
+                      >
+                        <PlayIcon className="h-3.5 w-3.5" />
+                        Play Offline
+                      </button>
+
+                      {/* Save to Device */}
+                      <button
+                        type="button"
+                        onClick={() => downloadManager.saveToDevice(item)}
+                        className="p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-white/80 hover:text-white transition-all border border-white/10"
+                        title="Export video file (.ts/.mp4) to device downloads"
+                      >
+                        <DownloadIcon className="h-4 w-4" />
+                      </button>
+
+                      {/* Export Subtitles if available */}
+                      {hasSubs && (
+                        <button
+                          type="button"
+                          onClick={() => downloadManager.saveSubtitleToDevice(item, 0)}
+                          className="p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-emerald-300/80 hover:text-emerald-200 transition-all border border-white/10"
+                          title="Export subtitle file (.srt) to device downloads"
+                        >
+                          <SubtitleIcon className="h-4 w-4" />
+                        </button>
+                      )}
+
+                      {/* Delete from DB */}
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(item.id, `${item.animeTitle} - ${item.episodeTitle}`)}
+                        className="p-2 rounded-xl bg-white/[0.04] hover:bg-rose-500/20 text-white/40 hover:text-rose-300 transition-all border border-white/5 hover:border-rose-500/30"
+                        title="Delete from local database"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* ── List View ── */
+          <div className="flex flex-col gap-3">
+            {filteredItems.map((item) => {
+              const thumbSrc = thumbnailUrls[item.id] || item.thumbnail;
+              const hasSubs = Array.isArray(item.subtitles) && item.subtitles.length > 0;
+
+              return (
+                <div
+                  key={item.id}
+                  className="group relative rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 hover:border-cyan-500/30 p-3 sm:p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 transition-all duration-300 shadow-md hover:shadow-cyan-500/5"
+                >
+                  {/* Left: 16:9 Thumbnail with Overlay */}
+                  <div className="relative w-full sm:w-48 md:w-56 aspect-video rounded-xl overflow-hidden bg-black/50 shrink-0">
+                    {thumbSrc ? (
+                      <img
+                        src={thumbSrc}
+                        alt={item.animeTitle}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-white/20">
+                        <DownloadIcon className="h-8 w-8" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+
+                    {/* Quick Play Button */}
+                    <button
+                      type="button"
+                      onClick={() => onPlayOffline(item)}
+                      className="absolute inset-0 m-auto w-10 h-10 rounded-full bg-cyan-500/90 hover:bg-cyan-400 text-black flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.6)] transform group-hover:scale-110 transition-all z-10"
+                      title="Play Offline Video"
+                    >
+                      <PlayIcon className="h-5 w-5 ml-0.5" />
+                    </button>
+
+                    {/* Badges on thumbnail */}
+                    <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
+                      <span className="text-[9px] font-black tracking-wider uppercase px-1.5 py-0.5 rounded bg-black/75 backdrop-blur-md text-cyan-300 border border-cyan-400/30">
+                        {item.quality || "Standard"}
+                      </span>
+                      {hasSubs && (
+                        <span className="text-[9px] font-semibold flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-black/75 backdrop-blur-md text-emerald-300 border border-emerald-400/30">
+                          <SubtitleIcon className="h-2.5 w-2.5" />
+                          Sub
+                        </span>
+                      )}
+                    </div>
+
+                    {item.duration > 0 && (
+                      <span className="absolute bottom-1.5 right-1.5 text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/75 backdrop-blur-md text-white/90">
+                        {Math.floor(item.duration / 60)} min
                       </span>
                     )}
                   </div>
 
-                  {item.platform && (
-                    <span className="absolute top-2.5 right-2.5 text-[10px] font-mono px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-md text-white/60">
-                      {item.platform}
-                    </span>
-                  )}
+                  {/* Middle: Details */}
+                  <div className="flex-1 min-w-0 w-full sm:w-auto">
+                    <div className="flex items-center gap-2 flex-wrap mb-1 text-[11px] font-mono">
+                      {item.platform && (
+                        <span className="px-2 py-0.5 rounded bg-white/10 text-white/70">
+                          {item.platform}
+                        </span>
+                      )}
+                      <span className="text-cyan-300 font-semibold">
+                        {formatBytes(item.totalSize || 0)}
+                      </span>
+                      <span className="text-white/30">•</span>
+                      <span className="text-white/40">
+                        {new Date(item.createdAt || Date.now()).toLocaleDateString()}
+                      </span>
+                    </div>
 
-                  {/* Duration and size label */}
-                  <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-[11px] font-mono text-white/80">
-                    <span>{formatBytes(item.totalSize || 0)}</span>
-                    {item.duration > 0 && (
-                      <span>{Math.floor(item.duration / 60)} min</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Details & Actions Body */}
-                <div className="p-3.5 flex-1 flex flex-col justify-between gap-3">
-                  <div>
-                    <h3 className="font-bold text-sm text-white line-clamp-1 group-hover:text-cyan-300 transition-colors">
+                    <h3 className="font-bold text-sm sm:text-base text-white truncate group-hover:text-cyan-300 transition-colors">
                       {item.animeTitle}
                     </h3>
-                    <p className="text-xs text-ivory-muted line-clamp-1 mt-0.5">
+                    <p className="text-xs text-ivory-muted truncate mt-0.5">
                       {item.episodeTitle || `Episode ${item.episodeNumber}`}
                     </p>
-                    <p className="text-[10px] font-mono text-white/40 mt-1">
-                      Downloaded on {new Date(item.createdAt || Date.now()).toLocaleDateString()}
-                    </p>
+
+                    {hasSubs && (
+                      <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-emerald-400/80">
+                        <SubtitleIcon className="h-3 w-3" />
+                        <span>Subtitles included ({item.subtitles.length} {item.subtitles.length === 1 ? "track" : "tracks"})</span>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex items-center gap-2 pt-2 border-t border-white/5">
-                    {/* Primary Play Button */}
+                  {/* Right: Actions */}
+                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end pt-2 sm:pt-0 border-t sm:border-t-0 border-white/5 shrink-0">
                     <button
                       type="button"
                       onClick={() => onPlayOffline(item)}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-white text-black hover:bg-cyan-300 font-bold text-xs transition-all shadow-md"
+                      className="flex items-center justify-center gap-1.5 py-2 px-3.5 rounded-xl bg-white text-black hover:bg-cyan-300 font-bold text-xs transition-all shadow-md"
                     >
                       <PlayIcon className="h-3.5 w-3.5" />
-                      Play Offline
+                      <span>Play</span>
                     </button>
 
-                    {/* Save to Device */}
                     <button
                       type="button"
                       onClick={() => downloadManager.saveToDevice(item)}
@@ -490,7 +727,6 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
                       <DownloadIcon className="h-4 w-4" />
                     </button>
 
-                    {/* Export Subtitles if available */}
                     {hasSubs && (
                       <button
                         type="button"
@@ -502,7 +738,6 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
                       </button>
                     )}
 
-                    {/* Delete from DB */}
                     <button
                       type="button"
                       onClick={() => handleDelete(item.id, `${item.animeTitle} - ${item.episodeTitle}`)}
@@ -513,10 +748,10 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
                     </button>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )
       ) : savedDownloads.length > 0 ? (
         // No items matching search
         <div className="py-16 text-center text-ivory-muted">

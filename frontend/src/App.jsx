@@ -312,6 +312,43 @@ function clearSearchHistoryStorage() {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+function HomeIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <polyline points="9 22 9 12 15 12 15 22" />
+    </svg>
+  );
+}
+
+function DownloadNavIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  );
+}
+
 function SearchIcon({ className = "h-4 w-4" }) {
   return (
     <svg
@@ -2529,10 +2566,12 @@ export default function App() {
               </button>
             )}
 
-            {/* Navigation Tabs (Home / Search / Downloads) */}
-            <nav className="flex items-center bg-black/40 p-1 rounded-full border border-white/10 backdrop-blur-xl">
+            {/* Navigation Tabs (Home / Search / Downloads) - Icons Only */}
+            <nav className="flex items-center bg-black/40 p-1 rounded-full border border-white/10 backdrop-blur-xl gap-1">
               <button
                 type="button"
+                title="Home"
+                aria-label="Home"
                 onClick={() => {
                   setView("home");
                   setSelectedAnime(null);
@@ -2540,16 +2579,18 @@ export default function App() {
                   setDebouncedQuery("");
                   window.history.pushState({}, "", "/home");
                 }}
-                className={`px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all ${
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
                   view === "home"
                     ? "bg-white text-black shadow-md font-bold"
-                    : "text-ivory-muted hover:text-white"
+                    : "text-ivory-muted hover:text-white hover:bg-white/10"
                 }`}
               >
-                Home
+                <HomeIcon className="h-4 w-4" />
               </button>
               <button
                 type="button"
+                title="Search"
+                aria-label="Search"
                 onClick={() => {
                   setView("browse");
                   setSelectedAnime(null);
@@ -2561,36 +2602,38 @@ export default function App() {
                       : "/"
                   );
                 }}
-                className={`px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all ${
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
                   view === "browse"
                     ? "bg-white text-black shadow-md font-bold"
-                    : "text-ivory-muted hover:text-white"
+                    : "text-ivory-muted hover:text-white hover:bg-white/10"
                 }`}
               >
-                Search
+                <SearchIcon className="h-4 w-4" />
               </button>
               <button
                 type="button"
+                title="Downloads & Offline"
+                aria-label="Downloads & Offline"
                 onClick={() => {
                   setView("downloads");
                   setSelectedAnime(null);
                   window.history.pushState({}, "", "/downloads");
                 }}
-                className={`px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all flex items-center gap-1.5 ${
+                className={`w-9 h-9 rounded-full relative flex items-center justify-center transition-all ${
                   view === "downloads"
                     ? "bg-white text-black shadow-md font-bold"
-                    : "text-ivory-muted hover:text-white"
+                    : "text-ivory-muted hover:text-white hover:bg-white/10"
                 }`}
               >
-                <span>Downloads</span>
+                <DownloadNavIcon className="h-4 w-4" />
                 {activeDownloadsCount > 0 && (
-                  <span className="w-4 h-4 rounded-full bg-cyan-400 text-black text-[10px] font-black flex items-center justify-center animate-pulse">
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-cyan-400 text-black text-[10px] font-black flex items-center justify-center animate-pulse shadow-sm">
                     {activeDownloadsCount}
                   </span>
                 )}
                 {isOffline && (
                   <span
-                    className="w-1.5 h-1.5 rounded-full bg-amber-400"
+                    className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-black"
                     title="Offline Mode"
                   />
                 )}
