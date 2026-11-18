@@ -1,5 +1,27 @@
 export default [
   {
+    "name": "WatchAnimeWorld",
+    "id": 1629482015,
+    "baseUrl": "https://watchanimeworld.one",
+    "lang": "hi",
+    "typeSource": "single",
+    "iconUrl": "https://watchanimeworld.one/wp-content/uploads/cropped-AW_Smiley-192x192.png",
+    "dateFormat": "",
+    "dateFormatLocale": "",
+    "isNsfw": false,
+    "hasCloudflare": false,
+    "sourceCodeUrl": "https://raw.githubusercontent.com/Mallyd11/mangayomi-anime-extensions/refs/heads/main/javascript/anime/src/all/watchanimeworld.js",
+    "apiUrl": "https://watchanimeworld.one",
+    "version": "1.0.0",
+    "isManga": false,
+    "itemType": 1,
+    "isFullData": false,
+    "appMinVerReq": "0.5.0",
+    "additionalParams": "",
+    "sourceCodeLanguage": 1,
+    "notes": "Watch Anime & Cartoons Online in Hindi, Tamil, Telugu, Malayalam, Bengali & English Dubbed/Subbed"
+  },
+  {
     "name": "AnimeSalt",
     "id": 1748293012,
     "baseUrl": "https://animesalt.ro",

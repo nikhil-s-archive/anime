@@ -150,6 +150,12 @@ function getUpstreamReferer(urlStr, explicitReferer) {
   if (u.includes("desidubanime")) {
     return "https://www.desidubanime.me/";
   }
+  if (u.includes("zephyrix")) {
+    return "https://play.zephyrix.org/";
+  }
+  if (u.includes("watchanimeworld")) {
+    return "https://watchanimeworld.one/";
+  }
   if (
     u.includes("animeinfinity") ||
     u.includes("hindi-anime") ||

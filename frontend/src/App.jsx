@@ -40,6 +40,14 @@ const DEFAULT_PLATFORMS = [
       "https://www.google.com/s2/favicons?sz=256&domain=https://justanime.to",
   },
   {
+    name: "WatchAnimeWorld",
+    id: 1629482015,
+    baseUrl: "https://watchanimeworld.one",
+    lang: "hi",
+    iconUrl:
+      "https://watchanimeworld.one/wp-content/uploads/cropped-AW_Smiley-192x192.png",
+  },
+  {
     name: "AnimeSalt",
     id: 1748293012,
     baseUrl: "https://animesalt.ro",
