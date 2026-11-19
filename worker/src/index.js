@@ -340,6 +340,16 @@ export default {
         return jsonResponse({ platforms: getPlatforms() });
       }
 
+      // ── GET /api/geo (Country detection for geo-specific features & ads) ──
+      if (pathname === "/api/geo") {
+        const country = (request.cf?.country || "").toUpperCase();
+        return jsonResponse({
+          country,
+          isIndia: country === "IN",
+          city: request.cf?.city || null,
+        });
+      }
+
       // ── GET /api/latest ──
       if (pathname === "/api/latest") {
         const platformKey =
