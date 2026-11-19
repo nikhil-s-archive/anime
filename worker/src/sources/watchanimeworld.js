@@ -371,8 +371,8 @@ class DefaultExtension extends MProvider {
 
       // Check if series with seasons dropdown
       const seasonLinks = $(".sel-temp a[data-season]");
+      const seasonData = [];
       if (seasonLinks.length > 0) {
-        const seasonData = [];
         seasonLinks.each((_, el) => {
           const season = $(el).attr("data-season");
           const post = $(el).attr("data-post");
@@ -385,26 +385,96 @@ class DefaultExtension extends MProvider {
 
         const seasonFetches = seasonData.map(async ({ season, post }) => {
           const ajaxUrl = `${this.baseUrl}/wp-admin/admin-ajax.php?action=action_select_season&season=${season}&post=${post}`;
-          const aRes = await this.client.get(ajaxUrl, this.headers);
-          if (aRes.statusCode !== 200) return [];
+          let body = "";
+          try {
+            const aRes = await this.client.get(ajaxUrl, this.headers);
+            if (aRes.statusCode === 200) body = aRes.body;
+          } catch {}
 
-          const $s = cheerio.load(aRes.body);
           const eps = [];
-          $s("article.episodes, .episodes article, li").each((_, el) => {
-            const link =
-              $s(el).find("a.lnk-blk, a").first().attr("href") ||
-              $s(el).find("a").attr("href");
-            if (!link || !link.includes("/episode/") || seenUrls.has(link)) return;
-            seenUrls.add(link);
+          if (body) {
+            const $s = cheerio.load(body);
+            $s("article.episodes, article.post").each((_, el) => {
+              const link =
+                $s(el).find("a.lnk-blk, a").first().attr("href") ||
+                $s(el).find("a").attr("href");
+              if (!link || !link.includes("/episode/") || seenUrls.has(link)) return;
+              seenUrls.add(link);
 
-            const num = cleanHtmlText($s(el).find(".num-epi").text());
-            const epTitle = cleanHtmlText($s(el).find(".entry-title, .title").text()).replace(/^[0-9xX\s\-:]+/, "");
-            const name = num
-              ? `Season ${season} Episode ${num.split("x")[1] || num}${epTitle ? ": " + epTitle : ""}`
-              : epTitle || `Season ${season} Episode`;
+              const num = cleanHtmlText($s(el).find(".num-epi").text());
+              let epNum = num;
+              if (num && num.includes("x")) {
+                epNum = num.split("x")[1] || num;
+              }
+              const rawTitle = cleanHtmlText($s(el).find(".entry-title, .title").text());
+              let cleanTitle = rawTitle
+                .replace(new RegExp(`^${title.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}`, "i"), "")
+                .replace(/^[0-9]+[xX][0-9]+\s*[:\-_|]*\s*/, "")
+                .replace(/^[:\-_|\\s]+/, "")
+                .trim();
+              if (/^[0-9]+[xX][0-9]+$/.test(cleanTitle) || /^[0-9]+$/.test(cleanTitle)) {
+                cleanTitle = "";
+              }
 
-            eps.push({ name, url: link, dateUpload: null });
-          });
+              const sNum = parseInt(season, 10);
+              const name = epNum
+                ? `Season ${sNum} Episode ${epNum}${cleanTitle ? ": " + cleanTitle : ""}`
+                : cleanTitle || `Season ${sNum} Episode`;
+
+              eps.push({
+                name,
+                url: link,
+                dateUpload: null,
+                season: sNum,
+                episode: String(epNum),
+                title: cleanTitle || `Episode ${epNum}`,
+              });
+            });
+          }
+
+          // Safety fallback: if ajax failed or returned 0, check if already in #episode_by_temp
+          if (eps.length === 0) {
+            const activeSeasonText = cleanHtmlText($(".choose-season button, .choose-season dt.n_s").text());
+            if (activeSeasonText.includes(String(season))) {
+              $("#episode_by_temp article, article.episodes").each((_, el) => {
+                const link =
+                  $(el).find("a.lnk-blk, a").first().attr("href") ||
+                  $(el).find("a").attr("href");
+                if (!link || !link.includes("/episode/") || seenUrls.has(link)) return;
+                seenUrls.add(link);
+
+                const num = cleanHtmlText($(el).find(".num-epi").text());
+                let epNum = num;
+                if (num && num.includes("x")) {
+                  epNum = num.split("x")[1] || num;
+                }
+                const rawTitle = cleanHtmlText($(el).find(".entry-title, .title").text());
+                let cleanTitle = rawTitle
+                  .replace(new RegExp(`^${title.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}`, "i"), "")
+                  .replace(/^[0-9]+[xX][0-9]+\s*[:\-_|]*\s*/, "")
+                  .replace(/^[:\-_|\\s]+/, "")
+                  .trim();
+                if (/^[0-9]+[xX][0-9]+$/.test(cleanTitle) || /^[0-9]+$/.test(cleanTitle)) {
+                  cleanTitle = "";
+                }
+
+                const sNum = parseInt(season, 10);
+                const name = epNum
+                  ? `Season ${sNum} Episode ${epNum}${cleanTitle ? ": " + cleanTitle : ""}`
+                  : cleanTitle || `Season ${sNum} Episode`;
+
+                eps.push({
+                  name,
+                  url: link,
+                  dateUpload: null,
+                  season: sNum,
+                  episode: String(epNum),
+                  title: cleanTitle || `Episode ${epNum}`,
+                });
+              });
+            }
+          }
+
           return eps;
         });
 
@@ -412,7 +482,7 @@ class DefaultExtension extends MProvider {
         for (const r of seasonResults) episodes.push(...r);
       }
 
-      // Fallback: direct episode links on page
+      // Fallback: direct episode links on page if no episodes found from seasons
       if (episodes.length === 0) {
         $("article.episodes, .episodes article, a[href*='/episode/']").each((_, el) => {
           const link = $(el).is("a")
@@ -422,12 +492,35 @@ class DefaultExtension extends MProvider {
           seenUrls.add(link);
 
           const num = cleanHtmlText($(el).find(".num-epi").text());
-          const epTitle = cleanHtmlText($(el).find(".entry-title, .title").text()).replace(/^[0-9xX\s\-:]+/, "");
-          const name = num
-            ? `Episode ${num}${epTitle ? ": " + epTitle : ""}`
-            : epTitle || cleanHtmlText($(el).text()) || "Episode";
+          let epNum = num;
+          let sNum = 1;
+          if (num && num.includes("x")) {
+            const parts = num.split("x");
+            sNum = parseInt(parts[0], 10) || 1;
+            epNum = parts[1];
+          }
+          const rawTitle = cleanHtmlText($(el).find(".entry-title, .title").text());
+          let cleanTitle = rawTitle
+            .replace(new RegExp(`^${title.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}`, "i"), "")
+            .replace(/^[0-9]+[xX][0-9]+\s*[:\-_|]*\s*/, "")
+            .replace(/^[:\-_|\\s]+/, "")
+            .trim();
+          if (/^[0-9]+[xX][0-9]+$/.test(cleanTitle) || /^[0-9]+$/.test(cleanTitle)) {
+            cleanTitle = "";
+          }
 
-          episodes.push({ name, url: link, dateUpload: null });
+          const name = epNum
+            ? (sNum > 1 ? `Season ${sNum} Episode ${epNum}` : `Episode ${epNum}`) + (cleanTitle ? `: ${cleanTitle}` : "")
+            : cleanTitle || cleanHtmlText($(el).text()) || "Episode";
+
+          episodes.push({
+            name,
+            url: link,
+            dateUpload: null,
+            season: sNum,
+            episode: String(epNum || episodes.length + 1),
+            title: cleanTitle || `Episode ${epNum || episodes.length + 1}`,
+          });
         });
       }
 
@@ -440,8 +533,20 @@ class DefaultExtension extends MProvider {
           name: title || "Full Movie",
           url: cleanUrl,
           dateUpload: null,
+          season: 1,
+          episode: "1",
+          title: title || "Full Movie",
         });
       }
+
+      const uniqueSeasons = Array.from(
+        new Set(episodes.map((e) => e.season).filter(Boolean))
+      ).sort((a, b) => a - b);
+
+      const seasons = (seasonData.length > 0 ? seasonData : uniqueSeasons.map((s) => ({ season: s }))).map((s) => ({
+        season: parseInt(s.season, 10),
+        name: `Season ${s.season}`,
+      }));
 
       return {
         name: title,
@@ -450,6 +555,7 @@ class DefaultExtension extends MProvider {
         genre: genres,
         author: "WatchAnimeWorld",
         status,
+        seasons,
         episodes,
       };
     } catch (e) {

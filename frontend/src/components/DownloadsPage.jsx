@@ -1,6 +1,14 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { getAllDownloads, deleteDownload, clearAllDownloads, formatBytes, getStorageEstimate } from "../services/localDb.js";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import {
+  getAllDownloads,
+  deleteDownload,
+  clearAllDownloads,
+  formatBytes,
+  getStorageEstimate,
+} from "../services/localDb.js";
 import { downloadManager } from "../services/downloadManager.js";
+
+// ─── Apple-style Icons ────────────────────────────────────────────────────────
 
 function PlayIcon({ className = "h-4 w-4" }) {
   return (
@@ -110,6 +118,137 @@ function CheckIcon({ className = "h-3.5 w-3.5" }) {
   );
 }
 
+// ─── Swipeable Item Component (Apple iOS-style Swipe Actions) ────────────────
+
+function SwipeableItem({
+  children,
+  onDelete,
+  onDownload,
+  disabled = false,
+  className = "",
+}) {
+  const [offsetX, setOffsetX] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const isSwiping = useRef(false);
+  const initialOffset = useRef(0);
+
+  const ACTION_WIDTH = 144; // 72px for Save + 72px for Delete
+
+  const handleStart = (clientX, clientY) => {
+    if (disabled) return;
+    touchStartX.current = clientX;
+    touchStartY.current = clientY;
+    initialOffset.current = offsetX;
+    isSwiping.current = false;
+  };
+
+  const handleMove = (clientX, clientY) => {
+    if (disabled) return;
+    const diffX = clientX - touchStartX.current;
+    const diffY = clientY - touchStartY.current;
+
+    if (!isSwiping.current) {
+      if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 8) {
+        isSwiping.current = true;
+      } else {
+        return;
+      }
+    }
+
+    let newOffset = initialOffset.current + diffX;
+    if (newOffset > 0) {
+      newOffset = 0;
+    }
+    if (newOffset < -ACTION_WIDTH) {
+      const extra = Math.abs(newOffset + ACTION_WIDTH);
+      newOffset = -ACTION_WIDTH - Math.pow(extra, 0.65);
+    }
+
+    setOffsetX(newOffset);
+  };
+
+  const handleEnd = () => {
+    if (disabled || !isSwiping.current) return;
+    isSwiping.current = false;
+
+    // Snap open or close
+    if (offsetX < -50) {
+      setOffsetX(-ACTION_WIDTH);
+      setIsOpen(true);
+    } else {
+      setOffsetX(0);
+      setIsOpen(false);
+    }
+  };
+
+  const close = () => {
+    setOffsetX(0);
+    setIsOpen(false);
+  };
+
+  return (
+    <div className={`relative overflow-hidden ${className}`}>
+      {/* Background iOS Action Buttons (Revealed on Swipe Left) */}
+      <div className="absolute inset-y-0 right-0 flex items-stretch z-0">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            close();
+            onDownload?.();
+          }}
+          className="w-[72px] bg-[#0071e3] hover:bg-[#0077ed] active:bg-[#005bb5] text-white flex flex-col items-center justify-center gap-1.5 transition-colors select-none"
+          title="Save to Device"
+        >
+          <DownloadIcon className="h-5 w-5" />
+          <span className="text-[11px] font-semibold tracking-tight">Save</span>
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            close();
+            onDelete?.();
+          }}
+          className="w-[72px] bg-[#ff453a] hover:bg-[#e0382e] active:bg-[#c93027] text-white flex flex-col items-center justify-center gap-1.5 transition-colors select-none"
+          title="Delete Download"
+        >
+          <TrashIcon className="h-5 w-5" />
+          <span className="text-[11px] font-semibold tracking-tight">Delete</span>
+        </button>
+      </div>
+
+      {/* Foreground Content */}
+      <div
+        style={{
+          transform: `translateX(${offsetX}px)`,
+          transition: isSwiping.current
+            ? "none"
+            : "transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+        }}
+        onTouchStart={(e) => handleStart(e.touches[0].clientX, e.touches[0].clientY)}
+        onTouchMove={(e) => handleMove(e.touches[0].clientX, e.touches[0].clientY)}
+        onTouchEnd={handleEnd}
+        onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
+        onMouseMove={(e) => {
+          if (e.buttons === 1) handleMove(e.clientX, e.clientY);
+        }}
+        onMouseUp={handleEnd}
+        onClick={() => {
+          if (isOpen) close();
+        }}
+        className="relative z-10 w-full"
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main DownloadsPage Component ─────────────────────────────────────────────
+
 export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline }) {
   const [downloadQueue, setDownloadQueue] = useState([]);
   const [savedDownloads, setSavedDownloads] = useState([]);
@@ -177,7 +316,6 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
         }
       });
       setThumbnailUrls((prev) => {
-        // revoke old ones
         Object.values(prev).forEach((u) => URL.revokeObjectURL(u));
         return newThumbUrls;
       });
@@ -202,7 +340,7 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
     };
   }, []);
 
-  // Filtered downloads
+  // Group downloads by anime title
   const animeGroups = useMemo(() => {
     const map = new Map();
     savedDownloads.forEach((it) => {
@@ -212,6 +350,7 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
     return Array.from(map.entries()).map(([title, count]) => ({ title, count }));
   }, [savedDownloads]);
 
+  // Filter and sort items
   const filteredItems = useMemo(() => {
     const list = savedDownloads.filter((it) => {
       if (selectedAnimeFilter !== "all" && it.animeTitle !== selectedAnimeFilter) {
@@ -346,81 +485,102 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
   }, [savedDownloads, selectedIds]);
 
   return (
-    <div className="downloads-page max-w-7xl mx-auto w-full px-2 sm:px-4 py-4 animate-fade-in text-ivory">
-      {/* ── Top Header ── */}
+    <div className="downloads-page max-w-7xl mx-auto w-full px-3 sm:px-6 py-6 animate-fade-in text-ivory">
+      {/* ── Top Header (Apple Minimalist Glass) ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-white/10">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2.5">
-              <span>Downloads &amp; Offline</span>
-              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight flex items-center gap-2.5">
+              <span>Downloads</span>
+              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-white/10 text-white/80 border border-white/10">
                 {savedDownloads.length} {savedDownloads.length === 1 ? "Episode" : "Episodes"}
               </span>
             </h1>
 
             {isOffline ? (
-              <span className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-[0_0_12px_rgba(245,158,11,0.2)]">
+              <span className="flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/25">
                 <WifiOffIcon className="h-3.5 w-3.5" />
                 Offline Mode
               </span>
             ) : (
-              <span className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-0.5 rounded-full bg-white/10 text-white/80 border border-white/15">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                 Online
               </span>
             )}
           </div>
-          <p className="text-xs sm:text-sm text-ivory-muted mt-1.5">
-            Watch your downloaded anime anytime, even without internet access.
+          <p className="text-xs sm:text-sm text-ivory-muted/80 mt-1">
+            Access your offline library anytime. Swipe left on any episode to Save or Delete.
           </p>
         </div>
 
-        {/* Storage info & Actions */}
-        <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap justify-end">
-          <div className="px-3.5 py-1.5 rounded-xl bg-white/[0.04] border border-white/10 text-right">
-            <span className="block text-[10px] uppercase tracking-wider text-ivory-muted font-mono">
-              Offline Storage
+        {/* Top Controls: Storage Info + View Toggle + Select / Clear All */}
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
+          <div className="px-3.5 py-1.5 rounded-full bg-white/[0.05] border border-white/10 text-right flex items-center gap-2">
+            <span className="text-[10px] uppercase tracking-wider text-ivory-muted/70 font-mono">
+              Storage
             </span>
-            <span className="text-sm font-bold text-white font-mono">
+            <span className="text-xs font-bold text-white font-mono">
               {storageInfo.formattedUsage}
             </span>
           </div>
 
-          {/* Grid / List View Toggle */}
-          <div className="flex items-center bg-white/[0.04] p-1 rounded-xl border border-white/10">
+          {/* Grid / List View Segmented Control */}
+          <div className="flex items-center bg-white/[0.06] p-1 rounded-full border border-white/10">
             <button
               type="button"
               onClick={() => handleViewModeChange("grid")}
               title="Grid View"
               aria-label="Grid View"
-              className={`p-1.5 rounded-lg transition-all ${
+              className={`p-1.5 rounded-full transition-all ${
                 viewMode === "grid"
                   ? "bg-white text-black shadow-sm font-bold"
                   : "text-white/50 hover:text-white"
               }`}
             >
-              <GridIcon className="h-4 w-4" />
+              <GridIcon className="h-3.5 w-3.5" />
             </button>
             <button
               type="button"
               onClick={() => handleViewModeChange("list")}
               title="List View"
               aria-label="List View"
-              className={`p-1.5 rounded-lg transition-all ${
+              className={`p-1.5 rounded-full transition-all ${
                 viewMode === "list"
                   ? "bg-white text-black shadow-sm font-bold"
                   : "text-white/50 hover:text-white"
               }`}
             >
-              <ListIcon className="h-4 w-4" />
+              <ListIcon className="h-3.5 w-3.5" />
             </button>
           </div>
 
+          {/* Select Mode Button */}
           {savedDownloads.length > 0 && (
             <button
               type="button"
+              onClick={() => {
+                const nextSelecting = !isSelecting;
+                setIsSelecting(nextSelecting);
+                if (!nextSelecting) setSelectedIds(new Set());
+              }}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all border ${
+                isSelecting
+                  ? "bg-white text-black border-white font-bold shadow-md"
+                  : "bg-white/[0.06] text-white/80 hover:text-white border-white/10 hover:border-white/20"
+              }`}
+            >
+              <CheckIcon className="h-3.5 w-3.5" />
+              <span>{isSelecting ? "Done" : "Select"}</span>
+            </button>
+          )}
+
+          {/* Clear All Button */}
+          {savedDownloads.length > 0 && !isSelecting && (
+            <button
+              type="button"
               onClick={handleClearAll}
-              className="px-3 py-2 text-xs font-semibold text-rose-300/80 hover:text-rose-200 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-xl transition-all"
+              className="px-3.5 py-1.5 text-xs font-semibold text-[#ff453a] hover:bg-[#ff453a]/15 border border-[#ff453a]/25 rounded-full transition-all"
               title="Delete all downloaded files to free space"
             >
               Clear All
@@ -429,21 +589,21 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
         </div>
       </div>
 
-      {/* ── Active Downloads Queue ── */}
+      {/* ── Active Downloads Queue (Apple Activity Widget) ── */}
       {downloadQueue.length > 0 && (
-        <section className="mt-6 mb-8">
+        <section className="mt-6 mb-6">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-              Active Download Queue ({downloadQueue.length})
+            <h2 className="text-xs font-bold uppercase tracking-wider text-white/90 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[#0071e3] animate-pulse" />
+              Active Downloads ({downloadQueue.length})
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {downloadQueue.map((task) => (
               <div
                 key={task.id}
-                className="relative overflow-hidden rounded-2xl bg-white/[0.03] border border-cyan-500/25 p-3.5 backdrop-blur-xl shadow-lg transition-all"
+                className="relative overflow-hidden rounded-2xl bg-white/[0.04] border border-white/10 p-3.5 backdrop-blur-2xl shadow-sm transition-all"
               >
                 <div className="flex items-start gap-3.5">
                   {/* Thumbnail / Poster */}
@@ -459,14 +619,13 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
                         <DownloadIcon />
                       </div>
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                   </div>
 
                   {/* Task details */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div className="truncate">
-                        <h3 className="font-bold text-sm text-white truncate">
+                        <h3 className="font-semibold text-sm text-white truncate">
                           {task.animeTitle}
                         </h3>
                         <p className="text-xs text-ivory-muted truncate mt-0.5">
@@ -477,40 +636,18 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
                       <button
                         type="button"
                         onClick={() => downloadManager.cancelDownload(task.id)}
-                        className="p-1 rounded-lg text-white/40 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                        className="p-1.5 rounded-full text-white/40 hover:text-white hover:bg-white/10 transition-colors"
                         title="Cancel download"
                       >
                         <CloseIcon className="h-4 w-4" />
                       </button>
                     </div>
 
-                    {/* Badge */}
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-white/10 text-white/80 uppercase font-mono">
-                        {task.quality || "Standard"}
-                      </span>
-                      {task.status === "downloading" && (
-                        <span className="text-[10px] font-mono text-cyan-300">
-                          {task.speed || "Downloading..."}
-                        </span>
-                      )}
-                      {task.status === "queued" && (
-                        <span className="text-[10px] text-amber-300 font-mono">
-                          Queued...
-                        </span>
-                      )}
-                      {task.status === "error" && (
-                        <span className="text-[10px] text-rose-400 font-mono">
-                          {task.error || "Failed"}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Progress Bar */}
+                    {/* Progress Bar (Apple Slim) */}
                     <div className="mt-3">
-                      <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden relative">
+                      <div className="w-full h-1.5 rounded-full bg-white/15 overflow-hidden relative">
                         <div
-                          className="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 transition-all duration-300 rounded-full shadow-[0_0_10px_rgba(6,182,212,0.8)]"
+                          className="h-full bg-white transition-all duration-300 rounded-full"
                           style={{ width: `${task.progress || 0}%` }}
                         />
                       </div>
@@ -520,7 +657,7 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
                           {task.completedChunks} / {task.totalChunks} chunks
                           {task.bytesDownloaded > 0 && ` (${formatBytes(task.bytesDownloaded)})`}
                         </span>
-                        <span className="font-bold text-white">
+                        <span className="font-semibold text-white">
                           {task.progress || 0}%
                         </span>
                       </div>
@@ -533,7 +670,7 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
         </section>
       )}
 
-      {/* ── Filters & Search ── */}
+      {/* ── Filters & Search (Apple Spotlight Style) ── */}
       {savedDownloads.length > 0 && (
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mt-6 mb-5">
           {/* Search within downloads */}
@@ -542,11 +679,11 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
               type="text"
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
-              placeholder="Search downloaded anime or episodes..."
-              className="w-full pl-9 pr-4 py-2 bg-white/[0.04] border border-white/10 rounded-xl text-xs text-white placeholder-white/30 focus:outline-none focus:border-cyan-500/50 transition-colors"
+              placeholder="Search downloads..."
+              className="w-full pl-9 pr-8 py-2 bg-white/[0.06] hover:bg-white/[0.08] focus:bg-white/[0.1] border border-white/10 focus:border-white/25 rounded-full text-xs text-white placeholder-white/40 focus:outline-none transition-all backdrop-blur-xl"
             />
             <svg
-              className="w-4 h-4 absolute left-3 top-2.5 text-white/30 pointer-events-none"
+              className="w-4 h-4 absolute left-3 top-2.5 text-white/40 pointer-events-none"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -564,17 +701,17 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
             )}
           </div>
 
-          {/* Right side: Controls (Chips + Sort + View Toggle) */}
+          {/* Right side: Filter Chips + Sort */}
           <div className="flex items-center gap-2 justify-between sm:justify-end flex-wrap w-full sm:w-auto">
             {animeGroups.length > 1 && (
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none max-w-full">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 no-scrollbar max-w-full">
                 <button
                   type="button"
                   onClick={() => setSelectedAnimeFilter("all")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all border ${
                     selectedAnimeFilter === "all"
-                      ? "bg-white text-black font-bold shadow-md"
-                      : "bg-white/[0.04] text-white/60 hover:text-white hover:bg-white/10"
+                      ? "bg-white text-black border-white font-bold shadow-sm"
+                      : "bg-white/[0.05] text-white/70 hover:text-white border-white/10 hover:border-white/20"
                   }`}
                 >
                   All ({savedDownloads.length})
@@ -584,10 +721,10 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
                     key={title}
                     type="button"
                     onClick={() => setSelectedAnimeFilter(title)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all border ${
                       selectedAnimeFilter === title
-                        ? "bg-white text-black font-bold shadow-md"
-                        : "bg-white/[0.04] text-white/60 hover:text-white hover:bg-white/10"
+                        ? "bg-white text-black border-white font-bold shadow-sm"
+                        : "bg-white/[0.05] text-white/70 hover:text-white border-white/10 hover:border-white/20"
                     }`}
                   >
                     {title} ({count})
@@ -596,99 +733,87 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
               </div>
             )}
 
-            <div className="flex items-center gap-2 ml-auto sm:ml-0 flex-wrap">
-              {/* Batch Select Toggle */}
-              <button
-                type="button"
-                onClick={() => {
-                  const nextSelecting = !isSelecting;
-                  setIsSelecting(nextSelecting);
-                  if (!nextSelecting) setSelectedIds(new Set());
-                }}
-                className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                  isSelecting
-                    ? "bg-cyan-500 text-black border-cyan-400 font-bold shadow-md shadow-cyan-500/20"
-                    : "bg-white/[0.04] text-white/80 hover:text-white border-white/10 hover:bg-white/10"
-                }`}
-                title="Select multiple episodes to download as ZIP"
+            {/* Sort Selector */}
+            <div className="flex items-center gap-1.5 bg-white/[0.06] px-3 py-1.5 rounded-full border border-white/10 text-xs ml-auto sm:ml-0">
+              <SortIcon className="h-3.5 w-3.5 text-white/60 shrink-0" />
+              <select
+                value={sortBy}
+                onChange={(e) => handleSortChange(e.target.value)}
+                className="bg-transparent text-white font-medium focus:outline-none cursor-pointer text-xs"
+                title="Sort downloaded anime"
               >
-                <CheckIcon className="h-3.5 w-3.5" />
-                <span>{isSelecting ? "Done" : "Select"}</span>
-              </button>
-
-              {/* ZIP All shortcut when multiple episodes */}
-              {filteredItems.length > 1 && !isSelecting && (
-                <button
-                  type="button"
-                  onClick={() => handleDownloadBatchZip(filteredItems)}
-                  className="px-3 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 hover:text-cyan-200 border border-cyan-500/30 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"
-                  title={`Download all ${filteredItems.length} episodes in a single ZIP`}
-                >
-                  <DownloadIcon className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">ZIP All ({filteredItems.length})</span>
-                  <span className="sm:hidden">ZIP All</span>
-                </button>
-              )}
-
-              {/* Sort Dropdown */}
-              <div className="flex items-center gap-1 bg-white/[0.04] px-2.5 py-1.5 rounded-xl border border-white/10 text-xs">
-                <SortIcon className="h-3.5 w-3.5 text-white/60 shrink-0" />
-                <select
-                  value={sortBy}
-                  onChange={(e) => handleSortChange(e.target.value)}
-                  className="bg-transparent text-white font-semibold focus:outline-none cursor-pointer text-xs"
-                  title="Sort downloaded anime"
-                >
-                  <option value="anime-asc" className="bg-[#18181b] text-white">Anime Name (A–Z)</option>
-                  <option value="anime-desc" className="bg-[#18181b] text-white">Anime Name (Z–A)</option>
-                  <option value="newest" className="bg-[#18181b] text-white">Recently Downloaded</option>
-                  <option value="oldest" className="bg-[#18181b] text-white">Oldest First</option>
-                  <option value="size" className="bg-[#18181b] text-white">File Size (Largest)</option>
-                </select>
-              </div>
-
-              {/* View Mode Toggle Button */}
-              <div className="flex items-center bg-white/[0.04] p-1 rounded-xl border border-white/10 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleViewModeChange("grid")}
-                  title="Grid view"
-                  aria-label="Grid view"
-                  className={`p-1.5 rounded-lg transition-all ${
-                    viewMode === "grid"
-                      ? "bg-white text-black shadow-sm font-bold"
-                      : "text-white/50 hover:text-white"
-                  }`}
-                >
-                  <GridIcon className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleViewModeChange("list")}
-                  title="List view"
-                  aria-label="List view"
-                  className={`p-1.5 rounded-lg transition-all ${
-                    viewMode === "list"
-                      ? "bg-white text-black shadow-sm font-bold"
-                      : "text-white/50 hover:text-white"
-                  }`}
-                >
-                  <ListIcon className="h-4 w-4" />
-                </button>
-              </div>
+                <option value="anime-asc" className="bg-[#1c1c1e] text-white">Title (A–Z)</option>
+                <option value="anime-desc" className="bg-[#1c1c1e] text-white">Title (Z–A)</option>
+                <option value="newest" className="bg-[#1c1c1e] text-white">Recently Added</option>
+                <option value="oldest" className="bg-[#1c1c1e] text-white">Oldest First</option>
+                <option value="size" className="bg-[#1c1c1e] text-white">File Size</option>
+              </select>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Downloaded Items (Grid or List View) ── */}
+      {/* ── Selection Action Banner (When selecting) ── */}
+      {isSelecting && (
+        <div className="mb-4 px-4 py-3 rounded-2xl bg-white/[0.06] border border-white/12 backdrop-blur-2xl flex items-center justify-between gap-3 animate-fade-in">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSelectAll}
+              className="text-xs font-semibold px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+            >
+              {selectedIds.size === filteredItems.length && filteredItems.length > 0
+                ? "Deselect All"
+                : "Select All"}
+            </button>
+            <span className="text-xs text-white/80 font-medium">
+              <strong className="text-white font-bold">{selectedIds.size}</strong> of{" "}
+              {filteredItems.length} selected
+              {selectedTotalSize > 0 && (
+                <span className="text-white/60 font-mono ml-1.5">
+                  ({formatBytes(selectedTotalSize)})
+                </span>
+              )}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Download Selected Option */}
+            <button
+              type="button"
+              disabled={selectedIds.size === 0}
+              onClick={() => handleDownloadBatchZip()}
+              className="px-3.5 py-1.5 rounded-full bg-[#0071e3] hover:bg-[#0077ed] text-white font-semibold text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Download selected as ZIP archive"
+            >
+              <DownloadIcon className="h-3.5 w-3.5" />
+              <span>Download ({selectedIds.size})</span>
+            </button>
+
+            {/* Delete Selected Option */}
+            <button
+              type="button"
+              disabled={selectedIds.size === 0}
+              onClick={handleDeleteSelected}
+              className="px-3.5 py-1.5 rounded-full bg-[#ff453a]/20 hover:bg-[#ff453a]/30 text-[#ff453a] border border-[#ff453a]/40 font-semibold text-xs flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Delete selected episodes"
+            >
+              <TrashIcon className="h-3.5 w-3.5" />
+              <span>Delete ({selectedIds.size})</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Downloaded Items (Grid or List View with Swipe Gestures) ── */}
       {loading ? (
-        <div className="py-20 flex flex-col items-center justify-center text-ivory-muted gap-3">
-          <div className="w-8 h-8 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
+        <div className="py-24 flex flex-col items-center justify-center text-ivory-muted gap-3">
+          <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white animate-spin" />
           <p className="text-xs">Loading offline library…</p>
         </div>
       ) : filteredItems.length > 0 ? (
         viewMode === "grid" ? (
+          /* ── Grid View ── */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredItems.map((item) => {
               const thumbSrc = thumbnailUrls[item.id] || item.thumbnail;
@@ -696,452 +821,430 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
               const isSelected = selectedIds.has(item.id);
 
               return (
-                <div
+                <SwipeableItem
                   key={item.id}
-                  onClick={isSelecting ? () => toggleSelectItem(item.id) : undefined}
-                  className={`group relative rounded-2xl bg-white/[0.03] hover:bg-white/[0.05] border overflow-hidden flex flex-col transition-all duration-300 shadow-lg hover:shadow-cyan-500/5 ${
-                    isSelected
-                      ? "border-cyan-400 ring-2 ring-cyan-400/50 bg-cyan-950/20 shadow-cyan-500/10"
-                      : "border-white/10 hover:border-cyan-500/30"
-                  } ${isSelecting ? "cursor-pointer" : ""}`}
+                  disabled={isSelecting}
+                  onDelete={() => handleDelete(item.id, `${item.animeTitle} - ${item.episodeTitle}`)}
+                  onDownload={() => downloadManager.saveToDevice(item)}
+                  className="rounded-3xl"
                 >
-                  {/* Selection Checkbox */}
-                  {isSelecting && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleSelectItem(item.id);
-                      }}
-                      className={`absolute top-2.5 left-2.5 z-20 w-6 h-6 rounded-lg flex items-center justify-center transition-all ${
-                        isSelected
-                          ? "bg-cyan-400 text-black shadow-md shadow-cyan-500/40"
-                          : "bg-black/75 border border-white/30 text-transparent hover:border-white"
-                      }`}
-                      title={isSelected ? "Deselect" : "Select for batch ZIP"}
-                    >
-                      <CheckIcon className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-
-                  {/* Poster / Thumbnail Header */}
-                  <div className="relative aspect-video w-full overflow-hidden bg-black/50">
-                    {thumbSrc ? (
-                      <img
-                        src={thumbSrc}
-                        alt={item.animeTitle}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-white/20">
-                        <DownloadIcon className="h-10 w-10" />
-                      </div>
-                    )}
-
-                    {/* Gradient overlays */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-
-                    {/* Play Button Overlay */}
-                    {!isSelecting && (
+                  <div
+                    onClick={isSelecting ? () => toggleSelectItem(item.id) : undefined}
+                    className={`group relative rounded-3xl bg-white/[0.04] hover:bg-white/[0.07] border overflow-hidden flex flex-col transition-all duration-300 backdrop-blur-xl ${
+                      isSelected
+                        ? "border-white ring-2 ring-white/50 bg-white/[0.09]"
+                        : "border-white/10 hover:border-white/20 shadow-sm"
+                    } ${isSelecting ? "cursor-pointer" : ""}`}
+                  >
+                    {/* iOS Selection Checkbox */}
+                    {isSelecting && (
                       <button
                         type="button"
-                        onClick={() => onPlayOffline(item)}
-                        className="absolute inset-0 m-auto w-13 h-13 rounded-full bg-cyan-500/90 hover:bg-cyan-400 text-black flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.6)] transform group-hover:scale-110 transition-all z-10"
-                        title="Play Offline Video"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSelectItem(item.id);
+                        }}
+                        className={`absolute top-3 left-3 z-30 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                          isSelected
+                            ? "bg-[#0071e3] border-[#0071e3] text-white shadow-md scale-105"
+                            : "bg-black/50 border border-white/40 text-transparent hover:border-white"
+                        }`}
+                        title={isSelected ? "Deselect" : "Select"}
                       >
-                        <PlayIcon className="h-6 w-6 ml-0.5" />
+                        <CheckIcon className="h-3.5 w-3.5" />
                       </button>
                     )}
 
-                    {/* Badges on poster */}
-                    <div className={`absolute top-2.5 ${isSelecting ? "left-11" : "left-2.5"} flex items-center gap-1.5 flex-wrap transition-all`}>
-                      <span className="text-[10px] font-black tracking-wider uppercase px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-md text-cyan-300 border border-cyan-400/30">
-                        {item.quality || "Standard"}
-                      </span>
-                      {hasSubs && (
-                        <span className="text-[10px] font-semibold flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-md text-emerald-300 border border-emerald-400/30">
-                          <SubtitleIcon className="h-3 w-3" />
-                          Subtitles ({item.subtitles.length})
+                    {/* Poster / Thumbnail Header */}
+                    <div className="relative aspect-video w-full overflow-hidden bg-black/50">
+                      {thumbSrc ? (
+                        <img
+                          src={thumbSrc}
+                          alt={item.animeTitle}
+                          className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-500"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-white/20">
+                          <DownloadIcon className="h-10 w-10" />
+                        </div>
+                      )}
+
+                      {/* Overlays */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
+
+                      {/* Primary Play Button */}
+                      {!isSelecting && (
+                        <button
+                          type="button"
+                          onClick={() => onPlayOffline(item)}
+                          className="absolute inset-0 m-auto w-12 h-12 rounded-full bg-white text-black hover:bg-white/90 flex items-center justify-center shadow-2xl transform group-hover:scale-110 transition-all z-10"
+                          title="Play Offline Video"
+                        >
+                          <PlayIcon className="h-5 w-5 ml-0.5" />
+                        </button>
+                      )}
+
+                      {/* Frosted Badges */}
+                      <div className={`absolute top-3 ${isSelecting ? "left-12" : "left-3"} flex items-center gap-1.5 flex-wrap transition-all`}>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white/90 border border-white/15">
+                          {item.quality || "Standard"}
+                        </span>
+                        {hasSubs && (
+                          <span className="text-[10px] font-medium flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-emerald-300 border border-white/15">
+                            <SubtitleIcon className="h-3 w-3" />
+                            Subs ({item.subtitles.length})
+                          </span>
+                        )}
+                      </div>
+
+                      {item.platform && (
+                        <span className="absolute top-3 right-3 text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white/70 border border-white/10">
+                          {item.platform}
                         </span>
                       )}
+
+                      {/* Bottom Info on Poster */}
+                      <div className="absolute bottom-2.5 left-3.5 right-3.5 flex items-center justify-between text-[11px] font-mono text-white/90">
+                        <span>{formatBytes(item.totalSize || 0)}</span>
+                        {item.duration > 0 && (
+                          <span>{Math.floor(item.duration / 60)} min</span>
+                        )}
+                      </div>
                     </div>
 
-                    {item.platform && (
-                      <span className="absolute top-2.5 right-2.5 text-[10px] font-mono px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-md text-white/60">
-                        {item.platform}
-                      </span>
-                    )}
+                    {/* Details & Actions Body */}
+                    <div className="p-4 flex-1 flex flex-col justify-between gap-3">
+                      <div>
+                        <h3 className="font-semibold text-sm text-white line-clamp-1 tracking-tight">
+                          {item.animeTitle}
+                        </h3>
+                        <p className="text-xs text-ivory-muted/80 line-clamp-1 mt-0.5">
+                          {item.episodeTitle || `Episode ${item.episodeNumber}`}
+                        </p>
+                        <p className="text-[10px] font-mono text-white/40 mt-1">
+                          Downloaded {new Date(item.createdAt || Date.now()).toLocaleDateString()}
+                        </p>
+                      </div>
 
-                    {/* Duration and size label */}
-                    <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-[11px] font-mono text-white/80">
-                      <span>{formatBytes(item.totalSize || 0)}</span>
-                      {item.duration > 0 && (
-                        <span>{Math.floor(item.duration / 60)} min</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Details & Actions Body */}
-                  <div className="p-3.5 flex-1 flex flex-col justify-between gap-3">
-                    <div>
-                      <h3 className="font-bold text-sm text-white line-clamp-1 group-hover:text-cyan-300 transition-colors">
-                        {item.animeTitle}
-                      </h3>
-                      <p className="text-xs text-ivory-muted line-clamp-1 mt-0.5">
-                        {item.episodeTitle || `Episode ${item.episodeNumber}`}
-                      </p>
-                      <p className="text-[10px] font-mono text-white/40 mt-1">
-                        Downloaded on {new Date(item.createdAt || Date.now()).toLocaleDateString()}
-                      </p>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex items-center gap-2 pt-2 border-t border-white/5">
-                      {/* Primary Play Button */}
-                      <button
-                        type="button"
-                        onClick={() => onPlayOffline(item)}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-white text-black hover:bg-cyan-300 font-bold text-xs transition-all shadow-md"
-                      >
-                        <PlayIcon className="h-3.5 w-3.5" />
-                        Play Offline
-                      </button>
-
-                      {/* Save to Device (Video + Subs in ZIP if subs present, else MP4) */}
-                      <button
-                        type="button"
-                        onClick={() => downloadManager.saveToDevice(item)}
-                        className="p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-white/80 hover:text-white transition-all border border-white/10"
-                        title={hasSubs ? "Save to device: Video & Subtitles (.zip)" : "Save video (.mp4) to device downloads"}
-                      >
-                        <DownloadIcon className="h-4 w-4" />
-                      </button>
-
-                      {/* Video Only if subs exist */}
-                      {hasSubs && (
+                      {/* Action Buttons Row */}
+                      <div className="flex items-center gap-2 pt-2 border-t border-white/5">
                         <button
                           type="button"
-                          onClick={() => downloadManager.saveToDevice(item, { videoOnly: true })}
-                          className="p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-cyan-300/80 hover:text-cyan-200 transition-all border border-white/10 hidden sm:flex items-center justify-center"
-                          title="Save video only (.mp4) without subtitles"
+                          onClick={() => onPlayOffline(item)}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-full bg-white text-black hover:bg-white/90 font-semibold text-xs transition-all shadow-sm active:scale-98"
                         >
-                          <VideoIcon className="h-4 w-4" />
+                          <PlayIcon className="h-3.5 w-3.5" />
+                          <span>Play</span>
                         </button>
-                      )}
 
-                      {/* Export Subtitles if available */}
-                      {hasSubs && (
                         <button
                           type="button"
-                          onClick={() => downloadManager.saveSubtitleToDevice(item, 0)}
-                          className="p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-emerald-300/80 hover:text-emerald-200 transition-all border border-white/10"
-                          title="Export subtitle file (.srt) to device downloads"
+                          onClick={() => downloadManager.saveToDevice(item)}
+                          className="p-2 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-white/80 hover:text-white transition-all border border-white/10"
+                          title={hasSubs ? "Save Video & Subtitles (.zip)" : "Save Video (.mp4)"}
                         >
-                          <SubtitleIcon className="h-4 w-4" />
+                          <DownloadIcon className="h-3.5 w-3.5" />
                         </button>
-                      )}
 
-                      {/* Delete from DB */}
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(item.id, `${item.animeTitle} - ${item.episodeTitle}`)}
-                        className="p-2 rounded-xl bg-white/[0.04] hover:bg-rose-500/20 text-white/40 hover:text-rose-300 transition-all border border-white/5 hover:border-rose-500/30"
-                        title="Delete from local database"
-                      >
-                        <TrashIcon className="h-4 w-4" />
-                      </button>
+                        {hasSubs && (
+                          <button
+                            type="button"
+                            onClick={() => downloadManager.saveToDevice(item, { videoOnly: true })}
+                            className="p-2 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-white/80 hover:text-white transition-all border border-white/10 hidden sm:flex items-center justify-center"
+                            title="Save Video Only (.mp4)"
+                          >
+                            <VideoIcon className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+
+                        {hasSubs && (
+                          <button
+                            type="button"
+                            onClick={() => downloadManager.saveSubtitleToDevice(item, 0)}
+                            className="p-2 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-emerald-300/80 hover:text-emerald-200 transition-all border border-white/10"
+                            title="Export Subtitles (.srt)"
+                          >
+                            <SubtitleIcon className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(item.id, `${item.animeTitle} - ${item.episodeTitle}`)}
+                          className="p-2 rounded-full bg-white/[0.04] hover:bg-[#ff453a]/20 text-white/40 hover:text-[#ff453a] transition-all border border-white/5 hover:border-[#ff453a]/30"
+                          title="Delete from local database"
+                        >
+                          <TrashIcon className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </SwipeableItem>
               );
             })}
           </div>
         ) : (
-          /* ── List View (Mobile-Optimized Horizontal Row) ── */
-          <div className="flex flex-col gap-2.5 sm:gap-3">
+          /* ── List View (Apple iOS Files / Music Row Style with Swipe Gestures) ── */
+          <div className="flex flex-col gap-2.5">
             {filteredItems.map((item) => {
               const thumbSrc = thumbnailUrls[item.id] || item.thumbnail;
               const hasSubs = Array.isArray(item.subtitles) && item.subtitles.length > 0;
               const isSelected = selectedIds.has(item.id);
 
               return (
-                <div
+                <SwipeableItem
                   key={item.id}
-                  onClick={isSelecting ? () => toggleSelectItem(item.id) : undefined}
-                  className={`group relative rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border p-2 sm:p-3.5 flex flex-row items-center gap-2.5 sm:gap-4 transition-all duration-300 shadow-md hover:shadow-cyan-500/5 ${
-                    isSelected
-                      ? "border-cyan-400 ring-2 ring-cyan-400/50 bg-cyan-950/20 shadow-cyan-500/10"
-                      : "border-white/10 hover:border-cyan-500/30"
-                  } ${isSelecting ? "cursor-pointer" : ""}`}
+                  disabled={isSelecting}
+                  onDelete={() => handleDelete(item.id, `${item.animeTitle} - ${item.episodeTitle}`)}
+                  onDownload={() => downloadManager.saveToDevice(item)}
+                  className="rounded-2xl"
                 >
-                  {/* Selection Checkbox in List View */}
-                  {isSelecting && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleSelectItem(item.id);
-                      }}
-                      className={`shrink-0 w-6 h-6 rounded-lg flex items-center justify-center transition-all ${
-                        isSelected
-                          ? "bg-cyan-400 text-black shadow-md shadow-cyan-500/40"
-                          : "bg-white/10 border border-white/30 text-transparent hover:border-white"
-                      }`}
-                      title={isSelected ? "Deselect" : "Select for batch ZIP"}
-                    >
-                      <CheckIcon className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-
-                  {/* Left: Compact Thumbnail with Overlay */}
-                  <div className="relative w-24 xs:w-28 sm:w-44 md:w-52 aspect-video rounded-xl overflow-hidden bg-black/50 shrink-0">
-                    {thumbSrc ? (
-                      <img
-                        src={thumbSrc}
-                        alt={item.animeTitle}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-white/20">
-                        <DownloadIcon className="h-6 w-6 sm:h-8 sm:w-8" />
-                      </div>
+                  <div
+                    onClick={isSelecting ? () => toggleSelectItem(item.id) : undefined}
+                    className={`group relative rounded-2xl bg-white/[0.04] hover:bg-white/[0.07] border p-2 sm:p-3 flex flex-row items-center gap-3 transition-all duration-300 backdrop-blur-xl ${
+                      isSelected
+                        ? "border-white ring-2 ring-white/50 bg-white/[0.09]"
+                        : "border-white/10 hover:border-white/20 shadow-sm"
+                    } ${isSelecting ? "cursor-pointer" : ""}`}
+                  >
+                    {/* iOS Selection Checkbox */}
+                    {isSelecting && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSelectItem(item.id);
+                        }}
+                        className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                          isSelected
+                            ? "bg-[#0071e3] border-[#0071e3] text-white shadow-md scale-105"
+                            : "bg-black/50 border border-white/40 text-transparent hover:border-white"
+                        }`}
+                        title={isSelected ? "Deselect" : "Select"}
+                      >
+                        <CheckIcon className="h-3.5 w-3.5" />
+                      </button>
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
 
-                    {/* Quick Play Button */}
-                    {!isSelecting && (
+                    {/* Thumbnail with Play Overlay */}
+                    <div className="relative w-24 xs:w-28 sm:w-40 aspect-video rounded-xl overflow-hidden bg-black/50 shrink-0">
+                      {thumbSrc ? (
+                        <img
+                          src={thumbSrc}
+                          alt={item.animeTitle}
+                          className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-500"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-white/20">
+                          <DownloadIcon className="h-6 w-6" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+
+                      {!isSelecting && (
+                        <button
+                          type="button"
+                          onClick={() => onPlayOffline(item)}
+                          className="absolute inset-0 m-auto w-8 h-8 rounded-full bg-white text-black hover:bg-white/90 flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-all z-10"
+                          title="Play Offline Video"
+                        >
+                          <PlayIcon className="h-4 w-4 ml-0.5" />
+                        </button>
+                      )}
+
+                      {item.duration > 0 && (
+                        <span className="absolute bottom-1 right-1.5 text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-black/75 backdrop-blur-md text-white/90">
+                          {Math.floor(item.duration / 60)}m
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Middle Details */}
+                    <div className="flex-1 min-w-0 py-0.5">
+                      <div className="flex items-center gap-2 mb-0.5 text-[10px] font-mono text-white/60">
+                        {item.platform && (
+                          <span className="px-1.5 py-0.2 rounded-full bg-white/10 text-white/80">
+                            {item.platform}
+                          </span>
+                        )}
+                        <span className="text-white/80 font-medium font-mono">
+                          {formatBytes(item.totalSize || 0)}
+                        </span>
+                        <span className="hidden xs:inline">•</span>
+                        <span className="hidden xs:inline">
+                          {new Date(item.createdAt || Date.now()).toLocaleDateString()}
+                        </span>
+                      </div>
+
+                      <h3 className="font-semibold text-xs sm:text-sm text-white truncate tracking-tight">
+                        {item.animeTitle}
+                      </h3>
+                      <p className="text-[11px] sm:text-xs text-ivory-muted/80 truncate mt-0.5">
+                        {item.episodeTitle || `Episode ${item.episodeNumber}`}
+                      </p>
+
+                      {hasSubs && (
+                        <div className="mt-1 flex items-center gap-1 text-[10px] text-emerald-400/90">
+                          <SubtitleIcon className="h-2.5 w-2.5" />
+                          <span>Subtitles ({item.subtitles.length})</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right Actions */}
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <button
                         type="button"
                         onClick={() => onPlayOffline(item)}
-                        className="absolute inset-0 m-auto w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-cyan-500/90 hover:bg-cyan-400 text-black flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.6)] transform group-hover:scale-110 transition-all z-10"
-                        title="Play Offline Video"
+                        className="flex items-center justify-center gap-1 py-1.5 px-3 rounded-full bg-white text-black hover:bg-white/90 font-semibold text-xs transition-all shadow-sm"
+                        title="Play Offline"
                       >
-                        <PlayIcon className="h-4 w-4 sm:h-5 sm:w-5 ml-0.5" />
+                        <PlayIcon className="h-3 w-3" />
+                        <span className="hidden sm:inline">Play</span>
                       </button>
-                    )}
 
-                    {/* Badges on thumbnail */}
-                    <div className="absolute top-1 left-1 flex items-center gap-1">
-                      <span className="text-[8px] sm:text-[9px] font-black tracking-wider uppercase px-1 py-0.2 rounded bg-black/75 backdrop-blur-md text-cyan-300 border border-cyan-400/30">
-                        {item.quality || "Std"}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => downloadManager.saveToDevice(item)}
+                        className="p-2 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-white/80 hover:text-white transition-all border border-white/10"
+                        title="Save to Device"
+                      >
+                        <DownloadIcon className="h-3.5 w-3.5" />
+                      </button>
+
                       {hasSubs && (
-                        <span className="text-[8px] sm:text-[9px] font-semibold flex items-center gap-0.5 px-1 py-0.2 rounded bg-black/75 backdrop-blur-md text-emerald-300 border border-emerald-400/30">
-                          <SubtitleIcon className="h-2 w-2 sm:h-2.5 sm:w-2.5" />
-                          Sub
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => downloadManager.saveToDevice(item, { videoOnly: true })}
+                          className="p-2 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-white/80 hover:text-white transition-all border border-white/10 hidden md:flex"
+                          title="Save Video Only (.mp4)"
+                        >
+                          <VideoIcon className="h-3.5 w-3.5" />
+                        </button>
                       )}
-                    </div>
 
-                    {item.duration > 0 && (
-                      <span className="absolute bottom-1 right-1 text-[8px] sm:text-[10px] font-mono px-1 py-0.2 rounded bg-black/75 backdrop-blur-md text-white/90">
-                        {Math.floor(item.duration / 60)}m
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Middle: Details */}
-                  <div className="flex-1 min-w-0 flex flex-col justify-center py-0.5">
-                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap mb-0.5 text-[9px] sm:text-[11px] font-mono">
-                      {item.platform && (
-                        <span className="px-1.5 py-0.2 rounded bg-white/10 text-white/70">
-                          {item.platform}
-                        </span>
-                      )}
-                      <span className="text-cyan-300 font-semibold">
-                        {formatBytes(item.totalSize || 0)}
-                      </span>
-                      <span className="text-white/30 hidden xs:inline">•</span>
-                      <span className="text-white/40 hidden xs:inline">
-                        {new Date(item.createdAt || Date.now()).toLocaleDateString()}
-                      </span>
-                    </div>
-
-                    <h3 className="font-bold text-xs sm:text-base text-white truncate group-hover:text-cyan-300 transition-colors">
-                      {item.animeTitle}
-                    </h3>
-                    <p className="text-[11px] sm:text-xs text-ivory-muted truncate mt-0.5">
-                      {item.episodeTitle || `Episode ${item.episodeNumber}`}
-                    </p>
-
-                    {hasSubs && (
-                      <div className="mt-1 flex items-center gap-1 text-[10px] sm:text-[11px] text-emerald-400/80">
-                        <SubtitleIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                        <span>Subtitles included ({item.subtitles.length} {item.subtitles.length === 1 ? "track" : "tracks"})</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Right: Actions */}
-                  <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => onPlayOffline(item)}
-                      className="flex items-center justify-center gap-1.5 py-2 px-2.5 sm:px-3.5 rounded-xl bg-white text-black hover:bg-cyan-300 font-bold text-xs transition-all shadow-md"
-                      title="Play Offline Video"
-                    >
-                      <PlayIcon className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">Play</span>
-                    </button>
-
-                    {/* Download (Video + Subs in ZIP if subs present, else MP4) */}
-                    <button
-                      type="button"
-                      onClick={() => downloadManager.saveToDevice(item)}
-                      className="p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-white/80 hover:text-white transition-all border border-white/10"
-                      title={hasSubs ? "Save to device: Video & Subtitles (.zip)" : "Save video (.mp4) to device downloads"}
-                    >
-                      <DownloadIcon className="h-4 w-4" />
-                    </button>
-
-                    {/* Video Only if subs exist */}
-                    {hasSubs && (
                       <button
                         type="button"
-                        onClick={() => downloadManager.saveToDevice(item, { videoOnly: true })}
-                        className="p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-cyan-300/80 hover:text-cyan-200 transition-all border border-white/10 hidden md:flex items-center justify-center"
-                        title="Save video only (.mp4) without subtitles"
+                        onClick={() => handleDelete(item.id, `${item.animeTitle} - ${item.episodeTitle}`)}
+                        className="p-2 rounded-full bg-white/[0.04] hover:bg-[#ff453a]/20 text-white/40 hover:text-[#ff453a] transition-all border border-white/5 hover:border-[#ff453a]/30"
+                        title="Delete Download"
                       >
-                        <VideoIcon className="h-4 w-4" />
+                        <TrashIcon className="h-3.5 w-3.5" />
                       </button>
-                    )}
-
-                    {/* Subtitle export if subs exist */}
-                    {hasSubs && (
-                      <button
-                        type="button"
-                        onClick={() => downloadManager.saveSubtitleToDevice(item, 0)}
-                        className="p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-emerald-300/80 hover:text-emerald-200 transition-all border border-white/10 hidden xs:flex items-center justify-center"
-                        title="Export subtitle file (.srt) to device downloads"
-                      >
-                        <SubtitleIcon className="h-4 w-4" />
-                      </button>
-                    )}
-
-                    {/* Delete from DB */}
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(item.id, `${item.animeTitle} - ${item.episodeTitle}`)}
-                      className="p-2 rounded-xl bg-white/[0.04] hover:bg-rose-500/20 text-white/40 hover:text-rose-300 transition-all border border-white/5 hover:border-rose-500/30"
-                      title="Delete from local database"
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </button>
+                    </div>
                   </div>
-                </div>
+                </SwipeableItem>
               );
             })}
           </div>
         )
       ) : savedDownloads.length > 0 ? (
-        // No items matching search
-        <div className="py-16 text-center text-ivory-muted">
-          <p className="text-sm">No downloaded anime matched &ldquo;{searchFilter}&rdquo;.</p>
+        /* Empty Filter Results */
+        <div className="py-20 text-center text-ivory-muted">
+          <p className="text-sm">No downloads matching &ldquo;{searchFilter}&rdquo;.</p>
           <button
             type="button"
             onClick={() => {
               setSearchFilter("");
               setSelectedAnimeFilter("all");
             }}
-            className="mt-3 text-xs text-cyan-400 hover:underline"
+            className="mt-3 text-xs text-white underline hover:text-white/80 font-medium"
           >
-            Clear filters
+            Reset Filters
           </button>
         </div>
       ) : (
-        // Empty State
-        <div className="py-16 sm:py-24 text-center max-w-md mx-auto">
-          <div className="w-16 h-16 rounded-3xl bg-white/[0.04] border border-white/10 flex items-center justify-center mx-auto text-white/30 mb-4 shadow-xl">
-            <DownloadIcon className="h-8 w-8" />
+        /* Empty State (Apple Style) */
+        <div className="py-20 sm:py-28 text-center max-w-sm mx-auto">
+          <div className="w-16 h-16 rounded-full bg-white/[0.06] border border-white/10 flex items-center justify-center mx-auto text-white/40 mb-4 shadow-lg backdrop-blur-xl">
+            <DownloadIcon className="h-7 w-7" />
           </div>
 
-          <h3 className="text-lg font-bold text-white mb-1.5">
-            {isOffline ? "You are offline" : "No downloaded anime yet"}
+          <h3 className="text-lg font-bold text-white mb-1.5 tracking-tight">
+            {isOffline ? "You are offline" : "No Downloads"}
           </h3>
 
-          <p className="text-xs sm:text-sm text-ivory-muted leading-relaxed mb-6">
+          <p className="text-xs text-ivory-muted/80 leading-relaxed mb-6">
             {isOffline
-              ? "You do not have any downloaded videos available for offline viewing. Reconnect to the internet to browse and download episodes."
-              : "Download your favorite anime episodes and regional dubbed streams. They are saved directly to your local database with subtitles so you can watch offline anytime."}
+              ? "No downloaded episodes found for offline viewing. Reconnect to browse and download your favorite series."
+              : "Download anime episodes and regional dubbed streams to watch offline with full audio and subtitle tracks."}
           </p>
 
           {!isOffline && onNavigateHome && (
             <button
               type="button"
               onClick={onNavigateHome}
-              className="px-5 py-2.5 rounded-xl bg-white text-black hover:bg-cyan-300 font-bold text-xs transition-all shadow-lg hover:shadow-cyan-500/20"
+              className="px-5 py-2.5 rounded-full bg-white text-black hover:bg-white/90 font-semibold text-xs transition-all shadow-md active:scale-98"
             >
-              Browse Anime to Download
+              Browse Anime
             </button>
           )}
         </div>
       )}
 
-      {/* ── Floating Batch Action Bar ── */}
+      {/* ── Apple Dynamic Island Floating Batch Action Bar ── */}
       {isSelecting && (
-        <div className="fixed bottom-4 left-4 right-4 z-40 max-w-xl mx-auto animate-slide-up">
-          <div className="bg-[#18181b]/95 backdrop-blur-2xl border border-cyan-500/40 rounded-2xl p-3 sm:p-3.5 shadow-[0_10px_35px_rgba(0,0,0,0.8)] flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 min-w-0">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-lg w-[calc(100%-2rem)] mx-auto animate-slide-up">
+          <div className="bg-[#1c1c1e]/90 backdrop-blur-3xl border border-white/15 rounded-full px-4 py-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.85)] flex items-center justify-between gap-3">
+            {/* Left: Select count + Select All */}
+            <div className="flex items-center gap-2 min-w-0">
               <button
                 type="button"
                 onClick={handleSelectAll}
-                className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white shrink-0 transition-colors"
+                className="text-xs font-semibold px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white shrink-0 transition-colors"
               >
                 {selectedIds.size === filteredItems.length && filteredItems.length > 0
-                  ? "Deselect All"
-                  : "Select All"}
+                  ? "Deselect"
+                  : "All"}
               </button>
               <div className="truncate text-xs">
                 <span className="font-bold text-white">
                   {selectedIds.size}
                 </span>
-                <span className="text-white/60"> of {filteredItems.length} selected</span>
+                <span className="text-white/60"> / {filteredItems.length}</span>
                 {selectedTotalSize > 0 && (
-                  <span className="text-cyan-300 font-mono hidden sm:inline ml-1.5 font-semibold">
+                  <span className="text-white/50 font-mono hidden sm:inline ml-1">
                     ({formatBytes(selectedTotalSize)})
                   </span>
                 )}
               </div>
             </div>
 
+            {/* Right: Both Download AND Delete Options */}
             <div className="flex items-center gap-2 shrink-0">
-              {/* Batch Download ZIP Button */}
+              {/* Option 1: Download Selected */}
               <button
                 type="button"
                 disabled={selectedIds.size === 0}
                 onClick={() => handleDownloadBatchZip()}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-md ${
-                  selectedIds.size > 0
-                    ? "bg-cyan-400 hover:bg-cyan-300 text-black shadow-cyan-500/30 cursor-pointer"
-                    : "bg-white/10 text-white/30 cursor-not-allowed"
-                }`}
-                title="Download selected episodes in a single ZIP"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-[#0071e3] hover:bg-[#0077ed] text-white transition-all shadow-md active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Download selected episodes as a single ZIP archive"
               >
-                <DownloadIcon className="h-4 w-4" />
-                <span>Download ZIP ({selectedIds.size})</span>
+                <DownloadIcon className="h-3.5 w-3.5" />
+                <span>Download ({selectedIds.size})</span>
               </button>
 
-              {/* Delete Selected */}
-              {selectedIds.size > 0 && (
-                <button
-                  type="button"
-                  onClick={handleDeleteSelected}
-                  className="p-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 transition-all"
-                  title="Delete selected episodes"
-                >
-                  <TrashIcon className="h-4 w-4" />
-                </button>
-              )}
+              {/* Option 2: Delete Selected */}
+              <button
+                type="button"
+                disabled={selectedIds.size === 0}
+                onClick={handleDeleteSelected}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-[#ff453a]/20 hover:bg-[#ff453a]/30 text-[#ff453a] border border-[#ff453a]/40 transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Delete selected episodes from offline storage"
+              >
+                <TrashIcon className="h-3.5 w-3.5" />
+                <span>Delete ({selectedIds.size})</span>
+              </button>
 
-              {/* Close selection mode */}
+              {/* Exit selection */}
               <button
                 type="button"
                 onClick={() => {
                   setIsSelecting(false);
                   setSelectedIds(new Set());
                 }}
-                className="p-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-colors"
-                title="Exit selection"
+                className="p-1.5 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+                title="Exit selection mode"
               >
                 <CloseIcon className="h-4 w-4" />
               </button>
@@ -1150,26 +1253,26 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
         </div>
       )}
 
-      {/* ── Packaging ZIP Progress Modal ── */}
+      {/* ── Packaging ZIP Progress Modal (Apple Dialog Style) ── */}
       {packagingProgress && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-fade-in">
-          <div className="bg-[#18181b] border border-cyan-500/30 rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl">
-            <div className="w-14 h-14 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(6,182,212,0.4)]">
-              <DownloadIcon className="h-7 w-7 animate-bounce" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-fade-in">
+          <div className="bg-[#1c1c1e] border border-white/15 rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl backdrop-blur-3xl">
+            <div className="w-12 h-12 rounded-full bg-white/10 text-white flex items-center justify-center mx-auto mb-4 shadow-sm">
+              <DownloadIcon className="h-6 w-6 animate-pulse" />
             </div>
-            <h4 className="font-bold text-base text-white mb-1">Packaging ZIP Archive</h4>
+            <h4 className="font-bold text-base text-white mb-1 tracking-tight">Exporting ZIP Archive</h4>
             <p className="text-xs text-ivory-muted truncate mb-4">
               {packagingProgress.title} {packagingProgress.episode ? `• ${packagingProgress.episode}` : ""}
             </p>
-            <div className="w-full h-2.5 rounded-full bg-white/10 overflow-hidden mb-2 relative">
+            <div className="w-full h-1.5 rounded-full bg-white/15 overflow-hidden mb-2 relative">
               <div
-                className="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 rounded-full transition-all duration-300 shadow-[0_0_10px_rgba(6,182,212,0.8)]"
+                className="h-full bg-white rounded-full transition-all duration-300"
                 style={{ width: `${packagingProgress.percent}%` }}
               />
             </div>
             <div className="flex justify-between text-[11px] font-mono text-white/60">
               <span>Episode {packagingProgress.current} of {packagingProgress.total}</span>
-              <span className="font-bold text-cyan-300">{packagingProgress.percent}%</span>
+              <span className="font-bold text-white">{packagingProgress.percent}%</span>
             </div>
           </div>
         </div>

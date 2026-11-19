@@ -4,7 +4,7 @@
  * Supported platforms: All sources from Mangayomi anime extensions
  * Dynamic platform switching with logo and name on the top right
  */
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import Player from "./components/Player.jsx";
 import DownloadsPage from "./components/DownloadsPage.jsx";
@@ -691,89 +691,198 @@ function AnimeCard({ item, isActive, onClick }) {
 
 /**
  * EpisodeGrid Component
- * - Renders episodes in a clean responsive grid without episode names (just numbers)
- * - If total episodes > 100, groups them into chunks of 100 with a clean Apple-glass <select> dropdown (e.g. 1-100, 101-200)
- * - Highlights the currently active/playing episode
+ * - If multiple seasons exist (e.g. WatchAnimeWorld, HindiAnime), displays Season selector tabs/buttons
+ * - Renders episodes in a clean responsive grid with episode numbers
+ * - If total episodes in selected season > 100, groups them into chunks of 100 with a clean Apple-glass <select> dropdown (e.g. 1-100, 101-200)
+ * - Highlights the currently active/playing episode accurately
  */
 function EpisodeGrid({
   episodes = [],
+  seasons = [],
   activeEpisode = null,
   onSelectEpisode,
   loading = false,
   platformName = "",
 }) {
+  const seasonsList = useMemo(() => {
+    const map = new Map();
+    if (Array.isArray(seasons) && seasons.length > 0) {
+      for (const s of seasons) {
+        if (s && s.season != null) {
+          map.set(Number(s.season), s.name || `Season ${s.season}`);
+        }
+      }
+    }
+    for (const ep of episodes) {
+      if (ep && ep.season != null && !map.has(Number(ep.season))) {
+        map.set(Number(ep.season), ep.seasonName || `Season ${ep.season}`);
+      }
+    }
+    return Array.from(map.entries())
+      .map(([season, name]) => ({ season, name }))
+      .sort((a, b) => a.season - b.season);
+  }, [seasons, episodes]);
+
+  const hasMultipleSeasons = seasonsList.length > 1;
+
+  const [selectedSeason, setSelectedSeason] = useState(
+    () => seasonsList[0]?.season || 1
+  );
+
+  // Sync selected season when activeEpisode changes or seasonsList is loaded
+  useEffect(() => {
+    if (activeEpisode && activeEpisode.season != null) {
+      setSelectedSeason(Number(activeEpisode.season));
+    } else if (activeEpisode) {
+      const found = episodes.find(
+        (e) =>
+          (activeEpisode.url && e.url === activeEpisode.url) ||
+          String(e.episode) === String(activeEpisode.episode)
+      );
+      if (found && found.season != null) {
+        setSelectedSeason(Number(found.season));
+      }
+    } else if (
+      seasonsList.length > 0 &&
+      !seasonsList.some((s) => s.season === selectedSeason)
+    ) {
+      setSelectedSeason(seasonsList[0].season);
+    }
+  }, [activeEpisode, episodes, seasonsList]);
+
+  // Filter episodes for currently selected season
+  const seasonEpisodes = useMemo(() => {
+    if (!hasMultipleSeasons) return episodes;
+    return episodes.filter(
+      (ep) => Number(ep.season || 1) === Number(selectedSeason)
+    );
+  }, [episodes, hasMultipleSeasons, selectedSeason]);
+
   const chunkSize = 100;
-  const totalChunks = Math.max(1, Math.ceil(episodes.length / chunkSize));
+  const totalChunks = Math.max(1, Math.ceil(seasonEpisodes.length / chunkSize));
   const [selectedChunk, setSelectedChunk] = useState(0);
 
-  // Sync selected chunk when activeEpisode changes
+  // Sync selected chunk when activeEpisode or season changes
   useEffect(() => {
-    if (!activeEpisode || episodes.length === 0) return;
-    const idx = episodes.findIndex(
+    if (!activeEpisode || seasonEpisodes.length === 0) {
+      setSelectedChunk(0);
+      return;
+    }
+    const idx = seasonEpisodes.findIndex(
       (e) =>
-        String(e.episode) === String(activeEpisode.episode) ||
-        e.url === activeEpisode.url
+        (activeEpisode.url && e.url === activeEpisode.url) ||
+        (String(activeEpisode.season || 1) === String(e.season || 1) &&
+          String(activeEpisode.episode) === String(e.episode))
     );
     if (idx !== -1) {
       const chunk = Math.floor(idx / chunkSize);
       setSelectedChunk(chunk);
+    } else {
+      setSelectedChunk(0);
     }
-  }, [activeEpisode, episodes]);
+  }, [activeEpisode, seasonEpisodes]);
 
-  const currentChunk = Math.min(selectedChunk, totalChunks - 1);
+  const currentChunk = Math.min(selectedChunk, Math.max(0, totalChunks - 1));
   const startIdx = currentChunk * chunkSize;
-  const endIdx = Math.min((currentChunk + 1) * chunkSize, episodes.length);
-  const currentEpisodes = episodes.slice(startIdx, endIdx);
+  const endIdx = Math.min((currentChunk + 1) * chunkSize, seasonEpisodes.length);
+  const currentEpisodes = seasonEpisodes.slice(startIdx, endIdx);
 
   return (
     <div className="glass rounded-[24px] p-4 sm:p-5 border border-white/12 animate-fade-in">
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <div className="flex items-center gap-2.5">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-white">
-            Episodes
-          </h3>
-          <span className="text-[11px] font-mono text-ivory-muted/80 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10">
-            {episodes.length} total
-          </span>
+      <div className="flex flex-col gap-3 mb-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2.5">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-white">
+              Episodes
+            </h3>
+            <span className="text-[11px] font-mono text-ivory-muted/80 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10">
+              {hasMultipleSeasons
+                ? `${seasonEpisodes.length} in Season ${selectedSeason} (${episodes.length} total)`
+                : `${episodes.length} total`}
+            </span>
+          </div>
+
+          {/* 100-Episode Chunk Selector */}
+          {totalChunks > 1 && (
+            <div className="flex items-center gap-2">
+              <label
+                htmlFor="episode-chunk-select"
+                className="text-xs font-mono text-ivory-muted/70"
+              >
+                Range:
+              </label>
+              <div className="relative">
+                <select
+                  id="episode-chunk-select"
+                  value={currentChunk}
+                  onChange={(e) => setSelectedChunk(Number(e.target.value))}
+                  className="appearance-none bg-black/60 border border-white/15 rounded-full pl-4 pr-8 py-1.5 text-xs font-mono font-semibold text-white focus:outline-none focus:border-white/30 backdrop-blur-xl cursor-pointer shadow-sm"
+                >
+                  {Array.from({ length: totalChunks }).map((_, i) => {
+                    const s = i * chunkSize;
+                    const e = Math.min((i + 1) * chunkSize, seasonEpisodes.length);
+                    const chunkSlice = seasonEpisodes.slice(s, e);
+                    const firstNum = chunkSlice[0]?.episode;
+                    const lastNum = chunkSlice[chunkSlice.length - 1]?.episode;
+                    const label =
+                      firstNum && lastNum && firstNum !== lastNum
+                        ? `${firstNum} - ${lastNum}`
+                        : `${s + 1} - ${e}`;
+                    return (
+                      <option key={i} value={i} className="bg-navy-900 text-white">
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-white/70">
+                  ▼
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* 100-Episode Chunk Selector */}
-        {totalChunks > 1 && (
-          <div className="flex items-center gap-2">
-            <label
-              htmlFor="episode-chunk-select"
-              className="text-xs font-mono text-ivory-muted/70"
-            >
-              Range:
-            </label>
-            <div className="relative">
-              <select
-                id="episode-chunk-select"
-                value={currentChunk}
-                onChange={(e) => setSelectedChunk(Number(e.target.value))}
-                className="appearance-none bg-black/60 border border-white/15 rounded-full pl-4 pr-8 py-1.5 text-xs font-mono font-semibold text-white focus:outline-none focus:border-white/30 backdrop-blur-xl cursor-pointer shadow-sm"
-              >
-                {Array.from({ length: totalChunks }).map((_, i) => {
-                  const s = i * chunkSize;
-                  const e = Math.min((i + 1) * chunkSize, episodes.length);
-                  const chunkSlice = episodes.slice(s, e);
-                  const firstNum = chunkSlice[0]?.episode;
-                  const lastNum = chunkSlice[chunkSlice.length - 1]?.episode;
-                  const label =
-                    firstNum && lastNum && firstNum !== lastNum
-                      ? `${firstNum} - ${lastNum}`
-                      : `${s + 1} - ${e}`;
-                  return (
-                    <option key={i} value={i} className="bg-navy-900 text-white">
-                      {label}
-                    </option>
-                  );
-                })}
-              </select>
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-white/70">
-                ▼
-              </span>
-            </div>
+        {/* Season Selector Tabs */}
+        {hasMultipleSeasons && (
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+            <span className="text-xs font-semibold text-ivory-muted/70 shrink-0 mr-1">
+              Season:
+            </span>
+            {seasonsList.map((s) => {
+              const isSelected = Number(s.season) === Number(selectedSeason);
+              const count = episodes.filter(
+                (ep) => Number(ep.season || 1) === Number(s.season)
+              ).length;
+              return (
+                <button
+                  key={s.season}
+                  type="button"
+                  onClick={() => {
+                    setSelectedSeason(s.season);
+                    setSelectedChunk(0);
+                  }}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all shrink-0 border ${
+                    isSelected
+                      ? "bg-white text-black border-white shadow-md font-bold"
+                      : "bg-white/8 hover:bg-white/15 text-white/80 border-white/10 hover:border-white/20"
+                  }`}
+                >
+                  {s.name || `Season ${s.season}`}
+                  {count > 0 && (
+                    <span
+                      className={`ml-1.5 text-[10px] font-mono px-1.5 py-0.5 rounded-full ${
+                        isSelected
+                          ? "bg-black/20 text-black"
+                          : "bg-white/10 text-ivory-muted"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
@@ -784,7 +893,7 @@ function EpisodeGrid({
             <div key={i} className="skeleton h-10 rounded-2xl" />
           ))}
         </div>
-      ) : episodes.length === 0 ? (
+      ) : seasonEpisodes.length === 0 ? (
         <div className="p-6 text-center text-ivory-muted text-xs">
           No episodes found on {platformName || "platform"}.
         </div>
@@ -793,11 +902,13 @@ function EpisodeGrid({
           {currentEpisodes.map((ep) => {
             const isActive =
               activeEpisode &&
-              (String(activeEpisode.episode) === String(ep.episode) ||
-                activeEpisode.url === ep.url);
+              (activeEpisode.url && ep.url
+                ? activeEpisode.url === ep.url
+                : String(activeEpisode.season || 1) === String(ep.season || 1) &&
+                  String(activeEpisode.episode) === String(ep.episode));
             return (
               <button
-                key={ep.url || ep.episode}
+                key={ep.url || `${ep.season || 1}-${ep.episode}`}
                 type="button"
                 onClick={() => onSelectEpisode(ep)}
                 title={ep.label || `Episode ${ep.episode}`}
@@ -1972,21 +2083,33 @@ export default function App() {
       if (anime && shouldPushUrl) {
         const platformSlug = toSlug(selectedPlatform.name);
         const animeSlug = toSlug(anime.title);
+        const epSlug =
+          ep.season && (episodeData?.seasons?.length > 1 || ep.season > 1)
+            ? `s${ep.season}-e${ep.episode}`
+            : ep.episode;
         window.history.pushState(
           {},
           "",
-          `/${platformSlug}/${animeSlug}/${ep.episode}`
+          `/${platformSlug}/${animeSlug}/${epSlug}`
         );
       }
 
       if (anime) {
+        const hasMultiSeason =
+          ep.season && (episodeData?.seasons?.length > 1 || ep.season > 1);
+        const epDisplayNum = hasMultiSeason
+          ? `S${ep.season} E${ep.episode}`
+          : ep.episode;
         const updated = saveWatchHistoryEntry({
           animeTitle: anime.title,
           animeSlug: toSlug(anime.title),
           platformName: selectedPlatform.name,
           platformSlug: toSlug(selectedPlatform.name),
-          episodeNum: ep.episode,
-          episodeLabel: ep.label || `Episode ${ep.episode}`,
+          episodeNum: epDisplayNum,
+          episodeSeason: ep.season || null,
+          episodeLabel:
+            ep.label ||
+            (ep.season ? `Season ${ep.season} Episode ${ep.episode}` : `Episode ${ep.episode}`),
           episodeUrl: ep.url,
           animeUrl: anime.url,
           thumbnail: anime.thumbnail || "",
@@ -2212,10 +2335,20 @@ export default function App() {
       try {
         const data = await api.episodes(animeObj.url, targetPlatform.name);
         setEpisodeData(data);
-        const matchedEp = (data.episodes || []).find(
-          (e) => String(e.episode) === String(historyItem.episodeNum)
-        ) || {
+        const matchedEp = (data.episodes || []).find((e) => {
+          if (historyItem.episodeUrl && e.url === historyItem.episodeUrl) return true;
+          const histNum = String(historyItem.episodeNum).toLowerCase().trim();
+          if (String(e.episode).toLowerCase() === histNum) return true;
+          if (e.season) {
+            if (`s${e.season} e${e.episode}`.toLowerCase() === histNum) return true;
+            if (`s${e.season}-e${e.episode}`.toLowerCase() === histNum) return true;
+            if (`s${e.season}e${e.episode}`.toLowerCase() === histNum) return true;
+            if (`${e.season}x${e.episode}`.toLowerCase() === histNum) return true;
+          }
+          return false;
+        }) || {
           episode: historyItem.episodeNum,
+          season: historyItem.episodeSeason || null,
           label: historyItem.episodeLabel,
           url: historyItem.episodeUrl,
         };
@@ -2287,9 +2420,18 @@ export default function App() {
           if (route.type === "anime") {
             setView("episodes");
           } else if (route.type === "episode") {
-            const matchedEp = (epData.episodes || []).find(
-              (e) => String(e.episode) === String(route.episodeNum)
-            ) || epData.episodes?.[0];
+            const matchedEp = (epData.episodes || []).find((e) => {
+              const epParam = String(route.episodeNum).toLowerCase().trim();
+              if (e.url && e.url.toLowerCase().includes(epParam)) return true;
+              if (String(e.episode).toLowerCase() === epParam) return true;
+              if (e.season) {
+                if (`s${e.season}-e${e.episode}`.toLowerCase() === epParam) return true;
+                if (`s${e.season}e${e.episode}`.toLowerCase() === epParam) return true;
+                if (`${e.season}x${e.episode}`.toLowerCase() === epParam) return true;
+                if (`s${e.season} e${e.episode}`.toLowerCase() === epParam) return true;
+              }
+              return false;
+            }) || epData.episodes?.[0];
 
             if (matchedEp) {
               handleEpisodeClick(
@@ -2425,9 +2567,18 @@ export default function App() {
           } catch (_) {}
         }
 
-        const matchedEp = (epData?.episodes || []).find(
-          (e) => String(e.episode) === String(route.episodeNum)
-        ) || {
+        const matchedEp = (epData?.episodes || []).find((e) => {
+          const epParam = String(route.episodeNum).toLowerCase().trim();
+          if (e.url && e.url.toLowerCase().includes(epParam)) return true;
+          if (String(e.episode).toLowerCase() === epParam) return true;
+          if (e.season) {
+            if (`s${e.season}-e${e.episode}`.toLowerCase() === epParam) return true;
+            if (`s${e.season}e${e.episode}`.toLowerCase() === epParam) return true;
+            if (`${e.season}x${e.episode}`.toLowerCase() === epParam) return true;
+            if (`s${e.season} e${e.episode}`.toLowerCase() === epParam) return true;
+          }
+          return false;
+        }) || {
           episode: route.episodeNum,
           url: anime.url,
         };
@@ -3030,6 +3181,7 @@ export default function App() {
                     {!isOfflinePlayback && (
                       <EpisodeGrid
                         episodes={episodeData?.episodes || []}
+                        seasons={episodeData?.seasons || []}
                         activeEpisode={activeEpisode}
                         onSelectEpisode={handleEpisodeClick}
                         loading={loadingEpisodes}
@@ -3081,7 +3233,7 @@ export default function App() {
                       ))}
                       {activeEpisode && (
                         <span className="tag bg-white/20 text-white border-white/30 backdrop-blur-md">
-                          ▶ EP {activeEpisode.episode}
+                          ▶ {activeEpisode.season ? `S${activeEpisode.season} ` : ""}EP {activeEpisode.episode}
                         </span>
                       )}
                     </div>
@@ -3094,6 +3246,7 @@ export default function App() {
             {view === "episodes" && (
               <EpisodeGrid
                 episodes={episodeData?.episodes || []}
+                seasons={episodeData?.seasons || []}
                 activeEpisode={activeEpisode}
                 onSelectEpisode={handleEpisodeClick}
                 loading={loadingEpisodes}

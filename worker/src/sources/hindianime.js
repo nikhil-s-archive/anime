@@ -348,6 +348,9 @@ class DefaultExtension extends MProvider {
             name,
             url: `${this.baseUrl}/watch/${slug}/ep-${season}-${epNum}`,
             dateUpload: null,
+            season: parseInt(season, 10),
+            episode: String(epNum),
+            title: cleanEpTitle || `Episode ${epNum}`,
           });
         }
       }
@@ -358,8 +361,16 @@ class DefaultExtension extends MProvider {
           name: "Full Movie",
           url: `${this.baseUrl}/watch/${slug}`,
           dateUpload: null,
+          season: 1,
+          episode: "1",
+          title: "Full Movie",
         });
       }
+
+      const seasons = seasonList.map((s) => ({
+        season: parseInt(s, 10),
+        name: `Season ${s}`,
+      }));
 
       return {
         name: title,
@@ -368,6 +379,7 @@ class DefaultExtension extends MProvider {
         genre: genres,
         author: catalogItem?.studio || "HindiAnime",
         status,
+        seasons,
         episodes,
       };
     } catch (e) {

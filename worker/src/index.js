@@ -397,18 +397,74 @@ export default {
         const rawEpisodes = detail.episodes || detail.chapters || [];
         const episodes = rawEpisodes.map((ep, idx) => {
           const epName = (ep.name || "").trim();
-          const match = epName.match(
-            /\b(?:Episode|Ep\.?|E)?\s*(\d+(?:\.\d+)?)\b/i
-          );
-          const epNum = match ? match[1] : String(idx + 1);
-          const titlePart = epName
+
+          let season = ep.season != null ? parseInt(ep.season, 10) : null;
+          let epNum = ep.episode != null ? String(ep.episode) : null;
+
+          // If not explicitly set on ep, parse from name/url
+          if (!season || !epNum) {
+            // Pattern 1: "Season 1 Episode 5" or "S1 E5" or "S01E05" or "S1 - Ep 5"
+            const seMatch = epName.match(
+              /(?:Season|S)\s*(\d+)[\s:\-_|]*(?:Episode|Ep\.?|E)\s*(\d+(?:\.\d+)?)/i
+            );
+            if (seMatch) {
+              if (!season) season = parseInt(seMatch[1], 10);
+              if (!epNum) epNum = seMatch[2];
+            }
+          }
+
+          if (!season || !epNum) {
+            // Pattern 2: "1x05" or "1x5" (Season x Episode)
+            const xMatch =
+              epName.match(/\b(\d+)x(\d+(?:\.\d+)?)\b/i) ||
+              (ep.url && ep.url.match(/[-_](\d+)x(\d+)/i));
+            if (xMatch) {
+              if (!season) season = parseInt(xMatch[1], 10);
+              if (!epNum) epNum = String(parseInt(xMatch[2], 10));
+            }
+          }
+
+          if (!epNum) {
+            // Pattern 3: Explicit "Episode 5", "Ep. 5", "E5" (without season)
+            const epMatch = epName.match(/\b(?:Episode|Ep\.?|E)\s*(\d+(?:\.\d+)?)\b/i);
+            if (epMatch) {
+              epNum = epMatch[1];
+            }
+          }
+
+          if (!season) {
+            // Pattern 4: Check if standalone "Season X" in title or url
+            const sMatch =
+              epName.match(/\b(?:Season|S)\s*(\d+)\b/i) ||
+              (ep.url && ep.url.match(/[-_/]season[-_]?(\d+)/i));
+            if (sMatch) {
+              season = parseInt(sMatch[1], 10);
+            } else {
+              season = 1;
+            }
+          }
+
+          if (!epNum) {
+            // Pattern 5: Any standalone number
+            const numMatch = epName.match(/\b(\d+(?:\.\d+)?)\b/);
+            epNum = numMatch ? numMatch[1] : String(idx + 1);
+          }
+
+          // Format clean label
+          const titlePart = (ep.title || epName)
             .replace(
-              new RegExp("^(?:Episode|Ep\.?)\\s*" + epNum + "[:\\s-]*", "i"),
+              new RegExp("^(?:(?:Season|S)\\s*" + season + "[\\s:\\-_|]+)?(?:Episode|Ep\.?|E)?\\s*" + epNum + "[:\\s-]*", "i"),
               ""
             )
+            .replace(/^[0-9]+[xX][0-9]+\s*[:\-_|]*\s*/, "")
+            .replace(new RegExp("^[0-9xX\\s\\-:]+"), "")
             .trim();
+
           const label =
-            epName || `Episode ${epNum}${titlePart ? ": " + titlePart : ""}`;
+            ep.label ||
+            (titlePart
+              ? (season > 1 ? `S${season} EP ${epNum}: ${titlePart}` : `Episode ${epNum}: ${titlePart}`)
+              : (season > 1 ? `Season ${season} Episode ${epNum}` : `Episode ${epNum}`));
 
           const isDub =
             (ep.name && ep.name.toLowerCase().includes("dub")) ||
@@ -422,12 +478,28 @@ export default {
 
           return {
             episode: epNum,
+            season,
             label,
             badge,
             url: ep.url,
             dateUpload: ep.dateUpload || null,
           };
         });
+
+        const seasonMap = new Map();
+        if (Array.isArray(detail.seasons) && detail.seasons.length > 0) {
+          for (const s of detail.seasons) {
+            seasonMap.set(Number(s.season), s.name || `Season ${s.season}`);
+          }
+        }
+        for (const ep of episodes) {
+          if (ep.season != null && !seasonMap.has(Number(ep.season))) {
+            seasonMap.set(Number(ep.season), `Season ${ep.season}`);
+          }
+        }
+        const seasons = Array.from(seasonMap.entries())
+          .map(([season, name]) => ({ season, name }))
+          .sort((a, b) => a.season - b.season);
 
         return jsonResponse({
           title: detail.name || detail.title || "",
@@ -439,6 +511,7 @@ export default {
           author: detail.author || "",
           status: detail.status,
           totalEpisodes: episodes.length,
+          seasons,
           episodes,
           platform: {
             id: platform.id,
