@@ -707,7 +707,18 @@ function EpisodeGrid({
   onSelectEpisode,
   loading = false,
   platformName = "",
+  isSidebar = false,
 }) {
+  const activeEpRef = useRef(null);
+
+  useEffect(() => {
+    if (activeEpRef.current) {
+      activeEpRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }
+  }, [activeEpisode]);
   const seasonsList = useMemo(() => {
     const map = new Map();
     if (Array.isArray(seasons) && seasons.length > 0) {
@@ -792,23 +803,27 @@ function EpisodeGrid({
   const currentEpisodes = seasonEpisodes.slice(startIdx, endIdx);
 
   return (
-    <div className="glass rounded-[24px] p-4 sm:p-5 border border-[#272938] bg-[#14151c] animate-fade-in">
-      <div className="flex flex-col gap-3 mb-4">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-2.5">
+    <div
+      className={`glass rounded-[24px] p-4 sm:p-5 border border-[#272938] bg-[#14151c] animate-fade-in ${
+        isSidebar ? "lg:h-full lg:max-h-[525px] lg:flex lg:flex-col" : ""
+      }`}
+    >
+      <div className="flex flex-col gap-3 mb-4 shrink-0">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold uppercase tracking-wider text-white">
               Episodes
             </h3>
-            <span className="text-[11px] font-mono text-ivory-muted/90 bg-[#191a24] px-2.5 py-0.5 rounded-full border border-[#282a39]">
+            <span className="text-[11px] font-mono text-ivory-muted/90 bg-[#191a24] px-2 py-0.5 rounded-full border border-[#282a39]">
               {hasMultipleSeasons
-                ? `${seasonEpisodes.length} in Season ${selectedSeason} (${episodes.length} total)`
+                ? `${seasonEpisodes.length} in S${selectedSeason}`
                 : `${episodes.length} total`}
             </span>
           </div>
 
           {/* 100-Episode Chunk Selector */}
           {totalChunks > 1 && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <label
                 htmlFor="episode-chunk-select"
                 className="text-xs font-mono text-ivory-muted/70"
@@ -820,7 +835,7 @@ function EpisodeGrid({
                   id="episode-chunk-select"
                   value={currentChunk}
                   onChange={(e) => setSelectedChunk(Number(e.target.value))}
-                  className="appearance-none bg-[#14151e] border border-[#272939] rounded-full pl-4 pr-8 py-1.5 text-xs font-mono font-semibold text-white focus:outline-none focus:border-[#42465e] cursor-pointer shadow-sm"
+                  className="appearance-none bg-[#14151e] border border-[#272939] rounded-full pl-3 pr-7 py-1 text-xs font-mono font-semibold text-white focus:outline-none focus:border-[#42465e] cursor-pointer shadow-sm"
                 >
                   {Array.from({ length: totalChunks }).map((_, i) => {
                     const s = i * chunkSize;
@@ -839,7 +854,7 @@ function EpisodeGrid({
                     );
                   })}
                 </select>
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-white/70">
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] text-white/70">
                   ▼
                 </span>
               </div>
@@ -849,10 +864,7 @@ function EpisodeGrid({
 
         {/* Season Selector Tabs */}
         {hasMultipleSeasons && (
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-            <span className="text-xs font-semibold text-ivory-muted/70 shrink-0 mr-1">
-              Season:
-            </span>
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
             {seasonsList.map((s) => {
               const isSelected = Number(s.season) === Number(selectedSeason);
               const count = episodes.filter(
@@ -866,7 +878,7 @@ function EpisodeGrid({
                     setSelectedSeason(s.season);
                     setSelectedChunk(0);
                   }}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all shrink-0 border ${
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all shrink-0 border ${
                     isSelected
                       ? "bg-white text-black border-white shadow-md font-bold"
                       : "bg-[#181923] hover:bg-[#20222e] text-white/90 border-[#282a38] hover:border-[#3a3c50]"
@@ -875,7 +887,7 @@ function EpisodeGrid({
                   {s.name || `Season ${s.season}`}
                   {count > 0 && (
                     <span
-                      className={`ml-1.5 text-[10px] font-mono px-1.5 py-0.5 rounded-full ${
+                      className={`ml-1 text-[10px] font-mono px-1.5 py-0.5 rounded-full ${
                         isSelected
                           ? "bg-black/20 text-black"
                           : "bg-[#222430] text-ivory-muted"
@@ -892,7 +904,13 @@ function EpisodeGrid({
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2">
+        <div
+          className={
+            isSidebar
+              ? "grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-4 xl:grid-cols-5 gap-2 max-h-72 lg:max-h-none lg:flex-1"
+              : "grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2"
+          }
+        >
           {Array.from({ length: 24 }).map((_, i) => (
             <div key={i} className="skeleton h-10 rounded-2xl" />
           ))}
@@ -902,7 +920,13 @@ function EpisodeGrid({
           No episodes found on {platformName || "platform"}.
         </div>
       ) : (
-        <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 max-h-72 overflow-y-auto pr-1 no-scrollbar">
+        <div
+          className={
+            isSidebar
+              ? "grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-4 xl:grid-cols-5 gap-2 max-h-72 lg:max-h-none lg:flex-1 overflow-y-auto pr-1 no-scrollbar"
+              : "grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 max-h-72 overflow-y-auto pr-1 no-scrollbar"
+          }
+        >
           {currentEpisodes.map((ep) => {
             const isActive =
               activeEpisode &&
@@ -913,6 +937,7 @@ function EpisodeGrid({
             return (
               <button
                 key={ep.url || `${ep.season || 1}-${ep.episode}`}
+                ref={isActive ? activeEpRef : null}
                 type="button"
                 onClick={() => onSelectEpisode(ep)}
                 title={ep.label || `Episode ${ep.episode}`}
@@ -3026,10 +3051,10 @@ export default function App() {
             {/* ── Player (shown when streaming) ── */}
             {view === "playing" && (
               <div className="player-stage mb-6">
-                {/* 16:9 Player with companion Ad Space */}
+                {/* 16:9 Player with companion Episode Sidebar */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
                   {/* Left Column: 16:9 Video Player + Controls */}
-                  <div className={`${!isOfflinePlayback ? "lg:col-span-8 xl:col-span-9" : "lg:col-span-12"} space-y-3`}>
+                  <div className={`${!isOfflinePlayback ? "lg:col-span-8 xl:col-span-8" : "lg:col-span-12"} space-y-3`}>
                     {loadingStream && !streamUrl ? (
                       <div className="player-wrapper aspect-video flex items-center justify-center min-h-[320px]">
                         <div className="flex flex-col items-center gap-3">
@@ -3201,48 +3226,29 @@ export default function App() {
                     ) : null}
                   </div>
 
-                  {/* Dedicated Ad Space Alongside the 16:9 Player (Hidden in offline mode) */}
+                  {/* Right Column / Desktop Episode Sidebar:
+                      - On Desktop (lg:): Displayed at the side in the 4-column sidebar
+                      - On Mobile (< lg): Appears directly following the servers list! */}
                   {!isOfflinePlayback && (
-                    <div className="lg:col-span-4 xl:col-span-3 flex flex-col items-center gap-4">
-                      <AdBanner
-                        slot="player-rectangle"
-                        unit="300x250"
-                        label="Advertisement"
-                      />
-                      <AdBanner
-                        slot="player-skyscraper"
-                        unit="160x600"
-                        label="Advertisement"
-                        className="hidden xl:flex"
-                      />
-                      <AdBanner
-                        slot="player-half-skyscraper"
-                        unit="160x300"
-                        label="Advertisement"
-                        className="xl:hidden"
+                    <div className="lg:col-span-4 xl:col-span-4 w-full">
+                      <EpisodeGrid
+                        episodes={episodeData?.episodes || []}
+                        seasons={episodeData?.seasons || []}
+                        activeEpisode={activeEpisode}
+                        onSelectEpisode={handleEpisodeClick}
+                        loading={loadingEpisodes}
+                        platformName={selectedPlatform.name}
+                        isSidebar={true}
                       />
                     </div>
                   )}
                 </div>
 
-                {/* ── Episode Grid Inline (directly below server switcher) ── */}
-                {!isOfflinePlayback && streamUrl && (
-                  <div className="mt-5">
-                    <EpisodeGrid
-                      episodes={episodeData?.episodes || []}
-                      seasons={episodeData?.seasons || []}
-                      activeEpisode={activeEpisode}
-                      onSelectEpisode={handleEpisodeClick}
-                      loading={loadingEpisodes}
-                      platformName={selectedPlatform.name}
-                    />
-                  </div>
-                )}
-
-                {/* Banner Ad directly below Episodes List (rendered after episodes list) */}
+                {/* Ads on bottom (for both desktop and mobile, rendered below the player & episodes) */}
                 {!isOfflinePlayback && (
-                  <div className="mt-5 flex justify-center w-full">
+                  <div className="mt-6 flex flex-col sm:flex-row flex-wrap items-center justify-center gap-4 w-full">
                     <AdBanner slot="player-bottom" format="horizontal" label="Advertisement" />
+                    <AdBanner slot="player-rectangle" unit="300x250" label="Advertisement" className="hidden xl:inline-flex" />
                   </div>
                 )}
               </div>
