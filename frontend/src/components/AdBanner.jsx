@@ -197,65 +197,66 @@ export default function AdBanner({
       data-ad-slot={slot}
       data-ad-key={activeUnit.key}
       data-ad-size={`${activeUnit.width}x${activeUnit.height}`}
-      aria-label={label}
+      aria-label="Advertisement"
       style={{
         background: "#121319",
         border: "1px solid #232532",
-        borderRadius: "1rem",
+        borderRadius: "0.75rem",
         overflow: "hidden",
-        width: "100%",
-        display: "flex",
+        width: "fit-content",
+        maxWidth: "100%",
+        margin: "0 auto",
+        display: "inline-flex",
         flexDirection: "column",
         alignItems: "center",
         boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
       }}
     >
-      {/* Ad Header Tag */}
+      {/* Ad Header Tag: Advertisement with Red Dot */}
       <div
         style={{
           width: "100%",
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0.3rem 0.85rem",
+          justifyContent: "center",
+          padding: "0.25rem 0.6rem",
           background: "#0c0d12",
           borderBottom: "1px solid #1c1d28",
           fontSize: "0.625rem",
           letterSpacing: "0.12em",
           textTransform: "uppercase",
           fontFamily: "ui-monospace, monospace",
-          color: "#71717a",
+          color: "#8e8e93",
         }}
       >
-        <span style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: "0.45rem" }}>
           <span
             style={{
               display: "inline-block",
-              width: "5px",
-              height: "5px",
+              width: "6px",
+              height: "6px",
               borderRadius: "9999px",
-              background: "#38bdf8",
+              background: "#ef4444",
+              boxShadow: "0 0 6px rgba(239, 68, 68, 0.7)",
+              flexShrink: 0,
             }}
           />
-          {label}
-        </span>
-        <span style={{ fontSize: "0.6rem", color: "#52525b" }}>
-          {activeUnit.width}×{activeUnit.height}
+          <span>Advertisement</span>
         </span>
       </div>
 
-      {/* Ad Content Box */}
+      {/* Ad Content Box: Exact fit to ad size */}
       <div
         className="ad-iframe-wrapper"
         style={{
-          width: "100%",
+          width: scale < 1 ? `${Math.round(activeUnit.width * scale)}px` : `${activeUnit.width}px`,
+          height: scale < 1 ? `${Math.round(activeUnit.height * scale)}px` : `${activeUnit.height}px`,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: "0.75rem",
-          minHeight: `${activeUnit.height + 16}px`,
           background: "#15161f",
           overflow: "hidden",
+          padding: 0,
         }}
       >
         <div
@@ -267,6 +268,7 @@ export default function AdBanner({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+            flexShrink: 0,
           }}
         >
           <iframe

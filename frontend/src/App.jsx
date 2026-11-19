@@ -2833,7 +2833,9 @@ export default function App() {
         {/* ══════ HOME VIEW (/home) ══════ */}
         {view === "home" && (
           <div className="space-y-6 animate-fade-in">
-            <AdBanner slot="home-top" format="leaderboard" label="Top Sponsor" />
+            <div className="flex justify-center w-full">
+              <AdBanner slot="home-top" format="horizontal" label="Advertisement" />
+            </div>
             <HomeView
               selectedPlatform={selectedPlatform}
               popularAnime={homePopular}
@@ -2849,7 +2851,9 @@ export default function App() {
         {/* ══════ BROWSE / SEARCH VIEW (/search?q=query) ══════ */}
         {view === "browse" && (
           <div className="space-y-6">
-            <AdBanner slot="search-top" format="leaderboard" label="Sponsored" />
+            <div className="flex justify-center w-full">
+              <AdBanner slot="search-top" format="horizontal" label="Advertisement" />
+            </div>
             {!debouncedQuery ? (
             <>
               <section className="search-home animate-fade-in">
@@ -3199,7 +3203,7 @@ export default function App() {
 
                   {/* Dedicated Ad Space Alongside the 16:9 Player (Hidden in offline mode) */}
                   {!isOfflinePlayback && (
-                    <div className="lg:col-span-4 xl:col-span-3 flex flex-col gap-4">
+                    <div className="lg:col-span-4 xl:col-span-3 flex flex-col items-center gap-4">
                       <AdBanner
                         slot="player-rectangle"
                         unit="300x250"
@@ -3221,14 +3225,7 @@ export default function App() {
                   )}
                 </div>
 
-                {/* Banner Ad directly below Player */}
-                {!isOfflinePlayback && (
-                  <div className="mt-5">
-                    <AdBanner slot="player-bottom" format="horizontal" />
-                  </div>
-                )}
-
-                {/* ── Episode Grid Inline (directly below server switcher and ads) ── */}
+                {/* ── Episode Grid Inline (directly below server switcher) ── */}
                 {!isOfflinePlayback && streamUrl && (
                   <div className="mt-5">
                     <EpisodeGrid
@@ -3239,6 +3236,13 @@ export default function App() {
                       loading={loadingEpisodes}
                       platformName={selectedPlatform.name}
                     />
+                  </div>
+                )}
+
+                {/* Banner Ad directly below Episodes List (rendered after episodes list) */}
+                {!isOfflinePlayback && (
+                  <div className="mt-5 flex justify-center w-full">
+                    <AdBanner slot="player-bottom" format="horizontal" label="Advertisement" />
                   </div>
                 )}
               </div>
@@ -3310,7 +3314,7 @@ export default function App() {
 
       {/* ── Bottom Page Ad (all pages EXCEPT Downloads) ── */}
       {view !== "downloads" && (
-        <div className="max-w-7xl mx-auto w-full px-4 mb-6">
+        <div className="max-w-7xl mx-auto w-full px-4 mb-6 flex justify-center">
           <AdBanner slot="page-bottom" format="horizontal" label="Advertisement" />
         </div>
       )}
