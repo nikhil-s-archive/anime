@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import Player from "./components/Player.jsx";
 import DownloadsPage from "./components/DownloadsPage.jsx";
+import AdBanner from "./components/AdBanner.jsx";
 import { downloadManager } from "./services/downloadManager.js";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -175,6 +176,9 @@ function parsePath(pathname = window.location.pathname) {
   }
   if (parts[0].toLowerCase() === "downloads") {
     return { type: "downloads" };
+  }
+  if (parts[0].toLowerCase() === "search") {
+    return { type: "search" };
   }
   if (parts.length === 1) {
     return {
@@ -788,14 +792,14 @@ function EpisodeGrid({
   const currentEpisodes = seasonEpisodes.slice(startIdx, endIdx);
 
   return (
-    <div className="glass rounded-[24px] p-4 sm:p-5 border border-white/12 animate-fade-in">
+    <div className="glass rounded-[24px] p-4 sm:p-5 border border-[#272938] bg-[#14151c] animate-fade-in">
       <div className="flex flex-col gap-3 mb-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2.5">
             <h3 className="text-sm font-bold uppercase tracking-wider text-white">
               Episodes
             </h3>
-            <span className="text-[11px] font-mono text-ivory-muted/80 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10">
+            <span className="text-[11px] font-mono text-ivory-muted/90 bg-[#191a24] px-2.5 py-0.5 rounded-full border border-[#282a39]">
               {hasMultipleSeasons
                 ? `${seasonEpisodes.length} in Season ${selectedSeason} (${episodes.length} total)`
                 : `${episodes.length} total`}
@@ -816,7 +820,7 @@ function EpisodeGrid({
                   id="episode-chunk-select"
                   value={currentChunk}
                   onChange={(e) => setSelectedChunk(Number(e.target.value))}
-                  className="appearance-none bg-black/60 border border-white/15 rounded-full pl-4 pr-8 py-1.5 text-xs font-mono font-semibold text-white focus:outline-none focus:border-white/30 backdrop-blur-xl cursor-pointer shadow-sm"
+                  className="appearance-none bg-[#14151e] border border-[#272939] rounded-full pl-4 pr-8 py-1.5 text-xs font-mono font-semibold text-white focus:outline-none focus:border-[#42465e] cursor-pointer shadow-sm"
                 >
                   {Array.from({ length: totalChunks }).map((_, i) => {
                     const s = i * chunkSize;
@@ -865,7 +869,7 @@ function EpisodeGrid({
                   className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all shrink-0 border ${
                     isSelected
                       ? "bg-white text-black border-white shadow-md font-bold"
-                      : "bg-white/8 hover:bg-white/15 text-white/80 border-white/10 hover:border-white/20"
+                      : "bg-[#181923] hover:bg-[#20222e] text-white/90 border-[#282a38] hover:border-[#3a3c50]"
                   }`}
                 >
                   {s.name || `Season ${s.season}`}
@@ -874,7 +878,7 @@ function EpisodeGrid({
                       className={`ml-1.5 text-[10px] font-mono px-1.5 py-0.5 rounded-full ${
                         isSelected
                           ? "bg-black/20 text-black"
-                          : "bg-white/10 text-ivory-muted"
+                          : "bg-[#222430] text-ivory-muted"
                       }`}
                     >
                       {count}
@@ -914,8 +918,8 @@ function EpisodeGrid({
                 title={ep.label || `Episode ${ep.episode}`}
                 className={`h-10 rounded-2xl flex items-center justify-center text-xs sm:text-sm font-semibold transition-colors duration-150 border ${
                   isActive
-                    ? "bg-white text-black border-white shadow-lg shadow-white/20 font-bold"
-                    : "bg-white/8 hover:bg-white/18 text-white/90 border-white/10 hover:border-white/25"
+                    ? "bg-white text-black border-white shadow-lg font-bold"
+                    : "bg-[#181923] hover:bg-[#222432] text-white/90 border-[#272938] hover:border-[#3a3c50]"
                 }`}
               >
                 {ep.episode}
@@ -964,7 +968,7 @@ function ErrorToast({ message, onDismiss }) {
   return (
     <div
       className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-slide-up
-                 glass rounded-full px-5 py-3 flex items-center gap-3 max-w-sm w-full border border-white/15 bg-black/80 backdrop-blur-2xl shadow-2xl"
+                 rounded-full px-5 py-3 flex items-center gap-3 max-w-sm w-full border border-[#272938] bg-[#14151c] shadow-2xl"
       role="alert"
     >
       <WarningIcon className="h-5 w-5 flex-shrink-0 text-red-400" />
@@ -1049,7 +1053,7 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
         title={`Source: ${selectedPlatform?.name || "Select Source"} (Click to switch)`}
       >
         {/* Source Logo */}
-        <div className="w-9 h-9 rounded-2xl overflow-hidden bg-white/10 border border-white/15 flex items-center justify-center p-1 group-hover:scale-105 group-hover:border-gold/40 transition-all backdrop-blur-md shadow-sm">
+        <div className="w-9 h-9 rounded-2xl overflow-hidden bg-[#181923] border border-[#272938] flex items-center justify-center p-1 group-hover:scale-105 group-hover:border-gold/40 transition-all shadow-sm">
           {!logoError && selectedPlatform?.iconUrl ? (
             <img
               src={selectedPlatform.iconUrl}
@@ -1084,21 +1088,21 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
         </div>
       </button>
 
-      {/* ── Mobile Bottom Sheet (Portaled to document.body so it escapes header backdrop-filter) ── */}
+      {/* ── Mobile Bottom Sheet (Portaled to document.body so it escapes header) ── */}
       {isOpen &&
         typeof document !== "undefined" &&
         createPortal(
           <div className="sm:hidden">
             {/* Mobile Backdrop Overlay */}
             <div
-              className="fixed inset-0 bg-black/80 z-[99998] backdrop-blur-sm animate-fade-in"
+              className="fixed inset-0 bg-black/85 z-[99998] animate-fade-in"
               onClick={() => setIsOpen(false)}
             />
 
             {/* Mobile Bottom Popup Sheet */}
             <div
               ref={mobileSheetRef}
-              className="fixed inset-x-0 bottom-0 z-[99999] bg-[#0d111a] border-t border-white/20 rounded-t-[32px] p-5 shadow-[0_-12px_50px_rgba(0,0,0,0.95)] max-h-[85vh] h-[75vh] flex flex-col animate-bottom-sheet"
+              className="fixed inset-x-0 bottom-0 z-[99999] bg-[#0e1017] border-t border-[#272938] rounded-t-[32px] p-5 shadow-[0_-12px_50px_rgba(0,0,0,0.95)] max-h-[85vh] h-[75vh] flex flex-col animate-bottom-sheet"
               style={{
                 paddingBottom: "max(1.75rem, env(safe-area-inset-bottom, 24px))",
               }}
@@ -1111,19 +1115,19 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
               />
 
               {/* Mobile Header Row */}
-              <div className="flex items-center justify-between pb-3 mb-2.5 border-b border-white/10 shrink-0">
+              <div className="flex items-center justify-between pb-3 mb-2.5 border-b border-[#222432] shrink-0">
                 <div className="flex items-center gap-2">
                   <span className="text-base font-bold text-white tracking-wide">
                     Select Source
                   </span>
-                  <span className="text-[10px] font-mono text-white/80 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/15">
+                  <span className="text-[10px] font-mono text-white/90 bg-[#181923] px-2.5 py-0.5 rounded-full border border-[#272938]">
                     {platforms.length} sources
                   </span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
-                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center text-white/70 hover:text-white transition-all text-xs"
+                  className="w-8 h-8 rounded-full bg-[#181923] hover:bg-[#252737] active:scale-95 flex items-center justify-center text-white/80 hover:text-white transition-all text-xs border border-[#272938]"
                   aria-label="Close"
                 >
                   ✕
@@ -1140,7 +1144,7 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
                   placeholder="Search platforms..."
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
-                  className="w-full bg-black/60 border border-white/15 rounded-full pl-10 pr-4 py-2.5 text-sm text-white placeholder-ivory-muted/60 outline-none focus:border-white/35"
+                  className="w-full bg-[#14151e] border border-[#272939] rounded-full pl-10 pr-4 py-2.5 text-sm text-white placeholder-ivory-muted/60 outline-none focus:border-[#42465e]"
                 />
               </div>
 
@@ -1159,11 +1163,11 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
                       }}
                       className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-left text-sm transition-all ${
                         isSelected
-                          ? "bg-white/20 text-white border border-white/25 shadow-sm font-semibold"
-                          : "text-ivory-muted hover:text-white hover:bg-white/10 border border-transparent"
+                          ? "bg-[#252838] text-white border border-[#3b3f57] shadow-sm font-semibold"
+                          : "text-ivory-muted hover:text-white hover:bg-[#181923] border border-transparent"
                       }`}
                     >
-                      <div className="w-7 h-7 rounded-xl bg-black/60 p-1 border border-white/10 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                      <div className="w-7 h-7 rounded-xl bg-[#12131a] p-1 border border-[#272938] flex-shrink-0 flex items-center justify-center overflow-hidden">
                         <img
                           src={p.iconUrl}
                           alt={p.name}
@@ -1204,12 +1208,12 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
 
       {/* ── Desktop Dropdown Menu (Solid Background) ── */}
       {isOpen && (
-        <div className="hidden sm:block absolute left-0 mt-2.5 w-80 rounded-[28px] bg-[#0d111a] p-3.5 z-50 shadow-2xl border border-white/15 animate-slide-up">
+        <div className="hidden sm:block absolute left-0 mt-2.5 w-80 rounded-[28px] bg-[#0e1017] p-3.5 z-50 shadow-2xl border border-[#272938] animate-slide-up">
           {/* Header & Search */}
           <div className="p-1 mb-2">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-white">Select Source</span>
-              <span className="text-[10px] font-mono text-white/80 bg-white/10 px-2 py-0.5 rounded-full border border-white/15">
+              <span className="text-[10px] font-mono text-white/90 bg-[#181923] px-2 py-0.5 rounded-full border border-[#272938]">
                 {platforms.length} sources
               </span>
             </div>
@@ -1222,7 +1226,7 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
                 placeholder="Search platforms..."
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                className="w-full bg-black/60 border border-white/15 rounded-full pl-8 pr-3 py-1.5 text-xs text-white placeholder-ivory-muted/60 outline-none focus:border-white/30"
+                className="w-full bg-[#14151e] border border-[#272939] rounded-full pl-8 pr-3 py-1.5 text-xs text-white placeholder-ivory-muted/60 outline-none focus:border-[#42465e]"
                 autoFocus
               />
             </div>
@@ -1243,11 +1247,11 @@ function PlatformSelector({ platforms, selectedPlatform, onSelectPlatform }) {
                   }}
                   className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-2xl text-left text-xs transition-all ${
                     isSelected
-                      ? "bg-white/20 text-white border border-white/25 shadow-sm font-semibold"
-                      : "text-ivory-muted hover:text-white hover:bg-white/10 border border-transparent"
+                      ? "bg-[#252838] text-white border border-[#3b3f57] shadow-sm font-semibold"
+                      : "text-ivory-muted hover:text-white hover:bg-[#181923] border border-transparent"
                   }`}
                 >
-                  <div className="w-5 h-5 rounded-lg bg-black/60 p-0.5 border border-white/10 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                  <div className="w-5 h-5 rounded-lg bg-[#12131a] p-0.5 border border-[#272938] flex-shrink-0 flex items-center justify-center overflow-hidden">
                     <img
                       src={p.iconUrl}
                       alt={p.name}
@@ -1343,12 +1347,12 @@ function WatchHistorySection({ history, onSelect, onRemove, onClear }) {
               </span>
 
               {/* Platform Pill */}
-              <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-mono font-semibold bg-black/60 text-white/90 border border-white/10 backdrop-blur-md">
+              <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-mono font-semibold bg-[#101116] text-white/90 border border-[#282a38]">
                 {item.platformName}
               </span>
 
               {/* Play Button Icon on Hover */}
-              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/35 backdrop-blur-[2px]">
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
                 <div className="w-11 h-11 rounded-full bg-white text-black flex items-center justify-center shadow-2xl transform group-hover:scale-110 transition-transform">
                   <span className="ml-0.5 text-sm font-bold">▶</span>
                 </div>
@@ -1357,7 +1361,7 @@ function WatchHistorySection({ history, onSelect, onRemove, onClear }) {
               {/* Remove Button */}
               <button
                 type="button"
-                className="absolute bottom-2 right-2 w-7 h-7 rounded-full bg-black/80 hover:bg-red-500 text-white flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-all z-10 border border-white/15 shadow-md"
+                className="absolute bottom-2 right-2 w-7 h-7 rounded-full bg-[#181922] hover:bg-red-500 text-white flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-all z-10 border border-[#272938] shadow-md"
                 onClick={(e) => {
                   e.stopPropagation();
                   onRemove(item);
@@ -1369,7 +1373,7 @@ function WatchHistorySection({ history, onSelect, onRemove, onClear }) {
             </div>
 
             {/* Title & Info */}
-            <div className="p-3 bg-white/5 rounded-b-[24px] border-t border-white/5 backdrop-blur-md">
+            <div className="p-3 bg-[#14151e] rounded-b-[24px] border-t border-[#262837]">
               <p className="text-xs font-semibold text-white line-clamp-1 group-hover:text-white/80 transition-colors">
                 {item.animeTitle}
               </p>
@@ -1408,7 +1412,7 @@ function HomeView({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs font-mono text-white/80 bg-white/10 px-3.5 py-1.5 rounded-full border border-white/15 backdrop-blur-md">
+          <span className="text-xs font-mono text-white/90 bg-[#181923] px-3.5 py-1.5 rounded-full border border-[#272938]">
             Source: {selectedPlatform.name}
           </span>
         </div>
@@ -1814,7 +1818,7 @@ export default function App() {
     window.history.pushState(
       {},
       "",
-      `/?q=${encodeURIComponent(item.title)}`
+      `/search?q=${encodeURIComponent(item.title)}`
     );
   };
 
@@ -1831,10 +1835,10 @@ export default function App() {
       window.history.pushState(
         {},
         "",
-        `/?q=${encodeURIComponent(query)}`
+        `/search?q=${encodeURIComponent(query)}`
       );
     } else {
-      window.history.pushState({}, "", "/");
+      window.history.pushState({}, "", "/search");
     }
   };
 
@@ -2493,7 +2497,7 @@ export default function App() {
         return;
       }
 
-      if (route.type === "landing") {
+      if (route.type === "landing" || route.type === "search") {
         setSearchQuery(q);
         setDebouncedQuery(q);
         setPage(1);
@@ -2718,7 +2722,7 @@ export default function App() {
             )}
 
             {/* Navigation Tabs (Home / Search / Downloads) - Icons Only */}
-            <nav className="flex items-center bg-black/40 p-1 rounded-full border border-white/10 backdrop-blur-xl gap-1">
+            <nav className="flex items-center bg-[#13141d] p-1 rounded-full border border-[#272938] gap-1">
               <button
                 type="button"
                 title="Home"
@@ -2733,7 +2737,7 @@ export default function App() {
                 className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
                   view === "home"
                     ? "bg-white text-black shadow-md font-bold"
-                    : "text-ivory-muted hover:text-white hover:bg-white/10"
+                    : "text-ivory-muted hover:text-white hover:bg-[#20222d]"
                 }`}
               >
                 <HomeIcon className="h-4 w-4" />
@@ -2749,14 +2753,14 @@ export default function App() {
                     {},
                     "",
                     debouncedQuery
-                      ? `/?q=${encodeURIComponent(debouncedQuery)}`
+                      ? `/search?q=${encodeURIComponent(debouncedQuery)}`
                       : "/"
                   );
                 }}
                 className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
                   view === "browse"
                     ? "bg-white text-black shadow-md font-bold"
-                    : "text-ivory-muted hover:text-white hover:bg-white/10"
+                    : "text-ivory-muted hover:text-white hover:bg-[#20222d]"
                 }`}
               >
                 <SearchIcon className="h-4 w-4" />
@@ -2773,7 +2777,7 @@ export default function App() {
                 className={`w-9 h-9 rounded-full relative flex items-center justify-center transition-all ${
                   view === "downloads"
                     ? "bg-white text-black shadow-md font-bold"
-                    : "text-ivory-muted hover:text-white hover:bg-white/10"
+                    : "text-ivory-muted hover:text-white hover:bg-[#20222d]"
                 }`}
               >
                 <DownloadNavIcon className="h-4 w-4" />
@@ -2796,7 +2800,7 @@ export default function App() {
 
       {/* ── Offline Alert Banner ── */}
       {isOffline && (
-        <div className="bg-amber-500/15 border-b border-amber-500/25 px-4 py-2.5 backdrop-blur-md">
+        <div className="bg-[#241c0e] border-b border-[#5c4015] px-4 py-2.5">
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 text-xs">
             <div className="flex items-center gap-2 text-amber-200">
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
@@ -2825,20 +2829,25 @@ export default function App() {
       <main className={`main-content flex-1 max-w-7xl mx-auto w-full px-4 py-6 ${view === "playing" ? "main-playing" : ""}`}>
         {/* ══════ HOME VIEW (/home) ══════ */}
         {view === "home" && (
-          <HomeView
-            selectedPlatform={selectedPlatform}
-            popularAnime={homePopular}
-            latestAnime={homeLatest}
-            loading={loadingHome}
-            error={homeError}
-            selectedAnime={selectedAnime}
-            onSelectAnime={handleAnimeClick}
-          />
+          <div className="space-y-6 animate-fade-in">
+            <AdBanner slot="home-top" format="leaderboard" label="Top Sponsor" />
+            <HomeView
+              selectedPlatform={selectedPlatform}
+              popularAnime={homePopular}
+              latestAnime={homeLatest}
+              loading={loadingHome}
+              error={homeError}
+              selectedAnime={selectedAnime}
+              onSelectAnime={handleAnimeClick}
+            />
+          </div>
         )}
 
-        {/* ══════ BROWSE VIEW ══════ */}
+        {/* ══════ BROWSE / SEARCH VIEW (/search?q=query) ══════ */}
         {view === "browse" && (
-          !debouncedQuery ? (
+          <div className="space-y-6">
+            <AdBanner slot="search-top" format="leaderboard" label="Sponsored" />
+            {!debouncedQuery ? (
             <>
               <section className="search-home animate-fade-in">
                 <div className="search-home-content">
@@ -2867,7 +2876,7 @@ export default function App() {
                       {searchHistory.map((query) => (
                         <span
                           key={query}
-                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-white/5 hover:bg-white/10 border border-white/10 hover:border-gold/40 text-ivory-muted hover:text-ivory transition-all cursor-pointer group"
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#181923] hover:bg-[#222432] border border-[#272938] hover:border-gold/40 text-ivory-muted hover:text-ivory transition-all cursor-pointer group"
                           onClick={() => {
                             setSearchQuery(query);
                             setDebouncedQuery(query);
@@ -2876,7 +2885,7 @@ export default function App() {
                             window.history.pushState(
                               {},
                               "",
-                              `/?q=${encodeURIComponent(query)}`
+                              `/search?q=${encodeURIComponent(query)}`
                             );
                           }}
                         >
@@ -2987,8 +2996,9 @@ export default function App() {
               </>
             )}
           </div>
-          )
-        )}
+          )}
+        </div>
+      )}
 
         {/* ══════ DOWNLOADS & OFFLINE VIEW (/downloads) ══════ */}
         {view === "downloads" && (
@@ -3009,193 +3019,224 @@ export default function App() {
             {/* ── Player (shown when streaming) ── */}
             {view === "playing" && (
               <div className="player-stage mb-6">
-                {loadingStream && !streamUrl ? (
-                  <div className="player-wrapper flex items-center justify-center min-h-[320px]">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="w-12 h-12 rounded-full border-3 border-white/15 border-t-white animate-spin" />
-                      <p className="text-ivory-muted text-sm">
-                        Extracting stream from {selectedPlatform.name}…
-                      </p>
-                    </div>
-                  </div>
-                ) : streamUrl ? (
-                  <div className="space-y-3">
-                    <div className="relative">
-                      <Player
-                        streamUrl={streamUrl}
-                        rawStreamUrl={rawStreamUrl}
-                        downloadUrl={streamUrl}
-                        streams={streams}
-                        availableServers={availableServers}
-                        currentType={currentType}
-                        currentServer={currentServer}
-                        preferredAudio={preferredAudio}
-                        subtitles={subtitles}
-                        initialTime={playbackTime}
-                        onTimeUpdate={handleTimeUpdate}
-                        isOfflinePlayer={isOfflinePlayback}
-                        title={
-                          activeEpisode
-                            ? `${selectedAnime.title} · ${activeEpisode.label || `EP ${activeEpisode.episode}`}`
-                            : selectedAnime.title
-                        }
-                        onClose={closePlayer}
-                        onError={showError}
-                        onSwitchType={handleSwitchType}
-                        onSwitchServer={handleSwitchServer}
-                        onDownload={(targetProxyUrl, qualityName, audioType) => {
-                          downloadManager.startDownload({
-                            streamUrl: targetProxyUrl || streamUrl,
-                            animeTitle: selectedAnime?.title || "Anime",
-                            episodeTitle:
-                              activeEpisode?.label ||
-                              `Episode ${activeEpisode?.episode || 1}`,
-                            episodeNumber: activeEpisode?.episode || 1,
-                            thumbnail: selectedAnime?.thumbnail || "",
-                            platform: selectedPlatform?.name || "AnimeX",
-                            quality: qualityName || currentServer || "Default",
-                            audioType: audioType || currentType || "sub",
-                            subtitles: subtitles || [],
-                          });
-                        }}
-                      />
-                      {loadingStream && (
-                        <div className="absolute inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-30 rounded-[28px]">
-                          <div className="flex items-center gap-3 px-5 py-2.5 rounded-full bg-black/80 border border-white/15 backdrop-blur-2xl shadow-2xl">
-                            <div className="w-4 h-4 rounded-full border-2 border-white/25 border-t-white animate-spin" />
-                            <span className="text-xs font-semibold text-white">
-                              Switching stream…
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* ── Sub/Dub & Server Controls ── */}
-                    {!isOfflinePlayback &&
-                      (availableServers.all?.length > 0 ||
-                        availableServers.sub?.length > 0 ||
-                        availableServers.dub?.length > 0 ||
-                        activeEpisode?.badge?.toLowerCase().includes("dub")) && (
-                      <div className="glass rounded-[24px] px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 animate-fade-in border border-white/12">
-                        {/* Audio Type Toggle (ALL / SUB / DUB) */}
-                        <div className="flex items-center gap-2.5">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-ivory-muted/70">
-                            Audio:
-                          </span>
-                          <div className="flex items-center bg-black/60 p-1 rounded-full border border-white/12 backdrop-blur-xl">
-                            {availableServers.all?.length > 0 && (
-                              <button
-                                onClick={() => handleSwitchType("all")}
-                                disabled={loadingStream}
-                                className={`px-3.5 py-1.5 text-xs font-bold rounded-full transition-all ${
-                                  currentType === "all"
-                                    ? "bg-white text-black shadow-md"
-                                    : "text-ivory-muted hover:text-white"
-                                }`}
-                              >
-                                ALL ({availableServers.all.length})
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleSwitchType("sub")}
-                              disabled={
-                                loadingStream ||
-                                availableServers.sub?.length === 0
-                              }
-                              className={`px-3.5 py-1.5 text-xs font-bold rounded-full transition-all ${
-                                currentType === "sub"
-                                  ? "bg-white text-black shadow-md"
-                                  : availableServers.sub?.length === 0
-                                  ? "opacity-30 cursor-not-allowed text-ivory-muted"
-                                  : "text-ivory-muted hover:text-white"
-                              }`}
-                            >
-                              SUB{" "}
-                              {availableServers.sub?.length > 0
-                                ? `(${availableServers.sub.length})`
-                                : ""}
-                            </button>
-                            <button
-                              onClick={() => handleSwitchType("dub")}
-                              disabled={
-                                loadingStream ||
-                                (availableServers.dub?.length === 0 &&
-                                  !activeEpisode?.badge?.toLowerCase().includes("dub"))
-                              }
-                              className={`px-3.5 py-1.5 text-xs font-bold rounded-full transition-all ${
-                                currentType === "dub"
-                                  ? "bg-white text-black shadow-md"
-                                  : availableServers.dub?.length === 0 &&
-                                    !activeEpisode?.badge?.toLowerCase().includes("dub")
-                                  ? "opacity-30 cursor-not-allowed text-ivory-muted"
-                                  : "text-ivory-muted hover:text-white"
-                              }`}
-                            >
-                              DUB{" "}
-                              {availableServers.dub?.length > 0
-                                ? `(${availableServers.dub.length})`
-                                : ""}
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Server Switcher */}
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-ivory-muted/70">
-                            Server:
-                          </span>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {(
-                              (currentType === "all"
-                                ? (availableServers.all?.length ? availableServers.all : [...(availableServers.sub || []), ...(availableServers.dub || [])])
-                                : currentType === "dub"
-                                ? (availableServers.dub?.length ? availableServers.dub : availableServers.all || [])
-                                : (availableServers.sub?.length ? availableServers.sub : availableServers.all || [])) || []
-                            ).map((srv) => {
-                              const isSelected =
-                                currentServer.toLowerCase() ===
-                                srv.name.toLowerCase();
-                              return (
-                                <button
-                                  key={srv.linkId || srv.name}
-                                  onClick={() => handleSwitchServer(srv)}
-                                  disabled={loadingStream || isSelected}
-                                  className={`px-3 py-1.5 text-xs rounded-full border transition-all ${
-                                    isSelected
-                                      ? "bg-white text-black border-white shadow-md font-semibold"
-                                      : "bg-white/8 text-ivory-muted border-white/10 hover:border-white/20 hover:text-white hover:bg-white/12"
-                                  }`}
-                                >
-                                  {isSelected ? "● " : ""}
-                                  {srv.name}
-                                </button>
-                              );
-                            })}
-                          </div>
+                {/* 16:9 Player with companion Ad Space */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                  {/* Left Column: 16:9 Video Player + Controls */}
+                  <div className={`${!isOfflinePlayback ? "lg:col-span-8 xl:col-span-9" : "lg:col-span-12"} space-y-3`}>
+                    {loadingStream && !streamUrl ? (
+                      <div className="player-wrapper aspect-video flex items-center justify-center min-h-[320px]">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="w-12 h-12 rounded-full border-3 border-white/15 border-t-white animate-spin" />
+                          <p className="text-ivory-muted text-sm">
+                            Extracting stream from {selectedPlatform.name}…
+                          </p>
                         </div>
                       </div>
-                    )}
+                    ) : streamUrl ? (
+                      <div className="space-y-3">
+                        <div className="relative">
+                          <Player
+                            streamUrl={streamUrl}
+                            rawStreamUrl={rawStreamUrl}
+                            downloadUrl={streamUrl}
+                            streams={streams}
+                            availableServers={availableServers}
+                            currentType={currentType}
+                            currentServer={currentServer}
+                            preferredAudio={preferredAudio}
+                            subtitles={subtitles}
+                            initialTime={playbackTime}
+                            onTimeUpdate={handleTimeUpdate}
+                            isOfflinePlayer={isOfflinePlayback}
+                            title={
+                              activeEpisode
+                                ? `${selectedAnime.title} · ${activeEpisode.label || `EP ${activeEpisode.episode}`}`
+                                : selectedAnime.title
+                            }
+                            onClose={closePlayer}
+                            onError={showError}
+                            onSwitchType={handleSwitchType}
+                            onSwitchServer={handleSwitchServer}
+                            onDownload={(targetProxyUrl, qualityName, audioType) => {
+                              downloadManager.startDownload({
+                                streamUrl: targetProxyUrl || streamUrl,
+                                animeTitle: selectedAnime?.title || "Anime",
+                                episodeTitle:
+                                  activeEpisode?.label ||
+                                  `Episode ${activeEpisode?.episode || 1}`,
+                                episodeNumber: activeEpisode?.episode || 1,
+                                thumbnail: selectedAnime?.thumbnail || "",
+                                platform: selectedPlatform?.name || "AnimeX",
+                                quality: qualityName || currentServer || "Default",
+                                audioType: audioType || currentType || "sub",
+                                subtitles: subtitles || [],
+                              });
+                            }}
+                          />
+                          {loadingStream && (
+                            <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-30 rounded-[28px]">
+                              <div className="flex items-center gap-3 px-5 py-2.5 rounded-full bg-[#14151e] border border-[#272939] shadow-2xl">
+                                <div className="w-4 h-4 rounded-full border-2 border-white/25 border-t-white animate-spin" />
+                                <span className="text-xs font-semibold text-white">
+                                  Switching stream…
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
 
-                    {/* ── Episode Grid Inline (directly below server switcher) ── */}
-                    {!isOfflinePlayback && (
-                      <EpisodeGrid
-                        episodes={episodeData?.episodes || []}
-                        seasons={episodeData?.seasons || []}
-                        activeEpisode={activeEpisode}
-                        onSelectEpisode={handleEpisodeClick}
-                        loading={loadingEpisodes}
-                        platformName={selectedPlatform.name}
-                      />
-                    )}
+                        {/* ── Sub/Dub & Server Controls ── */}
+                        {!isOfflinePlayback &&
+                          (availableServers.all?.length > 0 ||
+                            availableServers.sub?.length > 0 ||
+                            availableServers.dub?.length > 0 ||
+                            activeEpisode?.badge?.toLowerCase().includes("dub")) && (
+                          <div className="glass rounded-[24px] px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 animate-fade-in border border-[#272938] bg-[#14151c]">
+                            {/* Audio Type Toggle (ALL / SUB / DUB) */}
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-ivory-muted/70">
+                                Audio:
+                              </span>
+                              <div className="flex items-center bg-[#13141d] p-1 rounded-full border border-[#272938]">
+                                {availableServers.all?.length > 0 && (
+                                  <button
+                                    onClick={() => handleSwitchType("all")}
+                                    disabled={loadingStream}
+                                    className={`px-3.5 py-1.5 text-xs font-bold rounded-full transition-all ${
+                                      currentType === "all"
+                                        ? "bg-white text-black shadow-md"
+                                        : "text-ivory-muted hover:text-white"
+                                    }`}
+                                  >
+                                    ALL ({availableServers.all.length})
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleSwitchType("sub")}
+                                  disabled={
+                                    loadingStream ||
+                                    availableServers.sub?.length === 0
+                                  }
+                                  className={`px-3.5 py-1.5 text-xs font-bold rounded-full transition-all ${
+                                    currentType === "sub"
+                                      ? "bg-white text-black shadow-md"
+                                      : availableServers.sub?.length === 0
+                                      ? "opacity-30 cursor-not-allowed text-ivory-muted"
+                                      : "text-ivory-muted hover:text-white"
+                                  }`}
+                                >
+                                  SUB{" "}
+                                  {availableServers.sub?.length > 0
+                                    ? `(${availableServers.sub.length})`
+                                    : ""}
+                                </button>
+                                <button
+                                  onClick={() => handleSwitchType("dub")}
+                                  disabled={
+                                    loadingStream ||
+                                    (availableServers.dub?.length === 0 &&
+                                      !activeEpisode?.badge?.toLowerCase().includes("dub"))
+                                  }
+                                  className={`px-3.5 py-1.5 text-xs font-bold rounded-full transition-all ${
+                                    currentType === "dub"
+                                      ? "bg-white text-black shadow-md"
+                                      : availableServers.dub?.length === 0 &&
+                                        !activeEpisode?.badge?.toLowerCase().includes("dub")
+                                      ? "opacity-30 cursor-not-allowed text-ivory-muted"
+                                      : "text-ivory-muted hover:text-white"
+                                  }`}
+                                >
+                                  DUB{" "}
+                                  {availableServers.dub?.length > 0
+                                    ? `(${availableServers.dub.length})`
+                                    : ""}
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Server Switcher */}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-ivory-muted/70">
+                                Server:
+                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {(
+                                  (currentType === "all"
+                                    ? (availableServers.all?.length ? availableServers.all : [...(availableServers.sub || []), ...(availableServers.dub || [])])
+                                    : currentType === "dub"
+                                    ? (availableServers.dub?.length ? availableServers.dub : availableServers.all || [])
+                                    : (availableServers.sub?.length ? availableServers.sub : availableServers.all || [])) || []
+                                ).map((srv) => {
+                                  const isSelected =
+                                    currentServer.toLowerCase() ===
+                                    srv.name.toLowerCase();
+                                  return (
+                                    <button
+                                      key={srv.linkId || srv.name}
+                                      onClick={() => handleSwitchServer(srv)}
+                                      disabled={loadingStream || isSelected}
+                                      className={`px-3 py-1.5 text-xs rounded-full border transition-all ${
+                                        isSelected
+                                          ? "bg-white text-black border-white shadow-md font-semibold"
+                                          : "bg-[#181923] text-ivory-muted border-[#272938] hover:border-[#3a3c50] hover:text-white hover:bg-[#20222e]"
+                                      }`}
+                                    >
+                                      {isSelected ? "● " : ""}
+                                      {srv.name}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
+
+                  {/* Dedicated Ad Space Alongside the 16:9 Player (Hidden in offline mode) */}
+                  {!isOfflinePlayback && (
+                    <div className="lg:col-span-4 xl:col-span-3 flex flex-col gap-4">
+                      <AdBanner
+                        slot="player-companion"
+                        format="sidebar"
+                        label="Featured Sponsor"
+                      />
+                      <AdBanner
+                        slot="player-rectangle"
+                        format="rectangle"
+                        label="Advertisement"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Banner Ad directly below Player */}
+                {!isOfflinePlayback && (
+                  <div className="mt-5">
+                    <AdBanner slot="player-bottom" format="horizontal" />
+                  </div>
+                )}
+
+                {/* ── Episode Grid Inline (directly below server switcher and ads) ── */}
+                {!isOfflinePlayback && streamUrl && (
+                  <div className="mt-5">
+                    <EpisodeGrid
+                      episodes={episodeData?.episodes || []}
+                      seasons={episodeData?.seasons || []}
+                      activeEpisode={activeEpisode}
+                      onSelectEpisode={handleEpisodeClick}
+                      loading={loadingEpisodes}
+                      platformName={selectedPlatform.name}
+                    />
+                  </div>
+                )}
               </div>
             )}
 
             {/* ── Anime info header ── */}
             {!isOfflinePlayback && (
-              <div className="anime-info-header glass rounded-[28px] p-6 mb-6 flex gap-5 items-start border border-white/12">
+              <div className="anime-info-header glass rounded-[28px] p-6 mb-6 flex gap-5 items-start border border-[#272938] bg-[#14151c]">
                 {/* Thumbnail */}
                 {selectedAnime.thumbnail && (
                   <img
@@ -3226,13 +3267,13 @@ export default function App() {
                       {episodeData.genres?.map((g) => (
                         <span
                           key={g}
-                          className="tag bg-white/5 text-ivory-muted border-white/10 text-[10px]"
+                          className="tag bg-[#181923] text-ivory-muted border-[#272938] text-[10px]"
                         >
                           {g}
                         </span>
                       ))}
                       {activeEpisode && (
-                        <span className="tag bg-white/20 text-white border-white/30 backdrop-blur-md">
+                        <span className="tag bg-[#20222d] text-white border-[#383b4c]">
                           ▶ {activeEpisode.season ? `S${activeEpisode.season} ` : ""}EP {activeEpisode.episode}
                         </span>
                       )}
@@ -3257,8 +3298,15 @@ export default function App() {
         )}
       </main>
 
+      {/* ── Bottom Page Ad (all pages EXCEPT Downloads) ── */}
+      {view !== "downloads" && (
+        <div className="max-w-7xl mx-auto w-full px-4 mb-6">
+          <AdBanner slot="page-bottom" format="horizontal" label="Advertisement" />
+        </div>
+      )}
+
       {/* ── Footer ── */}
-      <footer className="border-t border-white/5 mt-auto py-5">
+      <footer className="border-t border-[#1f212a] mt-auto py-5">
        
       </footer>
 

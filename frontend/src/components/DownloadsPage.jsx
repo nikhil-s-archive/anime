@@ -603,11 +603,11 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
             {downloadQueue.map((task) => (
               <div
                 key={task.id}
-                className="relative overflow-hidden rounded-2xl bg-white/[0.04] border border-white/10 p-3.5 backdrop-blur-2xl shadow-sm transition-all"
+                className="relative overflow-hidden rounded-2xl bg-[#14151c] border border-[#272937] p-3.5 shadow-sm transition-all"
               >
                 <div className="flex items-start gap-3.5">
                   {/* Thumbnail / Poster */}
-                  <div className="w-14 h-20 rounded-xl overflow-hidden bg-black/40 border border-white/10 shrink-0 relative">
+                  <div className="w-14 h-20 rounded-xl overflow-hidden bg-[#181922] border border-[#282a39] shrink-0 relative">
                     {task.thumbnail ? (
                       <img
                         src={task.thumbnail}
@@ -680,7 +680,7 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
               placeholder="Search downloads..."
-              className="w-full pl-9 pr-8 py-2 bg-white/[0.06] hover:bg-white/[0.08] focus:bg-white/[0.1] border border-white/10 focus:border-white/25 rounded-full text-xs text-white placeholder-white/40 focus:outline-none transition-all backdrop-blur-xl"
+              className="w-full pl-9 pr-8 py-2 bg-[#14151c] hover:bg-[#181a24] focus:bg-[#1c1e29] border border-[#272938] focus:border-[#42465e] rounded-full text-xs text-white placeholder-white/40 focus:outline-none transition-all"
             />
             <svg
               className="w-4 h-4 absolute left-3 top-2.5 text-white/40 pointer-events-none"
@@ -711,7 +711,7 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
                   className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all border ${
                     selectedAnimeFilter === "all"
                       ? "bg-white text-black border-white font-bold shadow-sm"
-                      : "bg-white/[0.05] text-white/70 hover:text-white border-white/10 hover:border-white/20"
+                      : "bg-[#161722] text-white/80 hover:text-white border-[#272939] hover:border-[#3a3c52]"
                   }`}
                 >
                   All ({savedDownloads.length})
@@ -724,7 +724,7 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
                     className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all border ${
                       selectedAnimeFilter === title
                         ? "bg-white text-black border-white font-bold shadow-sm"
-                        : "bg-white/[0.05] text-white/70 hover:text-white border-white/10 hover:border-white/20"
+                        : "bg-[#161722] text-white/80 hover:text-white border-[#272939] hover:border-[#3a3c52]"
                     }`}
                   >
                     {title} ({count})
@@ -734,7 +734,7 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
             )}
 
             {/* Sort Selector */}
-            <div className="flex items-center gap-1.5 bg-white/[0.06] px-3 py-1.5 rounded-full border border-white/10 text-xs ml-auto sm:ml-0">
+            <div className="flex items-center gap-1.5 bg-[#161722] px-3 py-1.5 rounded-full border border-[#272939] text-xs ml-auto sm:ml-0">
               <SortIcon className="h-3.5 w-3.5 text-white/60 shrink-0" />
               <select
                 value={sortBy}
@@ -755,7 +755,7 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
 
       {/* ── Selection Action Banner (When selecting) ── */}
       {isSelecting && (
-        <div className="mb-4 px-4 py-3 rounded-2xl bg-white/[0.06] border border-white/12 backdrop-blur-2xl flex items-center justify-between gap-3 animate-fade-in">
+        <div className="mb-4 px-4 py-3 rounded-2xl bg-[#14151c] border border-[#272938] flex items-center justify-between gap-3 animate-fade-in">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -830,10 +830,10 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
                 >
                   <div
                     onClick={isSelecting ? () => toggleSelectItem(item.id) : undefined}
-                    className={`group relative rounded-3xl bg-white/[0.04] hover:bg-white/[0.07] border overflow-hidden flex flex-col transition-all duration-300 backdrop-blur-xl ${
+                    className={`group relative rounded-3xl bg-[#14151c] hover:bg-[#1a1b24] border overflow-hidden flex flex-col transition-all duration-300 ${
                       isSelected
-                        ? "border-white ring-2 ring-white/50 bg-white/[0.09]"
-                        : "border-white/10 hover:border-white/20 shadow-sm"
+                        ? "border-white ring-2 ring-white/50 bg-[#222432]"
+                        : "border-[#272938] hover:border-[#3a3c50] shadow-sm"
                     } ${isSelecting ? "cursor-pointer" : ""}`}
                   >
                     {/* iOS Selection Checkbox */}
@@ -847,7 +847,7 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
                         className={`absolute top-3 left-3 z-30 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
                           isSelected
                             ? "bg-[#0071e3] border-[#0071e3] text-white shadow-md scale-105"
-                            : "bg-black/50 border border-white/40 text-transparent hover:border-white"
+                            : "bg-[#161720] border border-[#3b3d50] text-transparent hover:border-white"
                         }`}
                         title={isSelected ? "Deselect" : "Select"}
                       >
@@ -856,7 +856,7 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
                     )}
 
                     {/* Poster / Thumbnail Header */}
-                    <div className="relative aspect-video w-full overflow-hidden bg-black/50">
+                    <div className="relative aspect-video w-full overflow-hidden bg-[#101116]">
                       {thumbSrc ? (
                         <img
                           src={thumbSrc}
@@ -884,13 +884,13 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
                         </button>
                       )}
 
-                      {/* Frosted Badges */}
+                      {/* Solid Badges */}
                       <div className={`absolute top-3 ${isSelecting ? "left-12" : "left-3"} flex items-center gap-1.5 flex-wrap transition-all`}>
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white/90 border border-white/15">
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#101116] text-white/90 border border-[#282a38]">
                           {item.quality || "Standard"}
                         </span>
                         {hasSubs && (
-                          <span className="text-[10px] font-medium flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-emerald-300 border border-white/15">
+                          <span className="text-[10px] font-medium flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#101116] text-emerald-300 border border-[#282a38]">
                             <SubtitleIcon className="h-3 w-3" />
                             Subs ({item.subtitles.length})
                           </span>
@@ -898,7 +898,7 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
                       </div>
 
                       {item.platform && (
-                        <span className="absolute top-3 right-3 text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white/70 border border-white/10">
+                        <span className="absolute top-3 right-3 text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#101116] text-white/70 border border-[#282a38]">
                           {item.platform}
                         </span>
                       )}
@@ -1001,10 +1001,10 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
                 >
                   <div
                     onClick={isSelecting ? () => toggleSelectItem(item.id) : undefined}
-                    className={`group relative rounded-2xl bg-white/[0.04] hover:bg-white/[0.07] border p-2 sm:p-3 flex flex-row items-center gap-3 transition-all duration-300 backdrop-blur-xl ${
+                    className={`group relative rounded-2xl bg-[#14151c] hover:bg-[#1a1b24] border p-2 sm:p-3 flex flex-row items-center gap-3 transition-all duration-300 ${
                       isSelected
-                        ? "border-white ring-2 ring-white/50 bg-white/[0.09]"
-                        : "border-white/10 hover:border-white/20 shadow-sm"
+                        ? "border-white ring-2 ring-white/50 bg-[#222432]"
+                        : "border-[#272938] hover:border-[#3a3c50] shadow-sm"
                     } ${isSelecting ? "cursor-pointer" : ""}`}
                   >
                     {/* iOS Selection Checkbox */}
@@ -1018,7 +1018,7 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
                         className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
                           isSelected
                             ? "bg-[#0071e3] border-[#0071e3] text-white shadow-md scale-105"
-                            : "bg-black/50 border border-white/40 text-transparent hover:border-white"
+                            : "bg-[#161720] border border-[#3b3d50] text-transparent hover:border-white"
                         }`}
                         title={isSelected ? "Deselect" : "Select"}
                       >
@@ -1027,7 +1027,7 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
                     )}
 
                     {/* Thumbnail with Play Overlay */}
-                    <div className="relative w-24 xs:w-28 sm:w-40 aspect-video rounded-xl overflow-hidden bg-black/50 shrink-0">
+                    <div className="relative w-24 xs:w-28 sm:w-40 aspect-video rounded-xl overflow-hidden bg-[#101116] shrink-0">
                       {thumbSrc ? (
                         <img
                           src={thumbSrc}
@@ -1053,7 +1053,7 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
                       )}
 
                       {item.duration > 0 && (
-                        <span className="absolute bottom-1 right-1.5 text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-black/75 backdrop-blur-md text-white/90">
+                        <span className="absolute bottom-1 right-1.5 text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-[#101116] text-white/90 border border-[#282a38]">
                           {Math.floor(item.duration / 60)}m
                         </span>
                       )}
@@ -1156,7 +1156,7 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
       ) : (
         /* Empty State (Apple Style) */
         <div className="py-20 sm:py-28 text-center max-w-sm mx-auto">
-          <div className="w-16 h-16 rounded-full bg-white/[0.06] border border-white/10 flex items-center justify-center mx-auto text-white/40 mb-4 shadow-lg backdrop-blur-xl">
+          <div className="w-16 h-16 rounded-full bg-[#181923] border border-[#282a38] flex items-center justify-center mx-auto text-white/40 mb-4 shadow-lg">
             <DownloadIcon className="h-7 w-7" />
           </div>
 
@@ -1185,7 +1185,7 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
       {/* ── Apple Dynamic Island Floating Batch Action Bar ── */}
       {isSelecting && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-lg w-[calc(100%-2rem)] mx-auto animate-slide-up">
-          <div className="bg-[#1c1c1e]/90 backdrop-blur-3xl border border-white/15 rounded-full px-4 py-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.85)] flex items-center justify-between gap-3">
+          <div className="bg-[#14151d] border border-[#2b2d3d] rounded-full px-4 py-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.85)] flex items-center justify-between gap-3">
             {/* Left: Select count + Select All */}
             <div className="flex items-center gap-2 min-w-0">
               <button
@@ -1255,8 +1255,8 @@ export default function DownloadsPage({ onPlayOffline, onNavigateHome, isOffline
 
       {/* ── Packaging ZIP Progress Modal (Apple Dialog Style) ── */}
       {packagingProgress && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-fade-in">
-          <div className="bg-[#1c1c1e] border border-white/15 rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl backdrop-blur-3xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 animate-fade-in">
+          <div className="bg-[#14151d] border border-[#2b2d3d] rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl">
             <div className="w-12 h-12 rounded-full bg-white/10 text-white flex items-center justify-center mx-auto mb-4 shadow-sm">
               <DownloadIcon className="h-6 w-6 animate-pulse" />
             </div>
