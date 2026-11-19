@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import Player from "./components/Player.jsx";
 import DownloadsPage from "./components/DownloadsPage.jsx";
-import AdBanner from "./components/AdBanner.jsx";
+import AdBanner, { AdsterraGlobalScript } from "./components/AdBanner.jsx";
 import { downloadManager } from "./services/downloadManager.js";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -2695,6 +2695,9 @@ export default function App() {
 
   return (
     <div className="app-shell min-h-screen flex flex-col">
+      {/* ── Adsterra Global Script (Popunder/social tag; strictly disabled on downloads page & offline) ── */}
+      <AdsterraGlobalScript enabled={view !== "downloads" && !isOffline} />
+
       {/* ── Navbar ── */}
       <header className="glass-nav sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
@@ -3198,14 +3201,21 @@ export default function App() {
                   {!isOfflinePlayback && (
                     <div className="lg:col-span-4 xl:col-span-3 flex flex-col gap-4">
                       <AdBanner
-                        slot="player-companion"
-                        format="sidebar"
-                        label="Featured Sponsor"
+                        slot="player-rectangle"
+                        unit="300x250"
+                        label="Advertisement"
                       />
                       <AdBanner
-                        slot="player-rectangle"
-                        format="rectangle"
+                        slot="player-skyscraper"
+                        unit="160x600"
                         label="Advertisement"
+                        className="hidden xl:flex"
+                      />
+                      <AdBanner
+                        slot="player-half-skyscraper"
+                        unit="160x300"
+                        label="Advertisement"
+                        className="xl:hidden"
                       />
                     </div>
                   )}
