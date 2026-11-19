@@ -2876,9 +2876,6 @@ export default function App() {
         {/* ══════ BROWSE / SEARCH VIEW (/search?q=query) ══════ */}
         {view === "browse" && (
           <div className="space-y-6">
-            <div className="flex justify-center w-full">
-              <AdBanner slot="search-top" format="horizontal" label="Advertisement" />
-            </div>
             {!debouncedQuery ? (
             <>
               <section className="search-home animate-fade-in">
@@ -2898,6 +2895,11 @@ export default function App() {
                     onChoose={chooseSuggestion}
                     platform={selectedPlatform.name}
                   />
+
+                  {/* Ad Banner moved after search bar and button */}
+                  <div className="flex justify-center w-full mt-6">
+                    <AdBanner slot="search-top" format="horizontal" label="Advertisement" />
+                  </div>
 
                   {/* Search History Chips */}
                   {searchHistory.length > 0 && (
@@ -2966,6 +2968,10 @@ export default function App() {
                 onChoose={chooseSuggestion}
                 platform={selectedPlatform.name}
               />
+            </div>
+            {/* Ad Banner after search bar and button */}
+            <div className="flex justify-center w-full my-4">
+              <AdBanner slot="search-results-top" format="horizontal" label="Advertisement" />
             </div>
             <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
               <h1 className="section-title mb-0">
