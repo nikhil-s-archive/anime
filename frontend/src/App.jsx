@@ -8,7 +8,12 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import Player from "./components/Player.jsx";
 import DownloadsPage from "./components/DownloadsPage.jsx";
-import AdBanner, { AdsterraGlobalScript } from "./components/AdBanner.jsx";
+import AdBanner, {
+  AdsterraGlobalScript,
+  purgeAllAdElements,
+  applyAdShieldCss,
+  setAdBlockActive,
+} from "./components/AdBanner.jsx";
 import { downloadManager } from "./services/downloadManager.js";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -312,6 +317,88 @@ function clearSearchHistoryStorage() {
     localStorage.removeItem("animex_search_history");
   } catch (_) {}
   return [];
+}
+
+// ─── Ads Preference Storage ──────────────────────────────────────────────────
+const ADS_STORAGE_KEY = "animex_show_ads";
+
+function loadAdsPreference() {
+  try {
+    const saved = localStorage.getItem(ADS_STORAGE_KEY);
+    if (saved !== null) {
+      return saved === "true";
+    }
+  } catch (_) {}
+  return true; // Default: ads enabled
+}
+
+function saveAdsPreference(enabled) {
+  try {
+    localStorage.setItem(ADS_STORAGE_KEY, String(enabled));
+  } catch (_) {}
+}
+
+// Immediately activate ad shielding and popunder blocking if user has ads turned off
+if (typeof window !== "undefined") {
+  const initialAdsEnabled = loadAdsPreference();
+  if (!initialAdsEnabled) {
+    setAdBlockActive(true);
+    applyAdShieldCss(true);
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", purgeAllAdElements);
+    } else {
+      purgeAllAdElements();
+    }
+  }
+}
+
+/**
+ * AdsToggleButton
+ * Apple-style toggle button to switch ads div on and off.
+ * Persists user choice across all pages, views, and browser sessions.
+ */
+function AdsToggleButton({ showAds, onToggle }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      title={
+        showAds
+          ? "Ads are ON. Click to turn Ads OFF across all pages"
+          : "Ads are OFF. Click to turn Ads ON across all pages"
+      }
+      aria-label={showAds ? "Turn ads OFF" : "Turn ads ON"}
+      aria-pressed={showAds}
+      className={`h-9 px-2.5 sm:px-3 rounded-full flex items-center gap-1.5 sm:gap-2 transition-all border text-xs font-semibold select-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/20 active:scale-95 ${
+        showAds
+          ? "bg-[#181923] text-ivory hover:text-white border-[#2b2d3d] hover:border-[#3e4258] shadow-sm"
+          : "bg-[#0d1e15] text-emerald-300 hover:text-emerald-200 border-emerald-500/40 hover:border-emerald-500/60 shadow-[0_0_12px_rgba(16,185,129,0.15)]"
+      }`}
+    >
+      <span className="flex items-center gap-1.5">
+        <span
+          className={`w-2 h-2 rounded-full transition-colors flex-shrink-0 ${
+            showAds
+              ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]"
+              : "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]"
+          }`}
+        />
+        <span>Ads {showAds ? "ON" : "OFF"}</span>
+      </span>
+      {/* iOS-style toggle track & thumb */}
+      <span
+        className={`w-7 h-4 rounded-full flex items-center p-0.5 transition-colors flex-shrink-0 ${
+          showAds ? "bg-amber-500/80" : "bg-[#282a38]"
+        }`}
+      >
+        <span
+          className={`w-3 h-3 rounded-full bg-white transition-transform transform shadow-sm ${
+            showAds ? "translate-x-3" : "translate-x-0"
+          }`}
+        />
+      </span>
+    </button>
+  );
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -1563,6 +1650,39 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
 
+  // ── Ads Visibility State (persisted across all pages & browser sessions) ──
+  const [showAds, setShowAds] = useState(loadAdsPreference);
+
+  // Sync ads state if toggled in another tab or window
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === ADS_STORAGE_KEY) {
+        const enabled = e.newValue !== "false";
+        setShowAds(enabled);
+        setAdBlockActive(!enabled);
+        applyAdShieldCss(!enabled);
+        if (!enabled) {
+          purgeAllAdElements();
+        }
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
+
+  const toggleAds = useCallback(() => {
+    setShowAds((prev) => {
+      const next = !prev;
+      saveAdsPreference(next);
+      setAdBlockActive(!next);
+      applyAdShieldCss(!next);
+      if (!next) {
+        purgeAllAdElements();
+      }
+      return next;
+    });
+  }, []);
+
   // ── Network status & Download queue state ───────────────────────────────────
   const [isOffline, setIsOffline] = useState(() =>
     typeof navigator !== "undefined" ? !navigator.onLine : false
@@ -2720,8 +2840,8 @@ export default function App() {
 
   return (
     <div className="app-shell min-h-screen flex flex-col">
-      {/* ── Adsterra Global Script (Popunder/social tag; strictly disabled on downloads page & offline) ── */}
-      <AdsterraGlobalScript enabled={view !== "downloads" && !isOffline} />
+      {/* ── Adsterra Global Script (Popunder/social tag; strictly disabled on downloads page, offline, or when ads are toggled off) ── */}
+      <AdsterraGlobalScript enabled={showAds && view !== "downloads" && !isOffline} />
 
       {/* ── Navbar ── */}
       <header className="glass-nav sticky top-0 z-40">
@@ -2734,7 +2854,7 @@ export default function App() {
           />
 
           {/* Right Header Navigation */}
-          <div className="ml-auto flex items-center gap-2.5 sm:gap-3 flex-shrink-0">
+          <div className="ml-auto flex items-center gap-2 sm:gap-2.5 flex-shrink-0">
             {/* Back breadcrumb */}
             {view === "playing" && (
               <button onClick={goBack} className="ios-back-button">
@@ -2748,6 +2868,9 @@ export default function App() {
                 <span>Back</span>
               </button>
             )}
+
+            {/* Ads Toggle Button (persists choice across all pages) */}
+            <AdsToggleButton showAds={showAds} onToggle={toggleAds} />
 
             {/* Navigation Tabs (Home / Search / Downloads) - Icons Only */}
             <nav className="flex items-center bg-[#13141d] p-1 rounded-full border border-[#272938] gap-1">
@@ -2858,9 +2981,11 @@ export default function App() {
         {/* ══════ HOME VIEW (/home) ══════ */}
         {view === "home" && (
           <div className="space-y-6 animate-fade-in">
-            <div className="flex justify-center w-full">
-              <AdBanner slot="home-top" format="horizontal" label="Advertisement" />
-            </div>
+            {showAds && (
+              <div className="flex justify-center w-full">
+                <AdBanner slot="home-top" format="horizontal" label="Advertisement" />
+              </div>
+            )}
             <HomeView
               selectedPlatform={selectedPlatform}
               popularAnime={homePopular}
@@ -2897,9 +3022,11 @@ export default function App() {
                   />
 
                   {/* Ad Banner moved after search bar and button */}
-                  <div className="flex justify-center w-full mt-6">
-                    <AdBanner slot="search-top" format="horizontal" label="Advertisement" />
-                  </div>
+                  {showAds && (
+                    <div className="flex justify-center w-full mt-6">
+                      <AdBanner slot="search-top" format="horizontal" label="Advertisement" />
+                    </div>
+                  )}
 
                   {/* Search History Chips */}
                   {searchHistory.length > 0 && (
@@ -2970,9 +3097,11 @@ export default function App() {
               />
             </div>
             {/* Ad Banner after search bar and button */}
-            <div className="flex justify-center w-full my-4">
-              <AdBanner slot="search-results-top" format="horizontal" label="Advertisement" />
-            </div>
+            {showAds && (
+              <div className="flex justify-center w-full my-4">
+                <AdBanner slot="search-results-top" format="horizontal" label="Advertisement" />
+              </div>
+            )}
             <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
               <h1 className="section-title mb-0">
                 Results for <span className="result-query">“{debouncedQuery}”</span>
@@ -3251,7 +3380,7 @@ export default function App() {
                 </div>
 
                 {/* Ads on bottom (for both desktop and mobile, rendered below the player & episodes) */}
-                {!isOfflinePlayback && (
+                {!isOfflinePlayback && showAds && (
                   <div className="mt-6 flex flex-col sm:flex-row flex-wrap items-center justify-center gap-4 w-full">
                     <AdBanner slot="player-bottom" format="horizontal" label="Advertisement" />
                     <AdBanner slot="player-rectangle" unit="300x250" label="Advertisement" className="hidden xl:inline-flex" />
@@ -3325,7 +3454,7 @@ export default function App() {
       </main>
 
       {/* ── Bottom Page Ad (all pages EXCEPT Downloads) ── */}
-      {view !== "downloads" && (
+      {view !== "downloads" && showAds && (
         <div className="max-w-7xl mx-auto w-full px-4 mb-6 flex justify-center">
           <AdBanner slot="page-bottom" format="horizontal" label="Advertisement" />
         </div>

@@ -64,6 +64,198 @@ export const ADSTERRA_UNITS = {
 export const ADSTERRA_GLOBAL_TAG =
   "https://bauval.org/14/49a02958d0b91f5953a953d97de73003";
 
+// Domains and selectors identified with Adsterra and third-party ad networks
+const AD_SELECTORS = [
+  ".ad-container",
+  "[data-ad-slot]",
+  "[data-ad-key]",
+  "[data-ad-size]",
+  "[id*='adsterra']",
+  "[class*='adsterra']",
+  "[id*='asg_']",
+  "[class*='asg_']",
+  "iframe[src*='bauval.org']",
+  "iframe[title*='adsterra']",
+  "script[src*='bauval.org']",
+  "script#adsterra-global-tag",
+];
+
+const AD_SHIELD_STYLE_ID = "animex-adblock-shield";
+
+let isAdBlockActive = false;
+let originalWindowOpen = null;
+let originalAnchorClick = null;
+
+if (typeof window !== "undefined") {
+  originalWindowOpen = window.open;
+  originalAnchorClick = HTMLAnchorElement.prototype.click;
+
+  // Intercept window.open popunders/popups when ads are disabled
+  window.open = function (...args) {
+    if (isAdBlockActive) {
+      console.info("[AnimeX AdBlock] Blocked ad popunder/popup window.open:", args[0]);
+      return null;
+    }
+    if (originalWindowOpen) {
+      return originalWindowOpen.apply(this, args);
+    }
+    return null;
+  };
+
+  // Intercept synthetic anchor clicks for popunders
+  HTMLAnchorElement.prototype.click = function () {
+    if (isAdBlockActive) {
+      const href = (this.getAttribute("href") || this.href || "").toLowerCase();
+      if (
+        href.includes("bauval.org") ||
+        href.includes("adsterra") ||
+        (this.target === "_blank" &&
+          !href.startsWith(window.location.origin) &&
+          !href.startsWith("blob:") &&
+          !this.download)
+      ) {
+        console.info("[AnimeX AdBlock] Blocked synthetic ad popunder anchor click:", href);
+        return;
+      }
+    }
+    return originalAnchorClick.apply(this);
+  };
+
+  // Capture phase click protection: stops propagation on ad elements or links
+  const captureAdClick = (e) => {
+    if (!isAdBlockActive) return;
+    const target = e.target;
+    if (target && target.closest) {
+      const adEl = target.closest(
+        "a[href*='bauval'], [id*='asg_'], [class*='asg_'], [id*='adsterra'], [class*='adsterra'], .ad-container"
+      );
+      if (adEl) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        try {
+          adEl.remove();
+        } catch (_) {}
+        return false;
+      }
+    }
+  };
+
+  window.addEventListener("click", captureAdClick, true);
+  window.addEventListener("auxclick", captureAdClick, true);
+  window.addEventListener("contextmenu", captureAdClick, true);
+}
+
+export function setAdBlockActive(active) {
+  isAdBlockActive = active;
+}
+
+/**
+ * Injects or removes global CSS shield that forces all ad containers,
+ * social bars, and floating ad overlays to display: none !important.
+ */
+export function applyAdShieldCss(enableShield) {
+  if (typeof document === "undefined") return;
+  const existing = document.getElementById(AD_SHIELD_STYLE_ID);
+  if (enableShield) {
+    if (!existing) {
+      const style = document.createElement("style");
+      style.id = AD_SHIELD_STYLE_ID;
+      style.textContent = `
+        .ad-container,
+        [data-ad-slot],
+        [data-ad-key],
+        [data-ad-size],
+        [id*="adsterra"],
+        [class*="adsterra"],
+        [id*="asg_"],
+        [class*="asg_"],
+        iframe[src*="bauval.org"],
+        iframe[title*="adsterra"],
+        script[src*="bauval.org"],
+        div[id^="ad_"],
+        div[class^="ad_"] {
+          display: none !important;
+          visibility: hidden !important;
+          opacity: 0 !important;
+          pointer-events: none !important;
+          height: 0 !important;
+          width: 0 !important;
+          max-height: 0 !important;
+          max-width: 0 !important;
+          overflow: hidden !important;
+          position: absolute !important;
+          clip: rect(0, 0, 0, 0) !important;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  } else {
+    if (existing) existing.remove();
+  }
+}
+
+/**
+ * Deep-purges all ad elements from the DOM:
+ * scripts, iframes, floating widgets, social bar overlays, etc.
+ */
+export function purgeAllAdElements() {
+  if (typeof document === "undefined") return;
+
+  // 1. Remove all elements matching ad selectors
+  try {
+    const elements = document.querySelectorAll(AD_SELECTORS.join(", "));
+    elements.forEach((el) => {
+      try {
+        el.remove();
+      } catch (_) {}
+    });
+  } catch (_) {}
+
+  // 2. Remove any scripts or iframes whose src matches ad domains
+  document.querySelectorAll("script, iframe").forEach((node) => {
+    try {
+      const src = (node.src || "").toLowerCase();
+      const id = (node.id || "").toLowerCase();
+      const title = (node.title || "").toLowerCase();
+      if (
+        src.includes("bauval.org") ||
+        src.includes("adsterra") ||
+        id.includes("adsterra") ||
+        title.includes("adsterra")
+      ) {
+        node.remove();
+      }
+    } catch (_) {}
+  });
+
+  // 3. Remove direct body children injected by adsterra (floating social bars, popunder overlays)
+  if (document.body) {
+    Array.from(document.body.children).forEach((child) => {
+      if (child.id === "root" || child.classList.contains("sm:hidden")) return;
+      try {
+        const html = (child.outerHTML || "").toLowerCase();
+        if (
+          html.includes("bauval.org") ||
+          html.includes("adsterra") ||
+          html.includes("atoptions") ||
+          html.includes("asg_") ||
+          (child.tagName === "IFRAME" && (child.src || "").includes("bauval"))
+        ) {
+          child.remove();
+        }
+      } catch (_) {}
+    });
+  }
+
+  // 4. Invalidate global window ad objects
+  try {
+    delete window.atOptions;
+  } catch (_) {
+    window.atOptions = undefined;
+  }
+}
+
 /**
  * Generates an isolated HTML document for an Adsterra iframe ad.
  * Running Adsterra scripts inside an isolated iframe prevents document.write()
@@ -108,16 +300,59 @@ function generateAdHtml(unit) {
 /**
  * AdsterraGlobalScript component
  * Injects the Adsterra popunder / social bar script into the document body
- * when enabled, and automatically removes it when disabled (e.g. on downloads page).
+ * when enabled. When disabled, it activates comprehensive ad blocking,
+ * removes all ad elements (floating social bars, popunder click triggers, iframes),
+ * and prevents new ones from appearing.
  */
 export function AdsterraGlobalScript({ enabled = true }) {
   useEffect(() => {
+    setAdBlockActive(!enabled);
+    applyAdShieldCss(!enabled);
+
     if (!enabled) {
-      const existing = document.getElementById("adsterra-global-tag");
-      if (existing) existing.remove();
-      return;
+      // Purge all ad elements immediately
+      purgeAllAdElements();
+
+      // MutationObserver to immediately destroy any dynamically injected ad elements
+      const observer = new MutationObserver((mutations) => {
+        if (!isAdBlockActive) return;
+        let needsPurge = false;
+        for (const m of mutations) {
+          for (const node of m.addedNodes) {
+            if (node.nodeType === 1) { // ELEMENT_NODE
+              const html = (node.outerHTML || "").toLowerCase();
+              const src = (node.src || "").toLowerCase();
+              if (
+                src.includes("bauval.org") ||
+                src.includes("adsterra") ||
+                html.includes("bauval.org") ||
+                html.includes("adsterra") ||
+                html.includes("asg_")
+              ) {
+                try {
+                  node.remove();
+                } catch (_) {}
+                needsPurge = true;
+              }
+            }
+          }
+        }
+        if (needsPurge) {
+          purgeAllAdElements();
+        }
+      });
+
+      observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+      });
+
+      return () => {
+        observer.disconnect();
+      };
     }
 
+    // When enabled is true:
     if (document.getElementById("adsterra-global-tag")) return;
 
     const script = document.createElement("script");
@@ -130,6 +365,7 @@ export function AdsterraGlobalScript({ enabled = true }) {
     return () => {
       const s = document.getElementById("adsterra-global-tag");
       if (s) s.remove();
+      purgeAllAdElements();
     };
   }, [enabled]);
 
@@ -149,7 +385,12 @@ export default function AdBanner({
   unit: unitProp = null, // Optional explicit unit override
   className = "",
   label = "Advertisement",
+  enabled = true,
 }) {
+  if (enabled === false) {
+    return null;
+  }
+
   const [windowWidth, setWindowWidth] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth : 1024
   );
