@@ -2854,7 +2854,7 @@ export default function App() {
           />
 
           {/* Right Header Navigation */}
-          <div className="ml-auto flex items-center gap-2 sm:gap-2.5 flex-shrink-0">
+          <div className="ml-auto flex items-center gap-2.5 sm:gap-3 flex-shrink-0">
             {/* Back breadcrumb */}
             {view === "playing" && (
               <button onClick={goBack} className="ios-back-button">
@@ -2868,9 +2868,6 @@ export default function App() {
                 <span>Back</span>
               </button>
             )}
-
-            {/* Ads Toggle Button (persists choice across all pages) */}
-            <AdsToggleButton showAds={showAds} onToggle={toggleAds} />
 
             {/* Navigation Tabs (Home / Search / Downloads) - Icons Only */}
             <nav className="flex items-center bg-[#13141d] p-1 rounded-full border border-[#272938] gap-1">
@@ -3020,6 +3017,11 @@ export default function App() {
                     onChoose={chooseSuggestion}
                     platform={selectedPlatform.name}
                   />
+
+                  {/* Ads Toggle Button (Landing page only) */}
+                  <div className="flex justify-center items-center mt-5">
+                    <AdsToggleButton showAds={showAds} onToggle={toggleAds} />
+                  </div>
 
                   {/* Ad Banner moved after search bar and button */}
                   {showAds && (
